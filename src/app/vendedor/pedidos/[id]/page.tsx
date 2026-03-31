@@ -138,47 +138,47 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         }
       />
 
-      <div className="p-6 space-y-6 max-w-4xl">
+      <div className="p-6 space-y-8 max-w-4xl mx-auto">
         {/* Header */}
-        <div className="bg-[#1A1D27] border border-white/8 rounded-xl p-5">
-          <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-5">
             <div>
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3 mb-3">
                 <StatusBadge status={order.status} />
                 <QualityBadge quality={order.quality} />
-                <span className="text-xs text-slate-500 font-mono">{order.id.toUpperCase()}</span>
+                <span className="text-[11px] text-zinc-500 font-mono font-medium bg-zinc-800/50 px-2 py-0.5 rounded-md border border-zinc-700/50">{order.id.split('-')[0].toUpperCase()}</span>
               </div>
-              <h2 className="text-xl font-bold text-white">{order.partName}</h2>
-              <p className="text-sm text-slate-400 mt-1">
-                🚗 {order.vehicleBrand} {order.vehicleModel} — Año {order.vehicleYear}
+              <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">{order.partName}</h2>
+              <p className="text-sm font-medium text-zinc-400 mt-1">
+                🚗 {order.vehicleBrand} {order.vehicleModel} — <span className="text-zinc-500">Año {order.vehicleYear}</span>
               </p>
-              <p className="text-sm text-orange-400 mt-1">🏭 {order.workshop?.name}</p>
+              <p className="text-sm font-semibold text-orange-500 mt-2 bg-orange-500/10 inline-flex items-center px-2 py-1 rounded-md border border-orange-500/20">🏭 {order.workshop?.name}</p>
             </div>
-            <div className="flex flex-col items-end gap-2 text-xs text-slate-500">
+            <div className="flex flex-col sm:items-end gap-1 text-xs font-medium text-zinc-500">
               <div>Creado: {formatDate(order.createdAt)}</div>
               <div>Actualizado: {formatDate(order.updatedAt)}</div>
             </div>
           </div>
 
           {order.description && (
-            <div className="bg-[#0f1117] rounded-lg p-4 border border-white/5">
-              <p className="text-sm text-slate-300 leading-relaxed">{order.description}</p>
+            <div className="bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/80 shadow-inner">
+              <p className="text-sm font-medium text-zinc-300 leading-relaxed max-w-2xl">{order.description}</p>
             </div>
           )}
 
           {order.images.length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs text-slate-500 mb-2">📷 Fotos del taller</p>
-              <div className="flex gap-3 flex-wrap">
+            <div className="mt-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">📷 Fotos del taller</p>
+              <div className="flex gap-4 flex-wrap">
                 {order.images.map(img => (
-                  <img key={img.id} src={img.url} alt="Referencia" className="w-32 h-24 object-cover rounded-lg border border-white/8" />
+                  <img key={img.id} src={img.url} alt="Referencia" className="w-32 h-24 object-cover rounded-xl border border-zinc-700/50 shadow-sm" />
                 ))}
               </div>
             </div>
           )}
 
           {/* Actions */}
-          <div className="mt-4 pt-4 border-t border-white/8 flex items-center gap-2 flex-wrap">
+          <div className="mt-6 pt-5 border-t border-zinc-800/80 flex items-center gap-3 flex-wrap">
             {order.status === 'pendiente' && (
               <Button size="sm" variant="secondary" onClick={handleSetInReview} loading={actionLoading}>
                 🔍 Marcar en revisión
@@ -204,12 +204,13 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
         {/* FORMULARIO DE COTIZACIÓN */}
         {showQuoteForm && (
-          <form onSubmit={handleSubmitQuote} className="bg-[#1A1D27] border border-orange-500/20 rounded-xl overflow-hidden">
-            <div className="p-5 border-b border-white/8 bg-orange-500/5">
-              <h3 className="font-semibold text-white flex items-center gap-2">
-                💰 Nueva cotización
+          <form onSubmit={handleSubmitQuote} className="bg-zinc-900 border border-orange-500/30 rounded-3xl overflow-hidden shadow-orange-500/5 shadow-xl relative">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-500 opacity-50" />
+            <div className="p-6 border-b border-zinc-800/80 bg-orange-500/5">
+              <h3 className="text-lg font-bold text-orange-100 flex items-center gap-2 tracking-tight">
+                <span className="text-xl">💰</span> Nueva cotización
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Agregá los ítems que querés cotizar para este pedido</p>
+              <p className="text-sm font-medium text-orange-400/80 mt-1">Agregá los ítems y precios para cotizarle al taller</p>
             </div>
 
             <div className="p-5 space-y-6">
@@ -222,23 +223,23 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               />
 
               {/* Items */}
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {items.map((item, idx) => (
-                  <div key={item.tempId} className="bg-[#0f1117] border border-white/8 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-orange-400">Ítem {idx + 1}</span>
+                  <div key={item.tempId} className="bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-6 space-y-4 shadow-sm relative group">
+                    <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3">
+                      <span className="text-sm font-bold text-orange-500 bg-orange-500/10 px-3 py-1 rounded-md uppercase tracking-widest">Ítem {idx + 1}</span>
                       {items.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeItem(item.tempId)}
-                          className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                          className="text-xs font-semibold text-rose-500 hover:text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-md hover:bg-rose-500/20 transition-colors"
                         >
                           🗑️ Eliminar
                         </button>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         label="Nombre del repuesto"
                         required
@@ -269,7 +270,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                       error={errors[`${item.tempId}-description`]}
                     />
 
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Select
                         label="Calidad"
                         value={item.quality}
@@ -290,7 +291,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         label="URL imagen de referencia"
                         value={item.imageUrl || ''}
@@ -307,7 +308,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                     </div>
 
                     {item.price > 0 && (
-                      <div className="text-right text-sm font-bold text-orange-400">
+                      <div className="text-right text-lg font-black text-orange-400 tracking-tight pt-2">
                         {formatCurrency(item.price)}
                       </div>
                     )}
@@ -315,24 +316,26 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 ))}
               </div>
 
-              <Button type="button" variant="secondary" size="sm" onClick={addItem}>
-                ➕ Agregar otro ítem
-              </Button>
+              <div className="flex justify-center md:justify-start pt-2">
+                <Button type="button" variant="secondary" size="sm" onClick={addItem}>
+                  ➕ Agregar otro ítem
+                </Button>
+              </div>
 
               {/* Total */}
-              <div className="bg-[#0f1117] rounded-xl p-4 border border-white/8 flex items-center justify-between">
-                <span className="text-sm text-slate-400">Total cotización</span>
-                <span className="text-xl font-bold text-white">
+              <div className="bg-orange-500/10 rounded-2xl p-5 border border-orange-500/20 flex items-center justify-between shadow-inner mt-4">
+                <span className="text-sm font-bold text-orange-400 uppercase tracking-widest">Total cotización</span>
+                <span className="text-2xl font-black text-white tracking-tight">
                   {formatCurrency(items.reduce((s, i) => s + (i.price || 0), 0))}
                 </span>
               </div>
             </div>
 
-            <div className="p-5 border-t border-white/8 flex items-center justify-end gap-3">
-              <Button type="button" variant="ghost" onClick={() => setShowQuoteForm(false)}>
+            <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/50 flex flex-col md:flex-row items-center justify-end gap-4">
+              <Button type="button" variant="ghost" onClick={() => setShowQuoteForm(false)} className="w-full md:w-auto">
                 Cancelar
               </Button>
-              <Button type="submit" loading={loading} size="lg">
+              <Button type="submit" loading={loading} size="lg" className="w-full md:w-auto">
                 📤 Enviar cotización al taller
               </Button>
             </div>
@@ -341,52 +344,52 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
         {/* COTIZACIÓN EXISTENTE */}
         {order.quote && (
-          <div className="bg-[#1A1D27] border border-white/8 rounded-xl overflow-hidden">
-            <div className="p-5 border-b border-white/8">
-              <h3 className="font-semibold text-white flex items-center gap-2">
-                💰 Cotización enviada
+          <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-lg shadow-black/20">
+            <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/50">
+              <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
+                <span className="text-xl drop-shadow-sm">💰</span> Cotización enviada
               </h3>
               {order.quote.sentAt && (
-                <p className="text-xs text-slate-500 mt-0.5">Enviada el {formatDate(order.quote.sentAt)}</p>
+                <p className="text-xs font-medium text-zinc-500 mt-1">Enviada el {formatDate(order.quote.sentAt)}</p>
               )}
               {order.quote.notes && (
-                <div className="mt-3 bg-[#0f1117] rounded-lg p-3 border border-white/5">
-                  <p className="text-xs text-slate-400">📝 {order.quote.notes}</p>
+                <div className="mt-4 bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/80 shadow-inner">
+                  <p className="text-sm font-medium text-zinc-400">📝 {order.quote.notes}</p>
                 </div>
               )}
             </div>
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-zinc-800/80">
               {order.quote.items.map(item => (
-                <div key={item.id} className="p-5 flex gap-4">
+                <div key={item.id} className="p-6 flex flex-col md:flex-row gap-5 hover:bg-zinc-800/30 transition-colors">
                   {item.imageUrl && (
-                    <img src={item.imageUrl} alt={item.partName} className="w-20 h-16 object-cover rounded-lg border border-white/8 flex-shrink-0" />
+                    <img src={item.imageUrl} alt={item.partName} className="w-full md:w-24 md:h-20 object-cover rounded-xl border border-zinc-700/50 shadow-sm flex-shrink-0" />
                   )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h4 className="font-medium text-white text-sm">{item.partName}</h4>
-                        <p className="text-xs text-slate-400 mt-0.5">{item.description}</p>
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-zinc-100 text-base">{item.partName}</h4>
+                        <p className="text-sm font-medium text-zinc-400">{item.description}</p>
                       </div>
-                      <div className="text-right">
-                        <div className="text-base font-bold text-white">{formatCurrency(item.price)}</div>
+                      <div className="text-left md:text-right flex-shrink-0 space-y-2">
+                        <div className="text-xl font-extrabold text-zinc-100 tracking-tight">{formatCurrency(item.price)}</div>
                         <QualityBadge quality={item.quality} />
-                        {item.approved === true && <div className="text-xs text-green-400 mt-1">✅ Aprobado</div>}
-                        {item.approved === false && <div className="text-xs text-red-400 mt-1">❌ Rechazado</div>}
-                        {item.approved === null && order.status === 'cotizado' && <div className="text-xs text-yellow-400 mt-1">⏳ Pendiente</div>}
+                        {item.approved === true && <div className="text-xs font-bold text-emerald-400 bg-emerald-500/10 inline-block px-2 py-1 rounded-md border border-emerald-500/20 shadow-sm">✅ Aprobado</div>}
+                        {item.approved === false && <div className="text-xs font-bold text-rose-400 bg-rose-500/10 inline-block px-2 py-1 rounded-md border border-rose-500/20 shadow-sm">❌ Rechazado</div>}
+                        {item.approved === null && order.status === 'cotizado' && <div className="text-xs font-bold text-amber-400 bg-amber-500/10 inline-block px-2 py-1 rounded-md border border-amber-500/20 shadow-sm">⏳ Pendiente</div>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
-                      {item.manufacturer && <span>🏭 {item.manufacturer}</span>}
-                      {item.supplier && <span>📦 {item.supplier}</span>}
-                      {item.notes && <span>💬 {item.notes}</span>}
+                    <div className="flex flex-wrap items-center gap-3 mt-3 text-xs font-semibold text-zinc-500">
+                      {item.manufacturer && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">🏭 {item.manufacturer}</span>}
+                      {item.supplier && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">📦 {item.supplier}</span>}
+                      {item.notes && <span className="bg-zinc-950/30 px-2 py-1 rounded-md border border-zinc-800/50 italic text-zinc-400">💬 {item.notes}</span>}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="p-5 border-t border-white/8 bg-[#0f1117]/50 flex items-center justify-between">
-              <span className="text-sm text-slate-400">{order.quote.items.length} ítem(s)</span>
-              <span className="text-lg font-bold text-white">
+            <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/60 flex items-center justify-between shadow-inner">
+              <span className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{order.quote.items.length} ítem(s)</span>
+              <span className="text-2xl font-black text-white tracking-tight">
                 {formatCurrency(order.quote.items.reduce((s, i) => s + i.price, 0))}
               </span>
             </div>
@@ -394,8 +397,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         )}
 
         {/* Historial */}
-        <div className="bg-[#1A1D27] border border-white/8 rounded-xl p-5">
-          <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+        <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
             📜 Historial del pedido
           </h3>
           <OrderTimeline events={order.events} />

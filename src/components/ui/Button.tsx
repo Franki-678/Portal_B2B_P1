@@ -9,12 +9,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<string, string> = {
-  primary: 'bg-orange-600 hover:bg-orange-500 text-white border-transparent shadow-lg shadow-orange-900/30',
-  secondary: 'bg-surface-2 hover:bg-surface-3 text-slate-200 border-white/10',
-  ghost: 'bg-transparent hover:bg-white/5 text-slate-300 border-transparent',
-  danger: 'bg-red-600/15 hover:bg-red-600/25 text-red-400 border-red-500/30',
-  success: 'bg-green-600/15 hover:bg-green-600/25 text-green-400 border-green-500/30',
-  outline: 'bg-transparent hover:bg-white/5 text-slate-300 border-white/20',
+  primary: 'bg-orange-600 hover:bg-orange-500 text-white shadow-sm shadow-orange-900/50 border-transparent',
+  secondary: 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border-zinc-700 shadow-sm',
+  ghost: 'bg-transparent hover:bg-zinc-800/80 text-zinc-300 border-transparent',
+  danger: 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border-rose-500/30',
+  success: 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  outline: 'bg-transparent hover:bg-zinc-800 text-zinc-300 border-zinc-700',
 };
 
 const sizeClasses: Record<string, string> = {
@@ -38,9 +38,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex items-center justify-center rounded-lg border font-medium transition-all duration-200',
-        'focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:ring-offset-2 focus:ring-offset-gray-900',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center rounded-lg border font-medium whitespace-nowrap transition-all duration-200 ease-in-out',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98]',
+        'disabled:opacity-50 disabled:pointer-events-none',
         variantClasses[variant],
         sizeClasses[size],
         fullWidth && 'w-full',

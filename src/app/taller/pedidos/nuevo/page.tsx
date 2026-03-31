@@ -107,11 +107,11 @@ export default function NuevoPedidoPage() {
         <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Vehículo */}
-            <div className="bg-[#1A1D27] border border-white/8 rounded-xl p-5 space-y-4">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                🚗 Datos del vehículo
+            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
+              <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
+                <span className="text-xl">🚗</span> Datos del vehículo
               </h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <Select
                   label="Marca"
                   required
@@ -130,7 +130,7 @@ export default function NuevoPedidoPage() {
                   error={errors.vehicleModel}
                 />
               </div>
-              <div className="w-32">
+              <div className="w-full md:w-1/3">
                 <Select
                   label="Año"
                   required
@@ -143,9 +143,9 @@ export default function NuevoPedidoPage() {
             </div>
 
             {/* Repuesto */}
-            <div className="bg-[#1A1D27] border border-white/8 rounded-xl p-5 space-y-4">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                🔧 Repuesto solicitado
+            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
+              <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
+                <span className="text-xl">🔧</span> Repuesto solicitado
               </h2>
               <Input
                 label="Pieza / Repuesto"
@@ -160,7 +160,7 @@ export default function NuevoPedidoPage() {
                 required
                 value={form.description}
                 onChange={set('description')}
-                placeholder="Describí el problema, el estado del vehículo, si tiene accesorios específicos que quieras conservar, observaciones del cliente, etc."
+                placeholder="Describí el problema, el estado del vehículo, observaciones del cliente, etc."
                 rows={4}
                 error={errors.description}
                 hint="Cuanto más detallado, mejor podremos cotizarte. Mín. 20 caracteres."
@@ -168,42 +168,42 @@ export default function NuevoPedidoPage() {
             </div>
 
             {/* Calidad */}
-            <div className="bg-[#1A1D27] border border-white/8 rounded-xl p-5 space-y-4">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                ⭐ Calidad deseada
+            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
+              <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
+                <span className="text-xl">⭐</span> Calidad deseada
               </h2>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {QUALITY_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, quality: opt.value }))}
-                    className={`p-3 rounded-xl border text-left transition-all ${
+                    className={`p-4 rounded-xl border text-left transition-all duration-200 ${
                       form.quality === opt.value
-                        ? 'border-orange-500/50 bg-orange-500/10'
-                        : 'border-white/8 hover:border-white/20 bg-[#0f1117]'
+                        ? 'border-orange-500 bg-orange-500/10 shadow-inner'
+                        : 'border-zinc-800 bg-zinc-950/50 hover:border-zinc-600'
                     }`}
                   >
-                    <div className="text-base mb-1">{opt.label}</div>
-                    <div className="text-xs text-slate-400">{opt.desc}</div>
+                    <div className="text-sm font-bold text-zinc-200 mb-1">{opt.label}</div>
+                    <div className="text-xs font-medium text-zinc-500">{opt.desc}</div>
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Imágenes (placeholder) */}
-            <div className="bg-[#1A1D27] border border-white/8 rounded-xl p-5">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-                📷 Fotos de referencia
-                <span className="text-xs font-normal text-slate-500">(opcional)</span>
+            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-sm">
+              <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 mb-4 tracking-tight">
+                <span className="text-xl">📷</span> Fotos de referencia
+                <span className="text-xs font-medium text-zinc-500 ml-2">(opcional)</span>
               </h2>
-              <div className="border-2 border-dashed border-white/10 rounded-lg p-8 text-center">
-                <div className="text-3xl mb-2">📷</div>
-                <p className="text-xs text-slate-500">
-                  La carga de imágenes estará disponible próximamente.
+              <div className="border-2 border-dashed border-zinc-700/50 rounded-xl p-10 text-center bg-zinc-950/30 hover:bg-zinc-900/50 hover:border-orange-500/30 transition-all duration-200">
+                <div className="text-4xl mb-3 opacity-60 drop-shadow-sm">📷</div>
+                <p className="text-sm font-bold text-zinc-300">
+                  La carga de imágenes estará disponible próximamente
                 </p>
-                <p className="text-xs text-slate-600 mt-1">
-                  (Preparado para integración con Supabase Storage)
+                <p className="text-xs font-medium text-zinc-600 mt-2 max-w-sm mx-auto">
+                  Preparado para integración con Supabase Storage (Drag & Drop múltiple)
                 </p>
               </div>
             </div>

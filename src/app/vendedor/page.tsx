@@ -47,30 +47,30 @@ export default function VendedorDashboard() {
 
         {/* Pedidos urgentes */}
         {urgent.length > 0 && (
-          <div className="bg-yellow-500/8 border border-yellow-500/20 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-bold text-amber-100 flex items-center gap-2 tracking-tight">
                 ⚡ Pedidos sin respuesta
-                <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 text-xs shadow-inner">
                   {urgent.length}
                 </span>
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/vendedor/pedidos?status=pendiente')}>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/vendedor/pedidos?status=pendiente')} className="text-amber-400/80 hover:text-amber-400">
                 Ver todos →
               </Button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {urgent.map(order => (
                 <div
                   key={order.id}
                   onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
-                  className="flex items-center justify-between bg-[#0f1117] rounded-lg px-4 py-3 border border-white/5 hover:border-yellow-500/25 cursor-pointer transition-all"
+                  className="flex items-center justify-between bg-zinc-950/50 rounded-xl px-5 py-3.5 border border-amber-500/20 hover:border-amber-500/40 hover:bg-zinc-900/80 cursor-pointer transition-all duration-200 shadow-sm group"
                 >
-                  <div>
-                    <span className="text-sm font-medium text-white">{order.partName}</span>
-                    <span className="text-xs text-slate-400 ml-3">{order.workshop?.name}</span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-zinc-100 group-hover:text-amber-400 transition-colors">{order.partName}</span>
+                    <span className="text-xs text-zinc-500 font-medium">{order.workshop?.name}</span>
                   </div>
-                  <span className="text-xs text-slate-400">{order.vehicleBrand} {order.vehicleModel}</span>
+                  <span className="text-sm font-medium text-zinc-400 bg-zinc-900 px-3 py-1 rounded-lg border border-zinc-800">{order.vehicleBrand} {order.vehicleModel}</span>
                 </div>
               ))}
             </div>
@@ -79,25 +79,25 @@ export default function VendedorDashboard() {
 
         {/* Tabla reciente */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white">Actividad reciente</h2>
-            <Button variant="ghost" size="sm" onClick={() => router.push('/vendedor/pedidos')}>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-base font-bold text-zinc-100 tracking-tight">Actividad reciente</h2>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/vendedor/pedidos')} className="text-zinc-400 hover:text-zinc-100">
               Ver todos →
             </Button>
           </div>
-          <div className="bg-[#1A1D27] border border-white/8 rounded-xl overflow-hidden">
+          <div className="bg-zinc-900 border border-zinc-800/80 rounded-2xl overflow-hidden shadow-sm">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left border-b border-white/8">
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">ID</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Repuesto</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Taller</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Estado</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Calidad</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Actualizado</th>
+                <tr className="text-left border-b border-zinc-800/80 bg-zinc-950/30">
+                  <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">ID</th>
+                  <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Repuesto</th>
+                  <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Taller</th>
+                  <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Estado</th>
+                  <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Calidad</th>
+                  <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Actualizado</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-800/50">
                 {recent.map(order => (
                   <OrderTableRow
                     key={order.id}

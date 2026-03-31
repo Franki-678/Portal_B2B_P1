@@ -54,14 +54,14 @@ export default function TallerDashboard() {
 
         {/* Acción rápida si hay pedidos cotizados */}
         {metrics.cotizados > 0 && (
-          <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">💰</span>
+          <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-5 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-4">
+              <span className="text-3xl drop-shadow-sm">💰</span>
               <div>
-                <div className="text-sm font-semibold text-white">
+                <div className="text-base font-bold text-indigo-100 tracking-tight">
                   Tenés {metrics.cotizados} cotización{metrics.cotizados !== 1 ? 'es' : ''} para revisar
                 </div>
-                <div className="text-xs text-slate-400">Revisá y aprobá los presupuestos recibidos</div>
+                <div className="text-sm font-medium text-indigo-400/80 mt-0.5">Revisá y aprobá los presupuestos recibidos</div>
               </div>
             </div>
             <Button
@@ -76,18 +76,18 @@ export default function TallerDashboard() {
 
         {/* Pedidos recientes */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-white">Pedidos recientes</h2>
-            <Button variant="ghost" size="sm" onClick={() => router.push('/taller/pedidos')}>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-base font-bold text-zinc-100 tracking-tight">Pedidos recientes</h2>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/taller/pedidos')} className="text-zinc-400 hover:text-zinc-100">
               Ver todos →
             </Button>
           </div>
 
           {recent.length === 0 ? (
-            <div className="bg-[#1A1D27] border border-white/8 rounded-xl p-10 text-center">
-              <div className="text-4xl mb-3">📭</div>
-              <h3 className="font-semibold text-slate-300 mb-2">Sin pedidos todavía</h3>
-              <p className="text-sm text-slate-500 mb-4">Creá tu primer pedido para solicitar repuestos</p>
+            <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-12 text-center shadow-inner shadow-black/10">
+              <div className="text-5xl mb-4 opacity-70 drop-shadow-md">📭</div>
+              <h3 className="font-bold text-zinc-200 mb-2">Sin pedidos todavía</h3>
+              <p className="text-sm text-zinc-500 mb-6 font-medium">Creá tu primer pedido para solicitar repuestos a proveedores</p>
               <Button onClick={() => router.push('/taller/pedidos/nuevo')}>
                 ➕ Crear primer pedido
               </Button>

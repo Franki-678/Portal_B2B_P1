@@ -15,13 +15,13 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  pendiente: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-  en_revision: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  cotizado: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-  aprobado_parcial: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
-  aprobado: 'bg-green-500/15 text-green-400 border-green-500/30',
-  rechazado: 'bg-red-500/15 text-red-400 border-red-500/30',
-  cerrado: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
+  pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  en_revision: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+  cotizado: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  aprobado_parcial: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  aprobado: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  rechazado: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  cerrado: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
 };
 
 export const QUALITY_LABELS: Record<OrderQuality, string> = {
@@ -31,9 +31,9 @@ export const QUALITY_LABELS: Record<OrderQuality, string> = {
 };
 
 export const QUALITY_COLORS: Record<OrderQuality, string> = {
-  alta: 'bg-green-500/15 text-green-400 border-green-500/30',
-  media: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-  baja: 'bg-gray-500/15 text-gray-400 border-gray-500/30',
+  alta: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  media: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  baja: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
 };
 
 export const EVENT_ACTION_LABELS: Record<EventAction, string> = {
