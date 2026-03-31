@@ -1,0 +1,127 @@
+'use client';
+
+import { useDataStore } from '@/contexts/DataStoreContext';
+import { TopBar, EmptyState } from '@/components/ui/Layout';
+import { OrderTableRow } from '@/components/orders/OrderCard';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { OrderStatus } from '@/lib/types';
+import { ORDER_STATUS_LABELS } from '@/lib/constants';
+import { Button } from '@/components/ui/Button';
+
+const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'pendiente', label: 'Pendientes' },
+  { value: 'en_revision', label: 'En revisión' },
+  { value: 'cotizado', label: 'Cotizados' },
+  { value: 'aprobado', label: 'Aprobados' },
+  { value: 'aprobado_parcial', label: 'Aprobado parcial' },
+  { value: 'rechazado', label: 'Rechazados' },
+  { value: 'cerrado', label: 'Cerrados' },
+];
+
+function PedidosContent() {
+  const { getAllOrders } = useDataStore();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialStatus = (searchParams.get('status') as OrderStatus | null) || 'todos';
+  const [filter, setFilter] = useState<'todos' | OrderStatus>(initialStatus as 'todos' | OrderStatus);
+  const [search, setSearch] = useState('');
+
+  const all = getAllOrders();
+  let filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter(o =>
+      o.partName.toLowerCase().includes(q) ||
+      o.vehicleBrand.toLowerCase().includes(q) ||
+      o.vehicleModel.toLowerCase().includes(q) ||
+      (o.workshop?.name.toLowerCase().includes(q) ?? false)
+    );
+  }
+
+  return (
+    <>
+      <TopBar
+        title="Todos los pedidos"
+        subtitle={`${all.length} pedidos en el sistema`}
+      />
+      <div className="p-6 space-y-6">
+        {/* Search + Filters */}
+        <div className="space-y-3">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="🔍 Buscar por repuesto, vehículo, taller..."
+            className="w-full max-w-md px-4 py-2.5 bg-[#1A1D27] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500/40"
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            {STATUS_FILTERS.map(f => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                  filter === f.value
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                    : 'bg-[#1A1D27] text-slate-400 border-white/8 hover:text-white hover:border-white/20'
+                }`}
+              >
+                {f.label}
+                <span className="ml-1.5 text-slate-500">
+                  ({f.value === 'todos' ? all.length : all.filter(o => o.status === f.value).length})
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Table */}
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon="📭"
+            title="Sin pedidos"
+            description="No hay pedidos que coincidan con los filtros seleccionados."
+            action={
+              <Button variant="secondary" onClick={() => { setFilter('todos'); setSearch(''); }}>
+                Limpiar filtros
+              </Button>
+            }
+          />
+        ) : (
+          <div className="bg-[#1A1D27] border border-white/8 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b border-white/8">
+                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">ID</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Repuesto / Vehículo</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Taller</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Estado</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Calidad</th>
+                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Actualizado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(order => (
+                  <OrderTableRow
+                    key={order.id}
+                    order={order}
+                    onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default function VendedorPedidosPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-400">Cargando...</div>}>
+      <PedidosContent />
+    </Suspense>
+  );
+}

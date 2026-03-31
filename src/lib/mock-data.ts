@@ -1,0 +1,398 @@
+import { User, Workshop, Order, Quote, QuoteItem, OrderEvent } from './types';
+
+// ============================================================
+// USUARIOS DEMO
+// ============================================================
+
+export const MOCK_USERS: User[] = [
+  {
+    id: 'user-taller-1',
+    email: 'taller1@demo.com',
+    name: 'Taller AutoSur',
+    role: 'taller',
+    workshopId: 'ws-1',
+  },
+  {
+    id: 'user-taller-2',
+    email: 'taller2@demo.com',
+    name: 'Chapa & Pintura Norte',
+    role: 'taller',
+    workshopId: 'ws-2',
+  },
+  {
+    id: 'user-vendedor-1',
+    email: 'vendedor@demo.com',
+    name: 'Carlos Méndez',
+    role: 'vendedor',
+  },
+];
+
+// ============================================================
+// TALLERES DEMO
+// ============================================================
+
+export const MOCK_WORKSHOPS: Workshop[] = [
+  {
+    id: 'ws-1',
+    name: 'Taller AutoSur',
+    address: 'Av. Corrientes 3450, CABA',
+    phone: '11-4567-8901',
+    contactName: 'Roberto Fernández',
+    email: 'taller1@demo.com',
+    createdAt: '2024-01-15T10:00:00Z',
+  },
+  {
+    id: 'ws-2',
+    name: 'Chapa & Pintura Norte',
+    address: 'Ruta 8 km 45, Pilar, GBA',
+    phone: '0230-456-7890',
+    contactName: 'María González',
+    email: 'taller2@demo.com',
+    createdAt: '2024-02-20T10:00:00Z',
+  },
+];
+
+// ============================================================
+// PEDIDOS DEMO — con datos realistas de autopartes
+// ============================================================
+
+export const MOCK_ORDERS: Order[] = [
+  // ─── PEDIDO 1: pendiente, recién creado ───────────────────
+  {
+    id: 'order-001',
+    workshopId: 'ws-1',
+    workshop: MOCK_WORKSHOPS[0],
+    vehicleBrand: 'Ford',
+    vehicleModel: 'Ranger XL',
+    vehicleYear: 2019,
+    partName: 'Paragolpe delantero',
+    description: 'Necesito paragolpe delantero completo. El vehículo tuvo un impacto frontal leve. Requiere con soporte de neblinero y cámara de retroceso si es posible.',
+    quality: 'media',
+    status: 'pendiente',
+    images: [
+      { id: 'img-001', orderId: 'order-001', url: 'https://placehold.co/400x300/1a1d27/e8420d?text=paragolpe+ford', createdAt: '2025-03-28T09:00:00Z' },
+    ],
+    events: [
+      {
+        id: 'evt-001',
+        orderId: 'order-001',
+        userId: 'user-taller-1',
+        userName: 'Taller AutoSur',
+        action: 'pedido_creado',
+        comment: 'Pedido ingresado desde el portal.',
+        createdAt: '2025-03-28T09:00:00Z',
+      },
+    ],
+    createdAt: '2025-03-28T09:00:00Z',
+    updatedAt: '2025-03-28T09:00:00Z',
+  },
+
+  // ─── PEDIDO 2: cotizado, esperando respuesta del taller ───
+  {
+    id: 'order-002',
+    workshopId: 'ws-1',
+    workshop: MOCK_WORKSHOPS[0],
+    vehicleBrand: 'Volkswagen',
+    vehicleModel: 'Amarok V6',
+    vehicleYear: 2021,
+    partName: 'Capot completo',
+    description: 'Capot con abolladuras por granizo. Necesito capot completo con bisagras. Color original es blanco pero puede ser sin pintar.',
+    quality: 'alta',
+    status: 'cotizado',
+    images: [
+      { id: 'img-002', orderId: 'order-002', url: 'https://placehold.co/400x300/1a1d27/2563eb?text=capot+amarok', createdAt: '2025-03-25T11:00:00Z' },
+      { id: 'img-003', orderId: 'order-002', url: 'https://placehold.co/400x300/1a1d27/16a34a?text=granizo+detalle', createdAt: '2025-03-25T11:01:00Z' },
+    ],
+    quote: {
+      id: 'quote-001',
+      orderId: 'order-002',
+      vendorId: 'user-vendedor-1',
+      notes: 'Tenemos stock disponible. El capot original demora 5 días en llegar de depósito central. La opción aftermarket está disponible inmediatamente.',
+      status: 'enviada',
+      items: [
+        {
+          id: 'qi-001',
+          quoteId: 'quote-001',
+          partName: 'Capot Amarok V6 Original VW',
+          description: 'Capot original Volkswagen para Amarok 2020-2023. Sin pintar, listo para preparación.',
+          quality: 'alta',
+          manufacturer: 'Volkswagen',
+          supplier: 'Distribuidora VW Norte',
+          price: 185000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/e8420d?text=capot+original+VW',
+          notes: 'Disponible en 5 días hábiles.',
+          approved: null,
+        },
+        {
+          id: 'qi-002',
+          quoteId: 'quote-001',
+          partName: 'Capot Amarok Aftermarket',
+          description: 'Capot de reposición de alta calidad. Compatible 100% con el modelo. Sin pintar.',
+          quality: 'media',
+          manufacturer: 'TecMax',
+          supplier: 'Autopartes del Sur',
+          price: 95000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/2563eb?text=capot+aftermarket',
+          notes: 'Stock inmediato. Garantía 6 meses.',
+          approved: null,
+        },
+        {
+          id: 'qi-003',
+          quoteId: 'quote-001',
+          partName: 'Kit bisagras capot',
+          description: 'Par de bisagras capot Amarok. Recomendado cambiar juntas con el capot.',
+          quality: 'alta',
+          manufacturer: 'Volkswagen',
+          supplier: 'Distribuidora VW Norte',
+          price: 18500,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/16a34a?text=bisagras',
+          notes: 'Incluye pernos de montaje.',
+          approved: null,
+        },
+      ],
+      sentAt: '2025-03-26T14:30:00Z',
+      createdAt: '2025-03-26T13:00:00Z',
+    },
+    events: [
+      { id: 'evt-002a', orderId: 'order-002', userId: 'user-taller-1', userName: 'Taller AutoSur', action: 'pedido_creado', createdAt: '2025-03-25T11:00:00Z' },
+      { id: 'evt-002b', orderId: 'order-002', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'pedido_en_revision', comment: 'Consultando stock con proveedores.', createdAt: '2025-03-25T16:00:00Z' },
+      { id: 'evt-002c', orderId: 'order-002', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'cotizacion_enviada', comment: 'Se envió cotización con 3 opciones.', createdAt: '2025-03-26T14:30:00Z' },
+    ],
+    createdAt: '2025-03-25T11:00:00Z',
+    updatedAt: '2025-03-26T14:30:00Z',
+  },
+
+  // ─── PEDIDO 3: aprobado ───────────────────────────────────
+  {
+    id: 'order-003',
+    workshopId: 'ws-1',
+    workshop: MOCK_WORKSHOPS[0],
+    vehicleBrand: 'Toyota',
+    vehicleModel: 'Hilux SRX',
+    vehicleYear: 2022,
+    partName: 'Guardabarro trasero derecho',
+    description: 'Guardabarro trasero derecho con rayones profundos y abollón. Se puede reparar o reemplazar, según lo que convenga.',
+    quality: 'alta',
+    status: 'aprobado',
+    images: [],
+    quote: {
+      id: 'quote-002',
+      orderId: 'order-003',
+      vendorId: 'user-vendedor-1',
+      notes: 'En este caso recomendamos reemplazar el panel ya que el daño está en zona de refuerzo estructural.',
+      status: 'enviada',
+      items: [
+        {
+          id: 'qi-004',
+          quoteId: 'quote-002',
+          partName: 'Guardabarro trasero der. Hilux OEM',
+          description: 'Panel original Toyota Hilux 2021-2024. Compatible con versiones SRX y SR5.',
+          quality: 'alta',
+          manufacturer: 'Toyota',
+          supplier: 'Toyota Parts Argentina',
+          price: 145000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/e8420d?text=guardabarro+hilux',
+          notes: 'OEM. Requiere 3 días para entrega.',
+          approved: true,
+        },
+      ],
+      sentAt: '2025-03-20T10:00:00Z',
+      createdAt: '2025-03-20T09:00:00Z',
+    },
+    events: [
+      { id: 'evt-003a', orderId: 'order-003', userId: 'user-taller-1', userName: 'Taller AutoSur', action: 'pedido_creado', createdAt: '2025-03-18T09:00:00Z' },
+      { id: 'evt-003b', orderId: 'order-003', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'pedido_en_revision', createdAt: '2025-03-18T14:00:00Z' },
+      { id: 'evt-003c', orderId: 'order-003', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'cotizacion_enviada', createdAt: '2025-03-20T10:00:00Z' },
+      { id: 'evt-003d', orderId: 'order-003', userId: 'user-taller-1', userName: 'Taller AutoSur', action: 'cotizacion_aprobada', comment: 'Aprobado. Confirmar fecha de entrega.', createdAt: '2025-03-21T08:30:00Z' },
+    ],
+    createdAt: '2025-03-18T09:00:00Z',
+    updatedAt: '2025-03-21T08:30:00Z',
+  },
+
+  // ─── PEDIDO 4: rechazado ──────────────────────────────────
+  {
+    id: 'order-004',
+    workshopId: 'ws-1',
+    workshop: MOCK_WORKSHOPS[0],
+    vehicleBrand: 'Chevrolet',
+    vehicleModel: 'S10 2.8 TD',
+    vehicleYear: 2020,
+    partName: 'Puerta delantera izquierda',
+    description: 'Puerta del conductor muy dañada. Bisagra rota, ventana inoperativa. Necesito puerta completa con vidrio si es posible.',
+    quality: 'media',
+    status: 'rechazado',
+    images: [
+      { id: 'img-004', orderId: 'order-004', url: 'https://placehold.co/400x300/1a1d27/dc2626?text=puerta+s10', createdAt: '2025-03-10T09:00:00Z' },
+    ],
+    quote: {
+      id: 'quote-003',
+      orderId: 'order-004',
+      vendorId: 'user-vendedor-1',
+      notes: 'Conseguimos puerta completa de desarmadero en buen estado.',
+      status: 'enviada',
+      items: [
+        {
+          id: 'qi-005',
+          quoteId: 'quote-003',
+          partName: 'Puerta delantera izq. S10 (usada)',
+          description: 'Puerta completa de desarmadero. Estado 8/10, sin abolladuras. Sin mecanismo de cierre centralizado.',
+          quality: 'media',
+          manufacturer: 'Chevrolet',
+          supplier: 'Desarmadero San Justo',
+          price: 78000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/d97706?text=puerta+s10+usada',
+          notes: 'Necesita pintura. Disponible inmediatamente.',
+          approved: false,
+        },
+      ],
+      sentAt: '2025-03-12T15:00:00Z',
+      createdAt: '2025-03-12T14:00:00Z',
+    },
+    events: [
+      { id: 'evt-004a', orderId: 'order-004', userId: 'user-taller-1', userName: 'Taller AutoSur', action: 'pedido_creado', createdAt: '2025-03-10T09:00:00Z' },
+      { id: 'evt-004b', orderId: 'order-004', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'cotizacion_enviada', createdAt: '2025-03-12T15:00:00Z' },
+      { id: 'evt-004c', orderId: 'order-004', userId: 'user-taller-1', userName: 'Taller AutoSur', action: 'cotizacion_rechazada', comment: 'El cliente prefirió comprar en otro lado. Gracias.', createdAt: '2025-03-13T10:00:00Z' },
+    ],
+    createdAt: '2025-03-10T09:00:00Z',
+    updatedAt: '2025-03-13T10:00:00Z',
+  },
+
+  // ─── PEDIDO 5: taller 2, en revisión ─────────────────────
+  {
+    id: 'order-005',
+    workshopId: 'ws-2',
+    workshop: MOCK_WORKSHOPS[1],
+    vehicleBrand: 'Peugeot',
+    vehicleModel: '3008 Allure',
+    vehicleYear: 2023,
+    partName: 'Kit óptica delantera completa',
+    description: 'Se necesitan las dos ópticas delanteras. Rotas por accidente. Deben ser full LED como las originales, no acepto halógenas.',
+    quality: 'alta',
+    status: 'en_revision',
+    images: [
+      { id: 'img-005', orderId: 'order-005', url: 'https://placehold.co/400x300/1a1d27/7c3aed?text=optica+peugeot', createdAt: '2025-03-27T08:00:00Z' },
+    ],
+    events: [
+      { id: 'evt-005a', orderId: 'order-005', userId: 'user-taller-2', userName: 'Chapa & Pintura Norte', action: 'pedido_creado', createdAt: '2025-03-27T08:00:00Z' },
+      { id: 'evt-005b', orderId: 'order-005', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'pedido_en_revision', comment: 'Consultando importadores de ópticas LED Peugeot.', createdAt: '2025-03-27T11:00:00Z' },
+    ],
+    createdAt: '2025-03-27T08:00:00Z',
+    updatedAt: '2025-03-27T11:00:00Z',
+  },
+
+  // ─── PEDIDO 6: taller 2, aprobado parcial ─────────────────
+  {
+    id: 'order-006',
+    workshopId: 'ws-2',
+    workshop: MOCK_WORKSHOPS[1],
+    vehicleBrand: 'Renault',
+    vehicleModel: 'Duster Oroch',
+    vehicleYear: 2020,
+    partName: 'Frente completo post-choque',
+    description: 'Choque frontal fuerte. Necesito: paragolpe, radiador, soporte radiador y ópticas delanteras. Todo junto si es posible.',
+    quality: 'media',
+    status: 'aprobado_parcial',
+    images: [],
+    quote: {
+      id: 'quote-004',
+      orderId: 'order-006',
+      vendorId: 'user-vendedor-1',
+      notes: 'Conseguimos casi todo. El radiador original no está disponible, ofrecemos aftermarket de buena calidad.',
+      status: 'enviada',
+      items: [
+        {
+          id: 'qi-006',
+          quoteId: 'quote-004',
+          partName: 'Paragolpe delantero Oroch',
+          description: 'Paragolpe aftermarket compatible. Sin pintar.',
+          quality: 'media',
+          manufacturer: 'APM',
+          supplier: 'Autopartes del Sur',
+          price: 52000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/e8420d?text=paragolpe+oroch',
+          approved: true,
+        },
+        {
+          id: 'qi-007',
+          quoteId: 'quote-004',
+          partName: 'Radiador Oroch aftermarket',
+          description: 'Radiador de aluminio compatible con motor 2.0 y 1.6.',
+          quality: 'media',
+          manufacturer: 'Koyorad',
+          supplier: 'Refrigeración Total',
+          price: 68000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/2563eb?text=radiador+oroch',
+          approved: false,
+        },
+        {
+          id: 'qi-008',
+          quoteId: 'quote-004',
+          partName: 'Kit ópticas delanteras Oroch',
+          description: 'Par de ópticas delanteras. Compatible con 2019-2022.',
+          quality: 'media',
+          manufacturer: 'DLT',
+          supplier: 'Iluminación Auto',
+          price: 89000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/16a34a?text=opticas+oroch',
+          approved: true,
+        },
+      ],
+      sentAt: '2025-03-23T16:00:00Z',
+      createdAt: '2025-03-23T15:00:00Z',
+    },
+    events: [
+      { id: 'evt-006a', orderId: 'order-006', userId: 'user-taller-2', userName: 'Chapa & Pintura Norte', action: 'pedido_creado', createdAt: '2025-03-22T09:00:00Z' },
+      { id: 'evt-006b', orderId: 'order-006', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'cotizacion_enviada', createdAt: '2025-03-23T16:00:00Z' },
+      { id: 'evt-006c', orderId: 'order-006', userId: 'user-taller-2', userName: 'Chapa & Pintura Norte', action: 'cotizacion_aprobada_parcial', comment: 'Aprobamos el paragolpe y las ópticas. El radiador lo conseguimos nosotros.', createdAt: '2025-03-24T10:00:00Z' },
+    ],
+    createdAt: '2025-03-22T09:00:00Z',
+    updatedAt: '2025-03-24T10:00:00Z',
+  },
+
+  // ─── PEDIDO 7: cerrado ────────────────────────────────────
+  {
+    id: 'order-007',
+    workshopId: 'ws-2',
+    workshop: MOCK_WORKSHOPS[1],
+    vehicleBrand: 'Honda',
+    vehicleModel: 'Civic EXL',
+    vehicleYear: 2018,
+    partName: 'Techo solar completo (moonroof)',
+    description: 'Mecanismo roto, el vidrio tiene fisura. Necesito el conjunto completo con motor y cristal.',
+    quality: 'alta',
+    status: 'cerrado',
+    images: [],
+    quote: {
+      id: 'quote-005',
+      orderId: 'order-007',
+      vendorId: 'user-vendedor-1',
+      notes: 'Pieza importada. Demora entre 15-20 días hábiles desde importador.',
+      status: 'enviada',
+      items: [
+        {
+          id: 'qi-009',
+          quoteId: 'quote-005',
+          partName: 'Moonroof Honda Civic 2016-2019',
+          description: 'Conjunto completo con motor eléctrico y cristal. OEM importado.',
+          quality: 'alta',
+          manufacturer: 'Honda',
+          supplier: 'Importadora Suiza Auto',
+          price: 320000,
+          imageUrl: 'https://placehold.co/300x200/1a1d27/e8420d?text=techo+solar+civic',
+          notes: '15-20 días hábiles.',
+          approved: true,
+        },
+      ],
+      sentAt: '2025-03-05T12:00:00Z',
+      createdAt: '2025-03-05T11:00:00Z',
+    },
+    events: [
+      { id: 'evt-007a', orderId: 'order-007', userId: 'user-taller-2', userName: 'Chapa & Pintura Norte', action: 'pedido_creado', createdAt: '2025-03-01T09:00:00Z' },
+      { id: 'evt-007b', orderId: 'order-007', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'cotizacion_enviada', createdAt: '2025-03-05T12:00:00Z' },
+      { id: 'evt-007c', orderId: 'order-007', userId: 'user-taller-2', userName: 'Chapa & Pintura Norte', action: 'cotizacion_aprobada', createdAt: '2025-03-06T09:00:00Z' },
+      { id: 'evt-007d', orderId: 'order-007', userId: 'user-vendedor-1', userName: 'Carlos Méndez', action: 'pedido_cerrado', comment: 'Pedido entregado conforme el 18/03. Factura N° 001-00023481.', createdAt: '2025-03-20T14:00:00Z' },
+    ],
+    createdAt: '2025-03-01T09:00:00Z',
+    updatedAt: '2025-03-20T14:00:00Z',
+  },
+];

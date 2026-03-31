@@ -1,36 +1,163 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Portal B2B Autopartes — Prototipo 1.1
 
-## Getting Started
+Sistema B2B para talleres de chapa y pintura. Conecta talleres con vendedores de autopartes: pedidos, cotizaciones, aprobaciones y trazabilidad en tiempo real.
 
-First, run the development server:
+---
+
+## 🚀 Instalación y ejecución
 
 ```bash
+# Clonar o descomprimir el proyecto
+cd portal-b2b
+
+# Instalar dependencias
+npm install
+
+# Ejecutar en desarrollo
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Abrir en el navegador
+# http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🔑 Credenciales demo
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Usuario | Email | Contraseña | Rol |
+|---------|-------|------------|-----|
+| Taller AutoSur | `taller1@demo.com` | `demo1234` | taller |
+| Chapa & Pintura Norte | `taller2@demo.com` | `demo1234` | taller |
+| Vendedor (Carlos Méndez) | `vendedor@demo.com` | `demo1234` | vendedor |
 
-## Learn More
+> Las credenciales son visibles en la landing (`/`) y en la pantalla de login.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🗺️ Rutas de la aplicación
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Ruta | Descripción |
+|------|-------------|
+| `/` | Landing con info de portales y credenciales |
+| `/login` | Login con acceso rápido demo |
+| `/taller` | Dashboard del taller |
+| `/taller/pedidos` | Lista de pedidos del taller |
+| `/taller/pedidos/nuevo` | Formulario nuevo pedido |
+| `/taller/pedidos/[id]` | Detalle + cotización + aprobar/rechazar |
+| `/vendedor` | Dashboard del vendedor |
+| `/vendedor/pedidos` | Tabla de todos los pedidos |
+| `/vendedor/pedidos/[id]` | Detalle + formulario cotización |
+| `/vendedor/clientes` | Lista de talleres/clientes |
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🔄 Flujo del sistema
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+1. Taller hace login → entra a /taller
+2. Taller crea pedido → /taller/pedidos/nuevo
+3. Pedido queda en estado "pendiente"
+4. Vendedor ve el pedido → /vendedor/pedidos
+5. Vendedor abre el pedido, lo marca "en revisión"
+6. Vendedor carga cotización (multi-ítem) → estado "cotizado"
+7. Taller recibe la cotización → puede:
+   - Aprobar todo → estado "aprobado"
+   - Rechazar → estado "rechazado"
+   - Aprobar parcialmente (seleccionar ítems) → "aprobado_parcial"
+8. Vendedor puede cerrar el pedido → "cerrado"
+```
+
+---
+
+## 🛠️ Stack tecnológico
+
+- **Framework**: Next.js 14 (App Router)
+- **Lenguaje**: TypeScript
+- **Estilos**: Tailwind CSS
+- **Estado**: React Context (mock data)
+- **Backend preparado**: Supabase (ver `/supabase/schema.sql`)
+- **Deploy**: Vercel-ready
+
+---
+
+## 📁 Estructura del proyecto
+
+```
+src/
+├── app/
+│   ├── page.tsx              # Landing
+│   ├── login/page.tsx
+│   ├── taller/
+│   │   ├── layout.tsx        # Auth guard + sidebar
+│   │   ├── page.tsx          # Dashboard taller
+│   │   └── pedidos/
+│   │       ├── page.tsx
+│   │       ├── nuevo/page.tsx
+│   │       └── [id]/page.tsx
+│   └── vendedor/
+│       ├── layout.tsx        # Auth guard + sidebar
+│       ├── page.tsx          # Dashboard vendedor
+│       ├── pedidos/
+│       │   ├── page.tsx
+│       │   └── [id]/page.tsx
+│       └── clientes/page.tsx
+├── components/
+│   ├── ui/                   # Button, Badge, Card, FormFields, Layout
+│   └── orders/               # OrderCard, OrderTimeline
+├── contexts/
+│   ├── AuthContext.tsx        # Auth mock con roles
+│   └── DataStoreContext.tsx  # Store reactivo compartido
+└── lib/
+    ├── types.ts              # Tipos TypeScript
+    ├── constants.ts          # Labels, colores, opciones
+    ├── utils.ts              # Utilidades
+    └── mock-data.ts          # Datos demo completos
+```
+
+---
+
+## ☁️ Conexión con Supabase (Fase 2)
+
+1. Crear proyecto en [supabase.com](https://supabase.com)
+2. Ejecutar `/supabase/schema.sql` en el SQL Editor
+3. Copiar el contenido de `env.example.txt` hacia un nuevo archivo `.env.local`
+4. Completar las variables con tu proyecto:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+   ```
+5. La aplicación detectará automáticamente las variables y pasará a usar Supabase en lugar de mock data (gracias a `DataStoreContext.tsx` híbrido y `client.ts`).
+
+---
+
+## 🚀 Deploy en Vercel
+
+```bash
+# Build de producción
+npm run build
+
+# Deploy (con Vercel CLI)
+npx vercel
+```
+
+O conectar directamente el repositorio GitHub desde [vercel.com](https://vercel.com).
+
+**Variables de entorno en Vercel**: agregar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+---
+
+## 🔮 Roadmap (Fase 2+)
+
+- [ ] Integración real con Supabase Auth
+- [ ] Upload de imágenes con Supabase Storage
+- [ ] Notificaciones en tiempo real (Supabase Realtime)
+- [ ] Sistema de roles vía JWT
+- [ ] Email/WhatsApp al recibir cotización
+- [ ] Módulo de proveedores
+- [ ] Historial de precios
+
+---
+
+## 📄 Licencia
+
+Prototipo privado. Todos los derechos reservados.
