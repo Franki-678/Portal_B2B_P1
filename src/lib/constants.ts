@@ -77,7 +77,7 @@ export const QUALITY_OPTIONS: { value: OrderQuality; label: string; desc: string
 ];
 
 export const DEMO_USERS = [
-  { email: 'taller1@demo.com', password: 'demo1234', name: 'Taller AutoSur', role: 'taller' },
-  { email: 'taller2@demo.com', password: 'demo1234', name: 'Chapa & Pintura Norte', role: 'taller' },
-  { email: 'vendedor@demo.com', password: 'demo1234', name: 'Repuestos El Galpón', role: 'vendedor' },
+  { email: 'taller1@demo.com', password: 'demo1234', name: 'Taller Norte', role: 'taller' },
+  { email: 'taller2@demo.com', password: 'demo1234', name: 'Taller Sur', role: 'taller' },
+  { email: 'vendedor@demo.com', password: 'demo1234', name: 'Distribuidora Central', role: 'vendedor' },
 ];

@@ -22,15 +22,17 @@ npm run dev
 
 ---
 
-## 🔑 Credenciales demo
+## 🔑 Credenciales demo (Supabase)
+
+Si ejecutaste el script `supabase/schema.sql` completo, se crearon los siguientes perfiles de forma directa en Supabase Auth, listos para usar:
 
 | Usuario | Email | Contraseña | Rol |
 |---------|-------|------------|-----|
-| Taller AutoSur | `taller1@demo.com` | `demo1234` | taller |
-| Chapa & Pintura Norte | `taller2@demo.com` | `demo1234` | taller |
-| Vendedor (Carlos Méndez) | `vendedor@demo.com` | `demo1234` | vendedor |
+| Taller Norte | `taller1@demo.com` | `demo1234` | taller |
+| Taller Sur | `taller2@demo.com` | `demo1234` | taller |
+| Distribuidora Central | `vendedor@demo.com` | `demo1234` | vendedor |
 
-> Las credenciales son visibles en la landing (`/`) y en la pantalla de login.
+> ⚠️ IMPORTANTE: El portal ahora utiliza la API real de Supabase (`signInWithPassword`) para el inicio de sesión. Ya no se usan datos mockeados en localstorage para la autenticación.
 
 ---
 
@@ -74,8 +76,8 @@ npm run dev
 - **Framework**: Next.js 14 (App Router)
 - **Lenguaje**: TypeScript
 - **Estilos**: Tailwind CSS
-- **Estado**: React Context (mock data)
-- **Backend preparado**: Supabase (ver `/supabase/schema.sql`)
+- **Estado**: React Context combinado con **Supabase** real.
+- **Backend preparado**: Supabase completo con Autenticación activa (ver `/supabase/schema.sql`)
 - **Deploy**: Vercel-ready
 
 ---
@@ -105,7 +107,7 @@ src/
 │   ├── ui/                   # Button, Badge, Card, FormFields, Layout
 │   └── orders/               # OrderCard, OrderTimeline
 ├── contexts/
-│   ├── AuthContext.tsx        # Auth mock con roles
+│   ├── AuthContext.tsx        # Integrado 100% con Supabase Auth
 │   └── DataStoreContext.tsx  # Store reactivo compartido
 └── lib/
     ├── types.ts              # Tipos TypeScript
@@ -116,10 +118,10 @@ src/
 
 ---
 
-## ☁️ Conexión con Supabase (Fase 2)
+## ☁️ Conexión con Supabase configurada
 
 1. Crear proyecto en [supabase.com](https://supabase.com)
-2. Ejecutar `/supabase/schema.sql` en el SQL Editor
+2. Ejecutar `/supabase/schema.sql` en el SQL Editor (este archivo creará esquemas, políticas, RLS, tablas y agregará los usuarios de prueba automáticamente con pgcrypto).
 3. Copiar el contenido de `env.example.txt` hacia un nuevo archivo `.env.local`
 4. Completar las variables con tu proyecto:
    ```
@@ -148,7 +150,7 @@ O conectar directamente el repositorio GitHub desde [vercel.com](https://vercel.
 
 ## 🔮 Roadmap (Fase 2+)
 
-- [ ] Integración real con Supabase Auth
+- [x] Integración real con Supabase Auth
 - [ ] Upload de imágenes con Supabase Storage
 - [ ] Notificaciones en tiempo real (Supabase Realtime)
 - [ ] Sistema de roles vía JWT

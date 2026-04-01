@@ -1,65 +1,170 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from '@/lib/types';
-import { MOCK_USERS } from '@/lib/mock-data';
+import { User, UserRole } from '@/lib/types';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  registerTaller: (data: { email: string; password: string; name: string; phone?: string; address?: string }) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const DEMO_PASSWORD = 'demo1234';
-const SESSION_KEY = 'b2b_session';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore session from localStorage
+  // Cargar sesión inicial al montar
   useEffect(() => {
+    let supabase: ReturnType<typeof getSupabaseClient>;
     try {
-      const saved = localStorage.getItem(SESSION_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as User;
-        setUser(parsed);
-      }
-    } catch {
-      // ignore
-    } finally {
+      supabase = getSupabaseClient();
+    } catch (err) {
+      console.error('Supabase no configurado', err);
       setIsLoading(false);
+      return;
     }
+
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        
+        if (session?.user) {
+          await loadUserProfile(session.user.id, session.user.email || '');
+        }
+      } catch (err) {
+        console.error('Error loading session:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // Escuchar cambios de estado de auth (login/logout desde otras pestañas)
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
+      if (session?.user) {
+        await loadUserProfile(session.user.id, session.user.email || '');
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 600));
+  const loadUserProfile = async (userId: string, email: string) => {
+    const supabase = getSupabaseClient();
+    try {
+      // Intentar obtener el perfil real desde nuestra tabla profiles
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('name, role, workshop_id')
+        .eq('id', userId)
+        .single();
 
-    if (password !== DEMO_PASSWORD) {
-      return { success: false, error: 'Contraseña incorrecta.' };
+      if (error) throw error;
+      const profile = data as any;
+
+      if (profile) {
+        setUser({
+          id: userId,
+          email: email,
+          name: profile.name,
+          role: profile.role as UserRole,
+          workshopId: profile.workshop_id || undefined,
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+      // Fallback seguro por si el trigger falló temporalmente o demora
+      setUser({
+        id: userId,
+        email: email,
+        name: 'Usuario Logueado',
+        role: 'taller',
+      });
     }
-
-    const found = MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!found) {
-      return { success: false, error: 'Email no encontrado.' };
-    }
-
-    setUser(found);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(found));
-    return { success: true };
   };
 
-  const logout = () => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        // Mensajes amigables
+        if (error.message.includes('Invalid login credentials')) {
+          return { success: false, error: 'Email o contraseña incorrectos.' };
+        }
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        await loadUserProfile(data.user.id, data.user.email || '');
+        return { success: true };
+      }
+      
+      return { success: false, error: 'Ocurrió un error inesperado al iniciar sesión.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error de red.' };
+    }
+  };
+
+  const registerTaller = async (data: { email: string; password: string; name: string; phone?: string; address?: string }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const supabase = getSupabaseClient();
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            role: 'taller',
+            name: data.name,
+            phone: data.phone || null,
+            address: data.address || null,
+          }
+        }
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (authData.user) {
+        await loadUserProfile(authData.user.id, authData.user.email || '');
+        return { success: true };
+      }
+
+      return { success: false, error: 'No se pudo crear el usuario.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error de red.' };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore config errors on logout
+    }
     setUser(null);
-    localStorage.removeItem(SESSION_KEY);
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, registerTaller, logout }}>
       {children}
     </AuthContext.Provider>
   );
