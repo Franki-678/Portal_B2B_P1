@@ -33,7 +33,7 @@ function PedidosContent() {
   if (search.trim()) {
     const q = search.toLowerCase();
     filtered = filtered.filter(o =>
-      o.partName.toLowerCase().includes(q) ||
+      o.items.some(i => i.partName.toLowerCase().includes(q)) ||
       o.vehicleBrand.toLowerCase().includes(q) ||
       o.vehicleModel.toLowerCase().includes(q) ||
       (o.workshop?.name.toLowerCase().includes(q) ?? false)

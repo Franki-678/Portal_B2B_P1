@@ -77,7 +77,7 @@ export default function VendedorClientesPage() {
 
               {ws.lastOrder && (
                 <div className="mt-3 pt-3 border-t border-white/5 text-xs text-slate-500">
-                  Último pedido: <span className="text-slate-400">{ws.lastOrder.partName}</span> · {formatDate(ws.lastOrder.createdAt)}
+                  Último pedido: <span className="text-slate-400">{ws.lastOrder.items?.[0]?.partName || 'Sin repuestos'}</span> · {formatDate(ws.lastOrder.createdAt)}
                 </div>
               )}
             </div>

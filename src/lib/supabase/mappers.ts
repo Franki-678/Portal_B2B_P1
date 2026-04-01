@@ -1,6 +1,8 @@
 import { Order, Workshop, Quote, QuoteItem, OrderEvent } from '@/lib/types';
 import {
   DbOrder,
+  DbOrderItem,
+  DbOrderImage,
   DbQuote,
   DbQuoteItem,
   DbOrderEvent,
@@ -28,6 +30,7 @@ export function mapQuoteItem(row: DbQuoteItem): QuoteItem {
   return {
     id: row.id,
     quoteId: row.quote_id,
+    orderItemId: row.order_item_id ?? undefined,
     partName: row.part_name,
     description: row.description ?? '',
     quality: row.quality,
@@ -70,6 +73,8 @@ export function mapOrderEvent(row: DbOrderEvent, userName: string): OrderEvent {
 
 export function mapOrder(
   row: DbOrder,
+  items: DbOrderItem[],
+  images: DbOrderImage[],
   workshop: Workshop | undefined,
   quote: Quote | undefined,
   events: OrderEvent[]
@@ -80,12 +85,25 @@ export function mapOrder(
     workshop,
     vehicleBrand: row.vehicle_brand,
     vehicleModel: row.vehicle_model,
+    vehicleVersion: row.vehicle_version,
     vehicleYear: row.vehicle_year,
-    partName: row.part_name,
-    description: row.description ?? '',
-    quality: row.quality,
+    items: items.map((i) => ({
+      id: i.id,
+      orderId: i.order_id,
+      partName: i.part_name,
+      description: i.description ?? '',
+      quality: i.quality,
+      quantity: i.quantity,
+      images: images
+        .filter((img) => img.order_item_id === i.id)
+        .map((img) => ({
+          id: img.id,
+          orderItemId: img.order_item_id,
+          url: img.url,
+          createdAt: img.created_at,
+        })),
+    })),
     status: row.status,
-    images: [], // se cargará por separado si hace falta
     quote,
     events,
     createdAt: row.created_at,

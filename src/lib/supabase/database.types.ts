@@ -58,10 +58,8 @@ export type Database = {
           workshop_id: string;
           vehicle_brand: string;
           vehicle_model: string;
+          vehicle_version: string;
           vehicle_year: number;
-          part_name: string;
-          description: string | null;
-          quality: 'alta' | 'media' | 'baja';
           status:
             | 'pendiente'
             | 'en_revision'
@@ -78,27 +76,46 @@ export type Database = {
           workshop_id: string;
           vehicle_brand: string;
           vehicle_model: string;
+          vehicle_version: string;
           vehicle_year: number;
-          part_name: string;
-          description?: string | null;
-          quality?: 'alta' | 'media' | 'baja';
           status?: Database['public']['Tables']['orders']['Row']['status'];
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['orders']['Insert']>;
       };
-      order_images: {
+      order_items: {
         Row: {
           id: string;
           order_id: string;
+          part_name: string;
+          description: string | null;
+          quality: 'alta' | 'media' | 'baja';
+          quantity: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          part_name: string;
+          description?: string | null;
+          quality?: 'alta' | 'media' | 'baja';
+          quantity?: number;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['order_items']['Insert']>;
+      };
+      order_images: {
+        Row: {
+          id: string;
+          order_item_id: string;
           url: string;
           storage_path: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
-          order_id: string;
+          order_item_id: string;
           url: string;
           storage_path?: string | null;
           created_at?: string;
@@ -130,6 +147,7 @@ export type Database = {
         Row: {
           id: string;
           quote_id: string;
+          order_item_id: string | null;
           part_name: string;
           description: string | null;
           quality: 'alta' | 'media' | 'baja';
@@ -144,6 +162,7 @@ export type Database = {
         Insert: {
           id?: string;
           quote_id: string;
+          order_item_id?: string | null;
           part_name: string;
           description?: string | null;
           quality?: 'alta' | 'media' | 'baja';
@@ -191,6 +210,8 @@ export type Database = {
 // ─── Helpers de tipo ──────────────────────────────────────────
 
 export type DbOrder = Database['public']['Tables']['orders']['Row'];
+export type DbOrderItem = Database['public']['Tables']['order_items']['Row'];
+export type DbOrderImage = Database['public']['Tables']['order_images']['Row'];
 export type DbQuote = Database['public']['Tables']['quotes']['Row'];
 export type DbQuoteItem = Database['public']['Tables']['quote_items']['Row'];
 export type DbOrderEvent = Database['public']['Tables']['order_events']['Row'];

@@ -55,21 +55,29 @@ export interface Order {
   workshop?: Workshop;
   vehicleBrand: string;
   vehicleModel: string;
+  vehicleVersion: string;
   vehicleYear: number;
-  partName: string;
-  description: string;
-  quality: OrderQuality;
+  items: OrderItem[];
   status: OrderStatus;
-  images: OrderImage[];
   quote?: Quote;
   events: OrderEvent[];
   createdAt: string;
   updatedAt: string;
 }
 
-export interface OrderImage {
+export interface OrderItem {
   id: string;
   orderId: string;
+  partName: string;
+  description: string;
+  quality: OrderQuality;
+  quantity: number;
+  images: OrderImage[];
+}
+
+export interface OrderImage {
+  id: string;
+  orderItemId: string;
   url: string;
   createdAt: string;
 }
@@ -89,6 +97,7 @@ export interface Quote {
 export interface QuoteItem {
   id: string;
   quoteId: string;
+  orderItemId?: string;
   partName: string;
   description: string;
   quality: OrderQuality;
@@ -117,14 +126,23 @@ export interface OrderEvent {
 export interface NewOrderForm {
   vehicleBrand: string;
   vehicleModel: string;
+  vehicleVersion: string;
   vehicleYear: string;
+  items: NewOrderItemForm[];
+}
+
+export interface NewOrderItemForm {
+  tempId: string;
   partName: string;
   description: string;
   quality: OrderQuality;
+  quantity: number;
   images: File[];
+  imagePreviews: string[];
 }
 
 export interface QuoteItemForm {
+  orderItemId?: string;
   partName: string;
   description: string;
   quality: OrderQuality;

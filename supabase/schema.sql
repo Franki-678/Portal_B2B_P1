@@ -77,10 +77,8 @@ CREATE TABLE orders (
   workshop_id UUID NOT NULL REFERENCES workshops(id),
   vehicle_brand TEXT NOT NULL,
   vehicle_model TEXT NOT NULL,
+  vehicle_version TEXT NOT NULL,
   vehicle_year INT NOT NULL,
-  part_name TEXT NOT NULL,
-  description TEXT,
-  quality order_quality NOT NULL DEFAULT 'media',
   status order_status NOT NULL DEFAULT 'pendiente',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -100,12 +98,26 @@ CREATE TRIGGER orders_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ────────────────────────────────────────────────────────────
--- IMÁGENES DE PEDIDO
+-- ÍTEMS DE PEDIDO
+-- ────────────────────────────────────────────────────────────
+
+CREATE TABLE order_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  part_name TEXT NOT NULL,
+  description TEXT,
+  quality order_quality NOT NULL DEFAULT 'media',
+  quantity INT NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ────────────────────────────────────────────────────────────
+-- IMÁGENES DE REPUESTO (Asociadas al ítem)
 -- ────────────────────────────────────────────────────────────
 
 CREATE TABLE order_images (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_item_id UUID NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
   url TEXT NOT NULL,
   storage_path TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -132,6 +144,7 @@ CREATE TABLE quotes (
 CREATE TABLE quote_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   quote_id UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  order_item_id UUID REFERENCES order_items(id) ON DELETE SET NULL,
   part_name TEXT NOT NULL,
   description TEXT,
   quality order_quality NOT NULL DEFAULT 'media',
@@ -164,6 +177,7 @@ CREATE TABLE order_events (
 ALTER TABLE workshops ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quote_items ENABLE ROW LEVEL SECURITY;
@@ -209,6 +223,22 @@ CREATE POLICY "orders: vendor can update" ON orders
     OR
     workshop_id IN (
       SELECT workshop_id FROM profiles WHERE id = auth.uid()
+    )
+  );
+
+-- Order Items: heredan visibilidad del pedido
+CREATE POLICY "order_items: taller can see own items" ON order_items
+  FOR SELECT USING (
+    order_id IN (
+      SELECT id FROM orders WHERE workshop_id IN (SELECT workshop_id FROM profiles WHERE id = auth.uid() AND role = 'taller')
+    )
+    OR (SELECT role FROM profiles WHERE id = auth.uid()) = 'vendedor'
+  );
+
+CREATE POLICY "order_items: taller can insert" ON order_items
+  FOR INSERT WITH CHECK (
+    order_id IN (
+      SELECT id FROM orders WHERE workshop_id IN (SELECT workshop_id FROM profiles WHERE id = auth.uid() AND role = 'taller')
     )
   );
 

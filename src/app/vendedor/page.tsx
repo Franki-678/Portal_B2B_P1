@@ -67,7 +67,11 @@ export default function VendedorDashboard() {
                   className="flex items-center justify-between bg-zinc-950/50 rounded-xl px-5 py-3.5 border border-amber-500/20 hover:border-amber-500/40 hover:bg-zinc-900/80 cursor-pointer transition-all duration-200 shadow-sm group"
                 >
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold text-zinc-100 group-hover:text-amber-400 transition-colors">{order.partName}</span>
+                    <span className="text-sm font-bold text-zinc-100 group-hover:text-amber-400 transition-colors">
+                      {order.items?.length > 1 
+                        ? `${order.items[0]?.partName} (+${order.items.length - 1})`
+                        : (order.items?.[0]?.partName || 'Sin repuestos')}
+                    </span>
                     <span className="text-xs text-zinc-500 font-medium">{order.workshop?.name}</span>
                   </div>
                   <span className="text-sm font-medium text-zinc-400 bg-zinc-900 px-3 py-1 rounded-lg border border-zinc-800">{order.vehicleBrand} {order.vehicleModel}</span>

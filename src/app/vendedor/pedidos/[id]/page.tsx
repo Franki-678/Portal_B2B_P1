@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderTimeline } from '@/components/orders/OrderTimeline';
-import { formatDate, formatCurrency, canVendorQuote, generateId } from '@/lib/utils';
+import { formatDate, formatCurrency, canVendorQuote } from '@/lib/utils';
 import { QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, QuoteItem } from '@/lib/types';
 
@@ -19,19 +19,10 @@ interface PageProps {
 
 interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved'> {
   tempId: string;
+  isAvailable: boolean;
+  imageFile?: File;
+  imagePreview?: string;
 }
-
-const emptyItem = (): QuoteItemDraft => ({
-  tempId: generateId(),
-  partName: '',
-  description: '',
-  quality: 'media',
-  manufacturer: '',
-  supplier: '',
-  price: 0,
-  imageUrl: '',
-  notes: '',
-});
 
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
@@ -41,12 +32,33 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [quoteNotes, setQuoteNotes] = useState('');
-  const [items, setItems] = useState<QuoteItemDraft[]>([emptyItem()]);
+  const [items, setItems] = useState<QuoteItemDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const order = getOrderById(id);
+
+  // Inicializar los ítems cuando se abre o detecta el pedido
+  useEffect(() => {
+    if (order && items.length === 0) {
+      setItems(
+        order.items.map(i => ({
+          tempId: i.id,
+          orderItemId: i.id,
+          partName: i.partName,
+          description: '', 
+          quality: i.quality,
+          manufacturer: '',
+          supplier: '',
+          price: 0,
+          imageUrl: '',
+          notes: '',
+          isAvailable: true,
+        }))
+      );
+    }
+  }, [order, items.length]);
 
   if (!order) {
     return (
@@ -80,26 +92,42 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setActionLoading(false);
   };
 
-  const updateItem = (tempId: string, field: keyof QuoteItemDraft, value: string | number | OrderQuality) => {
+  const updateItem = (tempId: string, field: keyof QuoteItemDraft, value: any) => {
     setItems(prev => prev.map(item =>
       item.tempId === tempId ? { ...item, [field]: value } : item
     ));
     setErrors(prev => {
       const next = { ...prev };
-      delete next[`${tempId}-${field}`];
+      delete next[`${tempId}-${field as string}`];
       return next;
     });
   };
 
-  const addItem = () => setItems(prev => [...prev, emptyItem()]);
-  const removeItem = (tempId: string) => setItems(prev => prev.filter(i => i.tempId !== tempId));
+  const handleImageUpload = (tempId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      return {
+        ...item,
+        imageFile: file,
+        imagePreview: URL.createObjectURL(file),
+      };
+    }));
+  };
+
+  const removeImage = (tempId: string) => {
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      return { ...item, imageFile: undefined, imagePreview: undefined };
+    }));
+  };
 
   const validateQuote = (): boolean => {
     const errs: Record<string, string> = {};
-    items.forEach(item => {
-      if (!item.partName.trim()) errs[`${item.tempId}-partName`] = 'Requerido';
-      if (!item.description.trim()) errs[`${item.tempId}-description`] = 'Requerido';
-      if (!item.price || item.price <= 0) errs[`${item.tempId}-price`] = 'Precio inválido';
+    items.filter(i => i.isAvailable).forEach(item => {
+      if (!item.price || item.price <= 0) errs[`${item.tempId}-price`] = 'Ingresá un precio válido';
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -110,26 +138,40 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     if (!validateQuote()) return;
     setLoading(true);
 
-    await new Promise(r => setTimeout(r, 600));
+    try {
+      const finalItems = items
+        .filter(i => i.isAvailable)
+        .map(({ tempId, isAvailable, imagePreview, ...rest }) => ({
+          ...rest,
+          approved: null,
+        }));
+        
+      if (finalItems.length === 0) {
+        alert("Debes cotizar al menos un ítem.");
+        setLoading(false);
+        return;
+      }
 
-    await submitQuote(order.id, {
-      notes: quoteNotes,
-      vendorId: user!.id,
-      vendorName: user!.name,
-      items: items.map(({ tempId, ...item }) => ({
-        ...item,
-        approved: null,
-      })),
-    });
+      await submitQuote(order.id, {
+        notes: quoteNotes,
+        vendorId: user!.id,
+        vendorName: user!.name,
+        items: finalItems,
+      });
 
-    setLoading(false);
-    setShowQuoteForm(false);
+      setShowQuoteForm(false);
+    } catch (err: any) {
+      console.error(err);
+      alert('Hubo un error al enviar la cotización: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <>
       <TopBar
-        title={order.partName}
+        title={`Pedido ${order.id.split('-')[0].toUpperCase()}`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear} · ${order.workshop?.name}`}
         action={
           <Button variant="ghost" onClick={() => router.push('/vendedor/pedidos')}>
@@ -139,18 +181,17 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
       />
 
       <div className="p-6 space-y-8 max-w-4xl mx-auto">
-        {/* Header */}
+        {/* Header Detalle Pedido */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-5">
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <StatusBadge status={order.status} />
-                <QualityBadge quality={order.quality} />
                 <span className="text-[11px] text-zinc-500 font-mono font-medium bg-zinc-800/50 px-2 py-0.5 rounded-md border border-zinc-700/50">{order.id.split('-')[0].toUpperCase()}</span>
               </div>
-              <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">{order.partName}</h2>
+              <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Pedido del Taller</h2>
               <p className="text-sm font-medium text-zinc-400 mt-1">
-                🚗 {order.vehicleBrand} {order.vehicleModel} — <span className="text-zinc-500">Año {order.vehicleYear}</span>
+                🚗 {order.vehicleBrand} {order.vehicleModel} <span className="text-sky-400 font-bold">{order.vehicleVersion}</span> — {order.vehicleYear}
               </p>
               <p className="text-sm font-semibold text-orange-500 mt-2 bg-orange-500/10 inline-flex items-center px-2 py-1 rounded-md border border-orange-500/20">🏭 {order.workshop?.name}</p>
             </div>
@@ -160,25 +201,38 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             </div>
           </div>
 
-          {order.description && (
-            <div className="bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/80 shadow-inner">
-              <p className="text-sm font-medium text-zinc-300 leading-relaxed max-w-2xl">{order.description}</p>
+          {/* Listado de ítems pedidos por el taller */}
+          <div className="mt-8 space-y-4">
+            <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">Ítems Solicitados</h3>
+            <div className="divide-y divide-zinc-800 border border-zinc-800/80 rounded-2xl bg-zinc-950/30 overflow-hidden">
+              {order.items.map((it, idx) => (
+                 <div key={it.id} className="p-5 flex flex-col md:flex-row gap-5">
+                   <div className="flex-1 min-w-0">
+                     <div className="flex items-center gap-3 mb-1">
+                       <span className="text-xs font-bold bg-sky-500/10 text-sky-400 px-2 rounded">#{idx+1}</span>
+                       <h4 className="font-bold text-zinc-100 text-lg">{it.partName}</h4>
+                     </div>
+                     <div className="flex items-center gap-2 mt-2">
+                       <QualityBadge quality={it.quality} />
+                       <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold">Cant: {it.quantity}</span>
+                     </div>
+                     {it.description && <p className="text-sm text-zinc-400 mt-2">{it.description}</p>}
+                   </div>
+                   
+                   {it.images && it.images.length > 0 && (
+                     <div className="flex-shrink-0 flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                       {it.images.map(img => (
+                         <img key={img.id} src={img.url} alt="Referencia" className="w-24 h-20 object-cover rounded-xl border border-zinc-700/50 shadow-sm" />
+                       ))}
+                     </div>
+                   )}
+                 </div>
+              ))}
             </div>
-          )}
-
-          {order.images.length > 0 && (
-            <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">📷 Fotos del taller</p>
-              <div className="flex gap-4 flex-wrap">
-                {order.images.map(img => (
-                  <img key={img.id} src={img.url} alt="Referencia" className="w-32 h-24 object-cover rounded-xl border border-zinc-700/50 shadow-sm" />
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
 
           {/* Actions */}
-          <div className="mt-6 pt-5 border-t border-zinc-800/80 flex items-center gap-3 flex-wrap">
+          <div className="mt-6 pt-5 flex items-center gap-3 flex-wrap">
             {order.status === 'pendiente' && (
               <Button size="sm" variant="secondary" onClick={handleSetInReview} loading={actionLoading}>
                 🔍 Marcar en revisión
@@ -186,7 +240,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             )}
             {canQuote && !hasQuote && (
               <Button size="sm" onClick={() => setShowQuoteForm(!showQuoteForm)}>
-                💰 {showQuoteForm ? 'Cerrar formulario' : 'Cargar cotización'}
+                💰 {showQuoteForm ? 'Cerrar formulario' : 'Armar cotización'}
               </Button>
             )}
             {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
@@ -210,7 +264,9 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               <h3 className="text-lg font-bold text-orange-100 flex items-center gap-2 tracking-tight">
                 <span className="text-xl">💰</span> Nueva cotización
               </h3>
-              <p className="text-sm font-medium text-orange-400/80 mt-1">Agregá los ítems y precios para cotizarle al taller</p>
+              <p className="text-sm font-medium text-orange-400/80 mt-1">
+                Completá los datos de los ítems para cotizarle al taller
+              </p>
             </div>
 
             <div className="p-5 space-y-6">
@@ -218,115 +274,117 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 label="Observaciones generales"
                 value={quoteNotes}
                 onChange={e => setQuoteNotes(e.target.value)}
-                placeholder="Notas generales sobre la cotización, disponibilidad, plazos de entrega, etc."
+                placeholder="Notas generales, tiempo estimado de preparación, etc."
                 rows={2}
               />
 
-              {/* Items */}
               <div className="space-y-5">
                 {items.map((item, idx) => (
-                  <div key={item.tempId} className="bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-6 space-y-4 shadow-sm relative group">
-                    <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3">
-                      <span className="text-sm font-bold text-orange-500 bg-orange-500/10 px-3 py-1 rounded-md uppercase tracking-widest">Ítem {idx + 1}</span>
-                      {items.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeItem(item.tempId)}
-                          className="text-xs font-semibold text-rose-500 hover:text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-md hover:bg-rose-500/20 transition-colors"
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      )}
+                  <div key={item.tempId} className={`border border-zinc-800/80 rounded-2xl p-6 transition-all ${!item.isAvailable ? 'bg-zinc-950/80 opacity-60 grayscale-[30%]' : 'bg-zinc-950/40 shadow-sm relative group'}`}>
+                    <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3 mb-4">
+                      <div>
+                        <span className="text-sm font-bold text-orange-500 bg-orange-500/10 px-3 py-1 rounded-md uppercase tracking-widest">
+                          Ítem {idx + 1}
+                        </span>
+                        <span className="text-zinc-300 font-bold ml-3">{item.partName}</span>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-orange-500 focus:ring-orange-500/20"
+                          checked={!item.isAvailable}
+                          onChange={(e) => updateItem(item.tempId, 'isAvailable', !e.target.checked)}
+                        />
+                        <span className="text-zinc-400">Sin stock</span>
+                      </label>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        label="Nombre del repuesto"
-                        required
-                        value={item.partName}
-                        onChange={e => updateItem(item.tempId, 'partName', e.target.value)}
-                        placeholder="Ej: Paragolpe trasero original"
-                        error={errors[`${item.tempId}-partName`]}
-                      />
-                      <Input
-                        label="Precio (ARS)"
-                        required
-                        type="number"
-                        min="0"
-                        value={item.price || ''}
-                        onChange={e => updateItem(item.tempId, 'price', parseFloat(e.target.value) || 0)}
-                        placeholder="0"
-                        error={errors[`${item.tempId}-price`]}
-                      />
-                    </div>
+                    {item.isAvailable && (
+                      <div className="space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            label="Precio (ARS)"
+                            required
+                            type="number"
+                            min="0"
+                            value={item.price || ''}
+                            onChange={e => updateItem(item.tempId, 'price', parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                            error={errors[`${item.tempId}-price`]}
+                          />
+                          <Select
+                            label="Calidad Ofrecida"
+                            value={item.quality}
+                            onChange={e => updateItem(item.tempId, 'quality', e.target.value as OrderQuality)}
+                            options={QUALITY_OPTIONS.map(q => ({ value: q.value, label: q.label }))}
+                          />
+                        </div>
 
-                    <Textarea
-                      label="Descripción"
-                      required
-                      value={item.description}
-                      onChange={e => updateItem(item.tempId, 'description', e.target.value)}
-                      placeholder="Descripción del repuesto, compatibilidades, estado, etc."
-                      rows={2}
-                      error={errors[`${item.tempId}-description`]}
-                    />
+                        <Textarea
+                          label="Descripción adicional (tu repuesto)"
+                          value={item.description}
+                          onChange={e => updateItem(item.tempId, 'description', e.target.value)}
+                          placeholder="Compatibilidades, estado..."
+                          rows={2}
+                        />
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Select
-                        label="Calidad"
-                        value={item.quality}
-                        onChange={e => updateItem(item.tempId, 'quality', e.target.value as OrderQuality)}
-                        options={QUALITY_OPTIONS.map(q => ({ value: q.value, label: q.label }))}
-                      />
-                      <Input
-                        label="Fabricante"
-                        value={item.manufacturer || ''}
-                        onChange={e => updateItem(item.tempId, 'manufacturer', e.target.value)}
-                        placeholder="Ej: Toyota, TecMax..."
-                      />
-                      <Input
-                        label="Proveedor"
-                        value={item.supplier || ''}
-                        onChange={e => updateItem(item.tempId, 'supplier', e.target.value)}
-                        placeholder="Ej: Dist. Norte..."
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        label="URL imagen de referencia"
-                        value={item.imageUrl || ''}
-                        onChange={e => updateItem(item.tempId, 'imageUrl', e.target.value)}
-                        placeholder="https://..."
-                        hint="Link a foto del repuesto"
-                      />
-                      <Input
-                        label="Observaciones"
-                        value={item.notes || ''}
-                        onChange={e => updateItem(item.tempId, 'notes', e.target.value)}
-                        placeholder="Tiempo de entrega, garantía, etc."
-                      />
-                    </div>
-
-                    {item.price > 0 && (
-                      <div className="text-right text-lg font-black text-orange-400 tracking-tight pt-2">
-                        {formatCurrency(item.price)}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            label="Fabricante / Marca"
+                            value={item.manufacturer || ''}
+                            onChange={e => updateItem(item.tempId, 'manufacturer', e.target.value)}
+                            placeholder="Ej: Toyota, XYZ..."
+                          />
+                          <Input
+                            label="Proveedor"
+                            value={item.supplier || ''}
+                            onChange={e => updateItem(item.tempId, 'supplier', e.target.value)}
+                            placeholder="Ej: Dist. Norte..."
+                          />
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row gap-5">
+                           <div className="flex-1">
+                             <Input
+                               label="URL imagen alternativa (opcional)"
+                               value={item.imageUrl || ''}
+                               onChange={e => updateItem(item.tempId, 'imageUrl', e.target.value)}
+                               placeholder="https://..."
+                               disabled={!!item.imageFile}
+                               hint="O subí un archivo real a la derecha"
+                              />
+                           </div>
+                           <div className="w-full sm:w-auto">
+                              <p className="block text-sm font-semibold text-zinc-300 mb-2">Foto real</p>
+                              {item.imagePreview ? (
+                                <div className="relative group/img inline-block">
+                                  <img src={item.imagePreview} alt="preview" className="w-20 h-20 object-cover rounded-xl border border-zinc-700/50" />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeImage(item.tempId)}
+                                    className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-lg"
+                                  >✕</button>
+                                </div>
+                              ) : (
+                                <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-zinc-700/50 rounded-xl bg-zinc-950/30 hover:bg-zinc-900/50 hover:border-orange-500/30 transition-all cursor-pointer">
+                                  <span className="text-xl mb-1">📷</span>
+                                  <span className="text-[9px] uppercase font-bold text-zinc-500">Subir</span>
+                                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(item.tempId, e)} />
+                                </label>
+                              )}
+                           </div>
+                        </div>
                       </div>
                     )}
                   </div>
                 ))}
               </div>
 
-              <div className="flex justify-center md:justify-start pt-2">
-                <Button type="button" variant="secondary" size="sm" onClick={addItem}>
-                  ➕ Agregar otro ítem
-                </Button>
-              </div>
-
               {/* Total */}
               <div className="bg-orange-500/10 rounded-2xl p-5 border border-orange-500/20 flex items-center justify-between shadow-inner mt-4">
                 <span className="text-sm font-bold text-orange-400 uppercase tracking-widest">Total cotización</span>
                 <span className="text-2xl font-black text-white tracking-tight">
-                  {formatCurrency(items.reduce((s, i) => s + (i.price || 0), 0))}
+                  {formatCurrency(items.filter(i => i.isAvailable).reduce((s, i) => s + (i.price || 0), 0))}
                 </span>
               </div>
             </div>
@@ -336,13 +394,13 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 Cancelar
               </Button>
               <Button type="submit" loading={loading} size="lg" className="w-full md:w-auto">
-                📤 Enviar cotización al taller
+                📤 Enviar cotización
               </Button>
             </div>
           </form>
         )}
 
-        {/* COTIZACIÓN EXISTENTE */}
+        {/* COTIZACIÓN ENVÍADA EXISTENTE */}
         {order.quote && (
           <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-lg shadow-black/20">
             <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/50">
@@ -358,6 +416,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 </div>
               )}
             </div>
+            
             <div className="divide-y divide-zinc-800/80">
               {order.quote.items.map(item => (
                 <div key={item.id} className="p-6 flex flex-col md:flex-row gap-5 hover:bg-zinc-800/30 transition-colors">
@@ -378,20 +437,9 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                         {item.approved === null && order.status === 'cotizado' && <div className="text-xs font-bold text-amber-400 bg-amber-500/10 inline-block px-2 py-1 rounded-md border border-amber-500/20 shadow-sm">⏳ Pendiente</div>}
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 mt-3 text-xs font-semibold text-zinc-500">
-                      {item.manufacturer && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">🏭 {item.manufacturer}</span>}
-                      {item.supplier && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">📦 {item.supplier}</span>}
-                      {item.notes && <span className="bg-zinc-950/30 px-2 py-1 rounded-md border border-zinc-800/50 italic text-zinc-400">💬 {item.notes}</span>}
-                    </div>
                   </div>
                 </div>
               ))}
-            </div>
-            <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/60 flex items-center justify-between shadow-inner">
-              <span className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{order.quote.items.length} ítem(s)</span>
-              <span className="text-2xl font-black text-white tracking-tight">
-                {formatCurrency(order.quote.items.reduce((s, i) => s + i.price, 0))}
-              </span>
             </div>
           </div>
         )}

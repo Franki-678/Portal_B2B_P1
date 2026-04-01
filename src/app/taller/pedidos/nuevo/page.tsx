@@ -8,8 +8,8 @@ import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { VEHICLE_BRANDS, QUALITY_OPTIONS } from '@/lib/constants';
-import { OrderQuality } from '@/lib/types';
-import { MOCK_WORKSHOPS } from '@/lib/mock-data';
+import { OrderQuality, NewOrderItemForm } from '@/lib/types';
+import { generateId } from '@/lib/utils';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 30 }, (_, i) => ({
@@ -21,36 +21,44 @@ const BRAND_OPTIONS = VEHICLE_BRANDS.map(b => ({ value: b, label: b }));
 
 type FormErrors = Partial<Record<string, string>>;
 
+const emptyItem = (): NewOrderItemForm => ({
+  tempId: generateId(),
+  partName: '',
+  description: '',
+  quality: 'media',
+  quantity: 1,
+  images: [],
+  imagePreviews: [],
+});
+
 export default function NuevoPedidoPage() {
   const { user } = useAuth();
   const { createOrder } = useDataStore();
   const router = useRouter();
 
-  const [form, setForm] = useState({
-    vehicleBrand: '',
-    vehicleModel: '',
-    vehicleYear: String(CURRENT_YEAR),
-    partName: '',
-    description: '',
-    quality: 'media' as OrderQuality,
-  });
+  const [vehicleBrand, setVehicleBrand] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [vehicleVersion, setVehicleVersion] = useState('');
+  const [vehicleYear, setVehicleYear] = useState(String(CURRENT_YEAR));
+  const [items, setItems] = useState<NewOrderItemForm[]>([emptyItem()]);
+
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm(prev => ({ ...prev, [field]: e.target.value }));
-    setErrors(prev => ({ ...prev, [field]: undefined }));
-  };
-
   const validate = (): boolean => {
     const errs: FormErrors = {};
-    if (!form.vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
-    if (!form.vehicleModel.trim()) errs.vehicleModel = 'Ingresá el modelo';
-    if (!form.vehicleYear) errs.vehicleYear = 'Seleccioná el año';
-    if (!form.partName.trim()) errs.partName = 'Ingresá la pieza/repuesto';
-    if (!form.description.trim()) errs.description = 'Describí el pedido';
-    if (form.description.trim().length < 20) errs.description = 'Describí un poco más el pedido (mínimo 20 caracteres)';
+    if (!vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
+    if (!vehicleModel.trim()) errs.vehicleModel = 'Ingresá el modelo';
+    if (!vehicleVersion.trim()) errs.vehicleVersion = 'Ingresá la versión';
+    if (!vehicleYear) errs.vehicleYear = 'Seleccioná el año';
+
+    items.forEach((item, idx) => {
+      if (!item.partName.trim()) errs[`item_${item.tempId}_partName`] = 'Ingresá la pieza';
+      if (item.quantity < 1) errs[`item_${item.tempId}_quantity`] = 'Mínimo 1';
+      // La descripción es ahora Opcional, como se pidió.
+    });
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -60,23 +68,80 @@ export default function NuevoPedidoPage() {
     if (!validate()) return;
     setLoading(true);
 
-    await new Promise(r => setTimeout(r, 500)); // simulate async
+    try {
+      const newOrder = await createOrder({
+        workshopId: user?.workshopId || '',
+        vehicleBrand,
+        vehicleModel,
+        vehicleVersion,
+        vehicleYear: parseInt(vehicleYear),
+        items: items.map(i => ({
+          partName: i.partName,
+          description: i.description,
+          quality: i.quality,
+          quantity: i.quantity,
+          images: i.images,
+        })),
+      });
 
-    const workshop = MOCK_WORKSHOPS.find(w => w.id === user?.workshopId);
-    const newOrder = await createOrder({
-      workshopId: user?.workshopId || '',
-      workshop,
-      vehicleBrand: form.vehicleBrand,
-      vehicleModel: form.vehicleModel,
-      vehicleYear: parseInt(form.vehicleYear),
-      partName: form.partName,
-      description: form.description,
-      quality: form.quality,
+      setSuccess(true);
+      setTimeout(() => {
+        router.push(`/taller/pedidos/${newOrder.id}`);
+      }, 1000);
+    } catch (err: any) {
+      console.error(err);
+      alert('Hubo un error al crear el pedido: ' + err.message);
+      setLoading(false);
+    }
+  };
+
+  const updateItem = (tempId: string, field: keyof NewOrderItemForm, value: any) => {
+    setItems(prev =>
+      prev.map(i => (i.tempId === tempId ? { ...i, [field]: value } : i))
+    );
+    setErrors(prev => {
+      const next = { ...prev };
+      delete next[`item_${tempId}_${String(field)}`];
+      return next;
     });
+  };
 
-    setSuccess(true);
-    await new Promise(r => setTimeout(r, 1000));
-    router.push(`/taller/pedidos/${newOrder.id}`);
+  const addItem = () => setItems(prev => [...prev, emptyItem()]);
+  const removeItem = (tempId: string) => {
+    if (items.length > 1) {
+      setItems(prev => prev.filter(i => i.tempId !== tempId));
+    }
+  };
+
+  const handleImageUpload = (tempId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      
+      const newImages = [...item.images, ...files].slice(0, 2); // máximo 2
+      const newPreviews = newImages.map(file => URL.createObjectURL(file));
+
+      return {
+        ...item,
+        images: newImages,
+        imagePreviews: newPreviews,
+      };
+    }));
+  };
+
+  const removeImage = (tempId: string, idxToRemove: number) => {
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      const newImages = item.images.filter((_, i) => i !== idxToRemove);
+      const newPreviews = item.imagePreviews.filter((_, i) => i !== idxToRemove);
+      return {
+        ...item,
+        images: newImages,
+        imagePreviews: newPreviews,
+      };
+    }));
   };
 
   if (success) {
@@ -97,16 +162,16 @@ export default function NuevoPedidoPage() {
         title="Nuevo pedido"
         subtitle="Completá los datos del repuesto que necesitás"
         action={
-          <Button variant="ghost" onClick={() => router.back()}>
+          <Button variant="ghost" type="button" onClick={() => router.back()}>
             ← Volver
           </Button>
         }
       />
 
       <div className="p-6">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Vehículo */}
+            {/* Vehículo - Orden exacto: Marca, Modelo, Versión, Año */}
             <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
               <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
                 <span className="text-xl">🚗</span> Datos del vehículo
@@ -115,8 +180,8 @@ export default function NuevoPedidoPage() {
                 <Select
                   label="Marca"
                   required
-                  value={form.vehicleBrand}
-                  onChange={set('vehicleBrand')}
+                  value={vehicleBrand}
+                  onChange={(e) => setVehicleBrand(e.target.value)}
                   options={BRAND_OPTIONS}
                   placeholder="Seleccioná marca..."
                   error={errors.vehicleBrand}
@@ -124,92 +189,157 @@ export default function NuevoPedidoPage() {
                 <Input
                   label="Modelo"
                   required
-                  value={form.vehicleModel}
-                  onChange={set('vehicleModel')}
-                  placeholder="Ej: Ranger XL 4x4"
+                  value={vehicleModel}
+                  onChange={(e) => {
+                    setVehicleModel(e.target.value);
+                    setErrors(prev => ({ ...prev, vehicleModel: undefined }));
+                  }}
+                  placeholder="Ej: Ranger"
                   error={errors.vehicleModel}
                 />
-              </div>
-              <div className="w-full md:w-1/3">
+                <Input
+                  label="Versión"
+                  required
+                  value={vehicleVersion}
+                  onChange={(e) => {
+                    setVehicleVersion(e.target.value);
+                    setErrors(prev => ({ ...prev, vehicleVersion: undefined }));
+                  }}
+                  placeholder="Ej: XL 4x4, S3, GTI, TDI, Sport..."
+                  error={errors.vehicleVersion}
+                />
                 <Select
                   label="Año"
                   required
-                  value={form.vehicleYear}
-                  onChange={set('vehicleYear')}
+                  value={vehicleYear}
+                  onChange={(e) => setVehicleYear(e.target.value)}
                   options={YEARS}
                   error={errors.vehicleYear}
                 />
               </div>
             </div>
 
-            {/* Repuesto */}
-            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
-              <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl">🔧</span> Repuesto solicitado
-              </h2>
-              <Input
-                label="Pieza / Repuesto"
-                required
-                value={form.partName}
-                onChange={set('partName')}
-                placeholder="Ej: Paragolpe delantero, Capot, Óptica derecha..."
-                error={errors.partName}
-              />
-              <Textarea
-                label="Descripción adicional"
-                required
-                value={form.description}
-                onChange={set('description')}
-                placeholder="Describí el problema, el estado del vehículo, observaciones del cliente, etc."
-                rows={4}
-                error={errors.description}
-                hint="Cuanto más detallado, mejor podremos cotizarte. Mín. 20 caracteres."
-              />
+            {/* Repuestos Múltiples */}
+            <div className="space-y-6">
+              {items.map((item, idx) => (
+                <div key={item.tempId} className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-sm relative group transition-all">
+                  <div className="flex items-center justify-between border-b border-zinc-800/50 pb-4 mb-5">
+                    <h2 className="text-sm font-bold text-sky-400 bg-sky-400/10 px-3 py-1.5 rounded-lg flex items-center gap-2 tracking-tight uppercase">
+                      Repuesto {idx + 1}
+                    </h2>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.tempId)}
+                        className="text-xs font-semibold text-rose-500 hover:text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-lg hover:bg-rose-500/20 transition-colors"
+                      >
+                        🗑️ Eliminar
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="md:col-span-3">
+                        <Input
+                          label="Pieza / Repuesto solicitado"
+                          required
+                          value={item.partName}
+                          onChange={(e) => updateItem(item.tempId, 'partName', e.target.value)}
+                          placeholder="Ej: Paragolpe delantero, Capot, Óptica..."
+                          error={errors[`item_${item.tempId}_partName`]}
+                        />
+                      </div>
+                      <div className="md:col-span-1">
+                        <Input
+                          label="Cantidad"
+                          required
+                          type="number"
+                          min={1}
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.tempId, 'quantity', parseInt(e.target.value) || 1)}
+                          error={errors[`item_${item.tempId}_quantity`]}
+                        />
+                      </div>
+                    </div>
+
+                    <Textarea
+                      label="Descripción (opcional)"
+                      value={item.description}
+                      onChange={(e) => updateItem(item.tempId, 'description', e.target.value)}
+                      placeholder="Describí el estado que necesitás, u otras especificaciones..."
+                      rows={2}
+                    />
+
+                    <div>
+                      <p className="block text-sm font-semibold text-zinc-300 mb-2">
+                        Calidad deseada <span className="text-xs text-rose-500 font-bold">*</span>
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {QUALITY_OPTIONS.map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => updateItem(item.tempId, 'quality', opt.value)}
+                            className={`p-3 rounded-xl border text-left transition-all duration-200 ${
+                              item.quality === opt.value
+                                ? 'border-sky-500 bg-sky-500/10 shadow-inner'
+                                : 'border-zinc-800 bg-zinc-950/50 hover:border-zinc-600'
+                            }`}
+                          >
+                            <div className="text-sm font-bold text-zinc-200">{opt.label}</div>
+                            <div className="text-[10px] font-medium text-zinc-500 mt-0.5">{opt.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* FOTOS */}
+                    <div className="pt-2">
+                      <p className="block text-sm font-semibold text-zinc-300 mb-2">Fotos de referencia (opcional - máx. 2)</p>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        {item.imagePreviews.map((preview, i) => (
+                          <div key={i} className="relative group/img">
+                            <img src={preview} alt="preview" className="w-24 h-24 object-cover rounded-xl border border-zinc-700/50" />
+                            <button
+                              type="button"
+                              onClick={() => removeImage(item.tempId, i)}
+                              className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold opacity-0 group-hover/img:opacity-100 transition-opacity shadow-lg"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+
+                        {item.images.length < 2 && (
+                          <label className="w-24 h-24 flex flex-col items-center justify-center border-2 border-dashed border-zinc-700/50 rounded-xl bg-zinc-950/30 hover:bg-zinc-900/50 hover:border-sky-500/30 transition-all cursor-pointer">
+                            <span className="text-2xl text-zinc-500 mb-1">📷</span>
+                            <span className="text-[10px] uppercase font-bold text-zinc-500">Subir foto</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(e) => handleImageUpload(item.tempId, e)}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {/* Calidad */}
-            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
-              <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl">⭐</span> Calidad deseada
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {QUALITY_OPTIONS.map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setForm(prev => ({ ...prev, quality: opt.value }))}
-                    className={`p-4 rounded-xl border text-left transition-all duration-200 ${
-                      form.quality === opt.value
-                        ? 'border-orange-500 bg-orange-500/10 shadow-inner'
-                        : 'border-zinc-800 bg-zinc-950/50 hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="text-sm font-bold text-zinc-200 mb-1">{opt.label}</div>
-                    <div className="text-xs font-medium text-zinc-500">{opt.desc}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Imágenes (placeholder) */}
-            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-sm">
-              <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 mb-4 tracking-tight">
-                <span className="text-xl">📷</span> Fotos de referencia
-                <span className="text-xs font-medium text-zinc-500 ml-2">(opcional)</span>
-              </h2>
-              <div className="border-2 border-dashed border-zinc-700/50 rounded-xl p-10 text-center bg-zinc-950/30 hover:bg-zinc-900/50 hover:border-orange-500/30 transition-all duration-200">
-                <div className="text-4xl mb-3 opacity-60 drop-shadow-sm">📷</div>
-                <p className="text-sm font-bold text-zinc-300">
-                  La carga de imágenes estará disponible próximamente
-                </p>
-                <p className="text-xs font-medium text-zinc-600 mt-2 max-w-sm mx-auto">
-                  Preparado para integración con Supabase Storage (Drag & Drop múltiple)
-                </p>
-              </div>
+            <div className="flex justify-center border-t border-zinc-800/80 pt-6">
+              <Button type="button" variant="secondary" onClick={addItem}>
+                ➕ Agregar otro repuesto
+              </Button>
             </div>
 
             {/* Submit */}
-            <div className="flex items-center gap-3 justify-end pt-2">
+            <div className="flex items-center gap-3 justify-end pt-6">
               <Button type="button" variant="secondary" onClick={() => router.back()}>
                 Cancelar
               </Button>

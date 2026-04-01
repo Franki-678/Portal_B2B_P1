@@ -6,11 +6,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
-import { Card, CardContent } from '@/components/ui/Card';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderTimeline } from '@/components/orders/OrderTimeline';
 import { formatDate, formatCurrency, canWorkshopRespond } from '@/lib/utils';
-import { QUALITY_LABELS } from '@/lib/constants';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -84,7 +82,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   return (
     <>
       <TopBar
-        title={order.partName}
+        title={`Pedido ${order.id.split('-')[0].toUpperCase()}`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear}`}
         action={
           <Button variant="ghost" onClick={() => router.push('/taller/pedidos')}>
@@ -93,19 +91,18 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
         }
       />
 
-      <div className="p-6 space-y-8 max-w-4xl mx-auto">
+      <div className="p-6 space-y-8 max-w-5xl mx-auto">
         {/* Header info */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-5">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5">
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <StatusBadge status={order.status} />
-                <QualityBadge quality={order.quality} />
                 <span className="text-[11px] text-zinc-500 font-mono font-medium bg-zinc-800/50 px-2 py-0.5 rounded-md border border-zinc-700/50">{order.id.split('-')[0].toUpperCase()}</span>
               </div>
-              <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">{order.partName}</h2>
-              <p className="text-sm font-medium text-zinc-400 mt-1">
-                🚗 {order.vehicleBrand} {order.vehicleModel} — <span className="text-zinc-500">Año {order.vehicleYear}</span>
+              <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Vehículo y Pedido</h2>
+              <p className="text-sm font-medium text-zinc-400 mt-2">
+                🚗 {order.vehicleBrand} {order.vehicleModel} <span className="text-sky-400 font-bold">{order.vehicleVersion}</span> — {order.vehicleYear}
               </p>
             </div>
             <div className="text-left sm:text-right text-xs font-medium text-zinc-500 space-y-1">
@@ -113,42 +110,19 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
               <div>Actualizado: {formatDate(order.updatedAt)}</div>
             </div>
           </div>
-
-          {order.description && (
-            <div className="bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/80 shadow-inner">
-              <p className="text-sm font-medium text-zinc-300 leading-relaxed max-w-2xl">{order.description}</p>
-            </div>
-          )}
-
-          {/* Images */}
-          {order.images.length > 0 && (
-            <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-3">📷 Fotos de referencia</p>
-              <div className="flex gap-4 flex-wrap">
-                {order.images.map(img => (
-                  <img
-                    key={img.id}
-                    src={img.url}
-                    alt="Referencia"
-                    className="w-32 h-24 object-cover rounded-xl border border-zinc-700/50 shadow-sm"
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* COTIZACIÓN */}
+        {/* COMPARATIVA Y COTIZACIÓN */}
         {quote && (
           <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-lg shadow-black/20">
-            <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/50">
+            <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/50 pb-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
-                    <span className="text-xl drop-shadow-sm">💰</span> Cotización recibida
+                    <span className="text-xl drop-shadow-sm">💰</span> Cotización del Vendedor
                   </h3>
                   {quote.sentAt && (
-                    <p className="text-xs font-medium text-zinc-500 mt-1">Enviada el {formatDate(quote.sentAt)}</p>
+                    <p className="text-xs font-medium text-zinc-500 mt-1">Recibida el {formatDate(quote.sentAt)}</p>
                   )}
                 </div>
                 {canRespond && !partialMode && (
@@ -164,17 +138,17 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                       ⚡ Aprobación parcial
                     </Button>
                     <Button size="sm" variant="danger" onClick={() => setRejecting(true)}>
-                      ❌ Rechazar
+                      ❌ Rechazar Todo
                     </Button>
                     <Button size="sm" variant="success" onClick={handleApprove} loading={loading}>
-                      ✅ Aprobar todo
+                      ✅ Aprobar Todo
                     </Button>
                   </div>
                 )}
                 {partialMode && (
                   <div className="flex items-center gap-3">
                     <Button size="sm" variant="ghost" onClick={() => setPartialMode(false)}>
-                      Cancelar
+                      Cancelar parcial
                     </Button>
                     <Button
                       size="sm"
@@ -191,85 +165,141 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
 
               {partialMode && (
                 <div className="mt-4 text-xs font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 rounded-xl px-4 py-3 shadow-inner">
-                  💡 Seleccioná los ítems que querés aprobar. Los no seleccionados serán rechazados automáticamente.
+                  💡 Seleccioná usando las cajas de la derecha qué ítems querés aprobar. Los no seleccionados se rechazarán.
                 </div>
               )}
 
               {quote.notes && (
-                <div className="mt-4 bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/80 shadow-inner">
-                  <p className="text-sm font-medium text-zinc-400">📝 {quote.notes}</p>
+                <div className="mt-4 bg-amber-500/5 rounded-xl p-4 border border-amber-500/20 shadow-inner">
+                  <p className="text-sm font-medium text-amber-200/80 tracking-wide">📝 <span className="font-bold text-amber-300">Nota del vendedor:</span> {quote.notes}</p>
                 </div>
               )}
             </div>
 
-            {/* Items */}
-            <div className="divide-y divide-zinc-800/80">
-              {quote.items.map(item => {
-                const isSelected = partialMode ? selectedItems.has(item.id) : null;
-                const wasApproved = !partialMode && item.approved === true;
-                const wasRejected = !partialMode && item.approved === false;
+            {/* Comparativa: Ítems pedidos vs Ítems cotizados */}
+            <div className="divide-y divide-zinc-800/80 bg-zinc-950/30">
+              {order.items.map((orderItem, idx) => {
+                const quoteItem = quote.items.find(qi => qi.orderItemId === orderItem.id);
+                
+                // Si estamos en Approval Parcial
+                const isSelected = partialMode && quoteItem ? selectedItems.has(quoteItem.id) : null;
+                const wasApproved = !partialMode && quoteItem?.approved === true;
+                const wasRejected = !partialMode && quoteItem?.approved === false;
 
                 return (
-                  <div
-                    key={item.id}
-                    onClick={() => partialMode && toggleItem(item.id)}
-                    className={`p-6 flex flex-col sm:flex-row gap-5 transition-all outline-none ${
-                      partialMode ? 'cursor-pointer hover:bg-zinc-800/30' : ''
-                    } ${
-                      partialMode && isSelected ? 'bg-emerald-500/5' : ''
-                    } ${
-                      partialMode && !isSelected ? 'opacity-40 grayscale-[50%]' : ''
-                    } ${
-                      wasApproved ? 'bg-emerald-500/5' : ''
-                    } ${
-                      wasRejected ? 'bg-rose-500/5 opacity-50 grayscale' : ''
-                    }`}
+                  <div 
+                    key={orderItem.id} 
+                    className={`p-6 transition-all relative ${partialMode && quoteItem ? 'cursor-pointer hover:bg-zinc-900/30' : ''} ${partialMode && !isSelected && quoteItem ? 'opacity-40 grayscale-[40%]' : ''}`}
+                    onClick={() => {
+                      if (partialMode && quoteItem) {
+                        toggleItem(quoteItem.id);
+                      }
+                    }}
                   >
-                    {/* Checkbox / Estado */}
-                    <div className="flex-shrink-0 mt-1">
-                      {partialMode ? (
-                        <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${
-                          isSelected ? 'border-emerald-500 bg-emerald-500/20' : 'border-zinc-700 bg-zinc-900'
-                        }`}>
-                          {isSelected && <span className="text-emerald-400 text-sm font-bold">✓</span>}
-                        </div>
-                      ) : wasApproved ? (
-                        <span className="text-emerald-400 text-xl drop-shadow-sm">✅</span>
-                      ) : wasRejected ? (
-                        <span className="text-rose-400 text-xl drop-shadow-sm">❌</span>
-                      ) : null}
+                    {/* Header Item */}
+                    <div className="flex items-center gap-3 mb-4">
+                       <span className="text-xs font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded uppercase tracking-widest">
+                         Repuesto {idx + 1}
+                       </span>
                     </div>
 
-                    <div className="flex-1 w-full flex flex-col sm:flex-row gap-5">
-                      {/* Image */}
-                      {item.imageUrl && (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.partName}
-                          className="w-full sm:w-24 sm:h-20 object-cover rounded-xl border border-zinc-700/50 shadow-sm flex-shrink-0"
-                        />
-                      )}
+                    {/* Grid Comparativa */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                      {/* Línea divisoria en desktop */}
+                      <div className="hidden md:block absolute top-0 bottom-0 left-1/2 w-px bg-zinc-800/50 -translate-x-1/2 rounded-full" />
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                        <div className="space-y-2">
-                          <div>
-                            <h4 className="font-bold text-zinc-100 text-base">{item.partName}</h4>
-                            <p className="text-sm font-medium text-zinc-400 mt-1">{item.description}</p>
-                          </div>
-                          
-                          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-zinc-500 pt-1">
-                            {item.manufacturer && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">🏭 {item.manufacturer}</span>}
-                            {item.supplier && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50">📦 {item.supplier}</span>}
-                          </div>
-                          {item.notes && (
-                            <p className="text-xs font-medium text-zinc-400 italic mt-2 bg-zinc-950/30 p-2 rounded-lg border border-zinc-800/50 shadow-inner">📝 {item.notes}</p>
-                          )}
+                      {/* Izqda: Lo que pidió el taller */}
+                      <div className="space-y-4">
+                        <div className="inline-block px-3 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-400 uppercase">
+                          Lo que pediste
                         </div>
-                        <div className="text-left sm:text-right flex-shrink-0 space-y-2">
-                          <div className="text-xl font-extrabold text-zinc-100 tracking-tight">{formatCurrency(item.price)}</div>
-                          <QualityBadge quality={item.quality} />
+                        
+                        <div>
+                          <h4 className="font-bold text-zinc-200 text-lg">{orderItem.partName}</h4>
+                          <p className="text-sm text-zinc-400 mt-1">{orderItem.description || 'Sin descripción adicional'}</p>
+                          <div className="flex items-center gap-2 mt-3">
+                            <QualityBadge quality={orderItem.quality} />
+                            <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold">Cant: {orderItem.quantity}</span>
+                          </div>
                         </div>
+
+                        {orderItem.images && orderItem.images.length > 0 && (
+                          <div className="flex gap-2 flex-wrap">
+                            {orderItem.images.map(img => (
+                              <div key={img.id} className="relative group">
+                                <img src={img.url} alt="Referencia" className="w-24 h-20 object-cover rounded-xl border border-zinc-700/50 opacity-80" />
+                                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl backdrop-blur-[2px]">
+                                   <span className="text-[10px] font-bold text-white uppercase tracking-widest leading-none">Tu foto</span>
+                                   <span className="text-xl">🔍</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Dcha: Lo que cotizó el vendedor */}
+                      <div className="space-y-4 pt-4 md:pt-0 border-t md:border-t-0 border-zinc-800/50 relative">
+                        <div className="inline-block px-3 py-1 rounded-md bg-orange-500/10 border border-orange-500/20 text-xs font-bold text-orange-400 uppercase">
+                          Cotización del vendedor
+                        </div>
+
+                        {quoteItem ? (
+                          <div className="flex flex-col h-full justify-between">
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <h4 className="font-bold text-white text-xl">{formatCurrency(quoteItem.price)}</h4>
+                                  <div className="flex gap-2 flex-wrap mt-2">
+                                    <QualityBadge quality={quoteItem.quality} />
+                                    {quoteItem.manufacturer && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50 text-xs text-zinc-300">🏭 {quoteItem.manufacturer}</span>}
+                                  </div>
+                                </div>
+                                
+                                <div className="flex flex-col items-end flex-shrink-0">
+                                  {/* Checkbox Parcial / Badge Estado */}
+                                  {partialMode && (
+                                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shadow-sm ${
+                                      isSelected ? 'border-emerald-500 bg-emerald-500/20' : 'border-zinc-600 bg-zinc-900 border-dashed'
+                                    }`}>
+                                      {isSelected && <span className="text-emerald-400 text-sm font-bold">✓</span>}
+                                    </div>
+                                  )}
+                                  {!partialMode && wasApproved && (
+                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 inline-block px-2 py-1 rounded-md border border-emerald-500/20 shadow-sm mt-1">✅ Aprobado</span>
+                                  )}
+                                  {!partialMode && wasRejected && (
+                                    <span className="text-xs font-bold text-rose-400 bg-rose-500/10 inline-block px-2 py-1 rounded-md border border-rose-500/20 shadow-sm mt-1">❌ Rechazado</span>
+                                  )}
+                                  {!partialMode && quoteItem.approved === null && order.status === 'cotizado' && (
+                                    <span className="text-xs font-bold text-amber-400 bg-amber-500/10 inline-block px-2 py-1 rounded-md border border-amber-500/20 shadow-sm mt-1">⏳ Pendiente</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {quoteItem.description && (
+                                <p className="text-sm text-zinc-400 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800/50 shadow-inner">
+                                  {quoteItem.description}
+                                </p>
+                              )}
+                              
+                              {quoteItem.imageUrl && (
+                                <div className="mt-3 relative group w-fit">
+                                  <img src={quoteItem.imageUrl} alt="Repuesto cotizado" className="h-32 w-auto min-w-[120px] object-cover rounded-xl border border-orange-500/30 shadow-md shadow-orange-500/5" />
+                                  <div className="absolute inset-0 bg-orange-500/30 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl backdrop-blur-[2px]">
+                                     <span className="text-[10px] font-bold text-white uppercase tracking-widest leading-none drop-shadow-md">Foto proveedor</span>
+                                     <span className="text-xl drop-shadow-md">👀</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full bg-zinc-900/30 rounded-2xl border border-zinc-800/50 border-dashed p-6 text-center">
+                            <span className="text-2xl opacity-50 mb-2">🤷‍♂️</span>
+                            <span className="text-sm font-bold text-zinc-500 tracking-tight">Vendedor no cotizó / Sin stock</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -277,11 +307,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
               })}
             </div>
 
-            {/* Total */}
+            {/* Total Footer */}
             <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/60 shadow-inner">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-zinc-400 uppercase tracking-widest">
-                  Total {quote.items.length} ítem{quote.items.length !== 1 ? 's' : ''}
+                <span className="text-sm font-bold text-zinc-500 uppercase tracking-widest">
+                  Total Cotización (ítems con precio)
                 </span>
                 <span className="text-2xl font-black text-white tracking-tight">
                   {formatCurrency(quote.items.reduce((s, i) => s + i.price, 0))}
@@ -291,16 +321,45 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Reject dialog */}
-        {rejecting && (
-          <div className="bg-zinc-900 border border-rose-500/30 rounded-2xl p-6 shadow-sm">
+        {/* Sin cotización todavía */}
+        {!quote && order.status === 'pendiente' && (
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-3xl p-10 text-center shadow-sm">
+            <div className="text-4xl mb-4 drop-shadow-sm opacity-90">⏳</div>
+            <h3 className="text-lg font-bold text-amber-100 mb-2 tracking-tight">Esperando cotización</h3>
+            <p className="text-sm font-medium text-amber-400/80 max-w-sm mx-auto">
+              El vendedor pronto revisará los ítems solicitados de tu {order.vehicleBrand} {order.vehicleModel}.
+            </p>
+          </div>
+        )}
+
+        {!quote && order.status === 'en_revision' && (
+          <div className="bg-sky-500/5 border border-sky-500/20 rounded-3xl p-10 text-center shadow-sm">
+            <div className="text-4xl mb-4 drop-shadow-sm opacity-90">🔍</div>
+            <h3 className="text-lg font-bold text-sky-100 mb-2 tracking-tight">En revisión</h3>
+            <p className="text-sm font-medium text-sky-400/80 max-w-sm mx-auto">
+              El vendedor está consultando con sus proveedores o revisando su stock.
+            </p>
+          </div>
+        )}
+
+        {/* Historial */}
+        <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
+            📜 Historial del pedido
+          </h3>
+          <OrderTimeline events={order.events} />
+        </div>
+        
+         {/* Reject dialog */}
+         {rejecting && (
+          <div className="bg-zinc-900 border border-rose-500/30 rounded-2xl p-6 shadow-sm mt-4">
             <h3 className="font-bold text-zinc-100 mb-3 flex items-center gap-2 tracking-tight">
-              ❌ Rechazar cotización
+              ❌ Rechazar cotización completa
             </h3>
             <textarea
               value={rejectComment}
               onChange={e => setRejectComment(e.target.value)}
-              placeholder="Indicá el motivo del rechazo (ej: precio fuera de presupuesto, buscaremos otro proveedor)..."
+              placeholder="Indicá el motivo del rechazo total..."
               rows={3}
               className="w-full px-4 py-3 bg-zinc-950/50 border border-zinc-800 rounded-xl text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500/40 resize-y min-h-[80px]"
             />
@@ -313,34 +372,6 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Sin cotización todavía */}
-        {!quote && order.status === 'pendiente' && (
-          <div className="bg-amber-500/5 border border-amber-500/20 rounded-3xl p-10 text-center shadow-sm">
-            <div className="text-4xl mb-4 drop-shadow-sm opacity-90">⏳</div>
-            <h3 className="text-lg font-bold text-amber-100 mb-2 tracking-tight">Esperando cotización</h3>
-            <p className="text-sm font-medium text-amber-400/80 max-w-sm mx-auto">
-              El vendedor revisará tu pedido y te enviará una cotización en breve.
-            </p>
-          </div>
-        )}
-
-        {!quote && order.status === 'en_revision' && (
-          <div className="bg-sky-500/5 border border-sky-500/20 rounded-3xl p-10 text-center shadow-sm">
-            <div className="text-4xl mb-4 drop-shadow-sm opacity-90">🔍</div>
-            <h3 className="text-lg font-bold text-sky-100 mb-2 tracking-tight">En revisión</h3>
-            <p className="text-sm font-medium text-sky-400/80 max-w-sm mx-auto">
-              El vendedor está consultando con sus proveedores. Pronto recibirás la cotización.
-            </p>
-          </div>
-        )}
-
-        {/* Historial */}
-        <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
-          <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
-            📜 Historial del pedido
-          </h3>
-          <OrderTimeline events={order.events} />
-        </div>
       </div>
     </>
   );
