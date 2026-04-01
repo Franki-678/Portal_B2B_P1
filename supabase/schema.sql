@@ -79,6 +79,7 @@ CREATE TABLE orders (
   vehicle_model TEXT NOT NULL,
   vehicle_version TEXT NOT NULL,
   vehicle_year INT NOT NULL,
+  internal_order_number TEXT,
   status order_status NOT NULL DEFAULT 'pendiente',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -240,6 +241,15 @@ CREATE POLICY "order_items: taller can insert" ON order_items
     order_id IN (
       SELECT id FROM orders WHERE workshop_id IN (SELECT workshop_id FROM profiles WHERE id = auth.uid() AND role = 'taller')
     )
+  );
+
+-- Order Images: heredan visibilidad 
+CREATE POLICY "order_images: readable" ON order_images
+  FOR SELECT USING (true); -- Permitimos lectura pública/autenticada para simplificar vistas
+
+CREATE POLICY "order_images: taller can insert" ON order_images
+  FOR INSERT WITH CHECK (
+    auth.uid() IS NOT NULL
   );
 
 -- Cotizaciones: taller puede ver las de sus pedidos, vendedor puede CRUD

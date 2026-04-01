@@ -41,6 +41,9 @@ export function OrderCard({ order, onClick, showWorkshop = false }: OrderCardPro
           {showWorkshop && order.workshop && (
             <p className="text-xs font-semibold text-orange-500 mt-2 bg-orange-500/10 inline-flex items-center px-2 py-1 rounded-md border border-orange-500/20">🏭 {order.workshop.name}</p>
           )}
+          {!showWorkshop && order.internalOrderNumber && (
+            <p className="text-xs font-semibold text-sky-400 mt-2 bg-sky-400/10 inline-flex items-center px-2 py-1 rounded-md border border-sky-400/20">🏷️ Ref. Interna: {order.internalOrderNumber}</p>
+          )}
         </div>
         {firstItem && <QualityBadge quality={firstItem.quality} />}
       </div>

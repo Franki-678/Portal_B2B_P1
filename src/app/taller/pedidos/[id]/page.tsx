@@ -104,6 +104,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
               <p className="text-sm font-medium text-zinc-400 mt-2">
                 🚗 {order.vehicleBrand} {order.vehicleModel} <span className="text-sky-400 font-bold">{order.vehicleVersion}</span> — {order.vehicleYear}
               </p>
+              {order.internalOrderNumber && (
+                <p className="text-xs font-semibold text-sky-400 mt-3 inline-flex items-center bg-sky-400/10 px-2.5 py-1 rounded-md border border-sky-400/20 shadow-sm">
+                  🏷️ Ref. Interna: {order.internalOrderNumber}
+                </p>
+              )}
             </div>
             <div className="text-left sm:text-right text-xs font-medium text-zinc-500 space-y-1">
               <div>Creado: {formatDate(order.createdAt)}</div>

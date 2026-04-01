@@ -37,6 +37,7 @@ interface DataStoreContextType {
     vehicleModel: string;
     vehicleVersion: string;
     vehicleYear: number;
+    internalOrderNumber?: string;
     items: {
       partName: string;
       description: string;
@@ -175,6 +176,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         vehicleModel: string;
         vehicleVersion: string;
         vehicleYear: number;
+        internalOrderNumber?: string;
         items: {
           partName: string;
           description: string;
@@ -193,6 +195,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
           vehicleModel: data.vehicleModel,
           vehicleVersion: data.vehicleVersion,
           vehicleYear: data.vehicleYear,
+          internalOrderNumber: data.internalOrderNumber,
           items: data.items.map(i => ({
             partName: i.partName,
             description: i.description,
@@ -206,13 +209,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
 
       if (orderId) {
         await refreshOrders();
-        const created = orders.find(o => o.id === orderId);
-        if (created) return created;
+        // Evitamos buscar en `orders` (stale closure), devolvemos el objeto mínimo necesario
+        // para que el router.push en el UI funcione.
+        return { id: orderId } as import("@/lib/types").Order;
       }
       
       throw new Error("No se pudo crear el pedido en la base de datos");
     },
-    [refreshOrders, orders]
+    [refreshOrders]
   );
 
   const approveQuote = useCallback(

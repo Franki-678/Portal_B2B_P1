@@ -106,6 +106,7 @@ export async function createOrderInDB(
     vehicleModel: string;
     vehicleVersion: string;
     vehicleYear: number;
+    internalOrderNumber?: string;
     items: {
       partName: string;
       description: string;
@@ -124,6 +125,7 @@ export async function createOrderInDB(
       vehicle_model: data.vehicleModel,
       vehicle_version: data.vehicleVersion,
       vehicle_year: data.vehicleYear,
+      internal_order_number: data.internalOrderNumber ?? null,
       status: 'pendiente',
     })
     .select('id')

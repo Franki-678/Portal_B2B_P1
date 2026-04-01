@@ -40,6 +40,7 @@ export default function NuevoPedidoPage() {
   const [vehicleModel, setVehicleModel] = useState('');
   const [vehicleVersion, setVehicleVersion] = useState('');
   const [vehicleYear, setVehicleYear] = useState(String(CURRENT_YEAR));
+  const [internalOrderNumber, setInternalOrderNumber] = useState('');
   const [items, setItems] = useState<NewOrderItemForm[]>([emptyItem()]);
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -75,6 +76,7 @@ export default function NuevoPedidoPage() {
         vehicleModel,
         vehicleVersion,
         vehicleYear: parseInt(vehicleYear),
+        internalOrderNumber: internalOrderNumber.trim() || undefined,
         items: items.map(i => ({
           partName: i.partName,
           description: i.description,
@@ -215,6 +217,12 @@ export default function NuevoPedidoPage() {
                   onChange={(e) => setVehicleYear(e.target.value)}
                   options={YEARS}
                   error={errors.vehicleYear}
+                />
+                <Input
+                  label="N° Orden Interna (Opcional)"
+                  value={internalOrderNumber}
+                  onChange={(e) => setInternalOrderNumber(e.target.value)}
+                  placeholder="Secreto, interno para tu taller"
                 />
               </div>
             </div>
