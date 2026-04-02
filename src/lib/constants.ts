@@ -77,7 +77,6 @@ export const QUALITY_OPTIONS: { value: OrderQuality; label: string; desc: string
 ];
 
 export const DEMO_USERS = [
-  { email: 'taller1@demo.com', password: 'demo1234', name: 'Taller Norte', role: 'taller' },
-  { email: 'taller2@demo.com', password: 'demo1234', name: 'Taller Sur', role: 'taller' },
-  { email: 'vendedor@demo.com', password: 'demo1234', name: 'Distribuidora Central', role: 'vendedor' },
+  { email: 'taller01@demo.com', password: 'demo1234', name: 'Taller 01', role: 'taller' },
+  { email: 'vendedor01@demo.com', password: 'demo1234', name: 'Vendedor 01', role: 'vendedor' },
 ];

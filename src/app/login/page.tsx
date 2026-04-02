@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [isRegister, setIsRegister] = useState(false);
-  
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login, registerTaller } = useAuth();
@@ -49,8 +49,8 @@ export default function LoginPage() {
     } else {
       const result = await login(email, password);
       if (result.success) {
-        const user = DEMO_USERS.find(u => u.email === email.toLowerCase());
-        router.replace(user?.role === 'vendedor' ? '/vendedor' : '/taller');
+        // Redirigir según el rol real devuelto desde la tabla profiles de Supabase
+        router.replace(result.role === 'vendedor' ? '/vendedor' : '/taller');
       } else {
         setError(result.error || 'Error al iniciar sesión');
         setLoading(false);
@@ -58,6 +58,10 @@ export default function LoginPage() {
     }
   };
 
+  /**
+   * Autocompleta el formulario con credenciales demo.
+   * El usuario debe hacer click en "Ingresar" para ejecutar el login real via Supabase.
+   */
   const fillDemo = (userIdx: number) => {
     setEmail(DEMO_USERS[userIdx].email);
     setPassword(DEMO_USERS[userIdx].password);
@@ -180,10 +184,16 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Quick access */}
+          {/* Acceso rápido demo — solo autocompleta el formulario */}
           {!isRegister && (
             <div className="mt-8 pt-6 border-t border-zinc-800/80">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-4 text-center">Modo Demo</p>
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-3 text-center">
+                Acceso rápido demo
+              </p>
+              <p className="text-[11px] text-zinc-600 text-center mb-4 leading-relaxed">
+                Estos botones autocompletan el formulario.<br />
+                Hacé click en <span className="text-zinc-400 font-semibold">Ingresar</span> para conectarte.
+              </p>
               <div className="space-y-3">
                 {DEMO_USERS.map((u, idx) => (
                   <button
@@ -193,8 +203,10 @@ export default function LoginPage() {
                     className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-zinc-950/50 border border-zinc-800/80 hover:border-orange-500/30 hover:bg-zinc-800/50 transition-all duration-200 text-left group"
                   >
                     <span className="text-sm font-semibold text-zinc-300 flex items-center gap-3 tracking-tight">
-                      <span className="text-lg grayscale group-hover:grayscale-0 transition-opacity opacity-50 group-hover:opacity-100">{u.role === 'taller' ? '🏭' : '📦'}</span> 
-                      {u.name}
+                      <span className="text-lg grayscale group-hover:grayscale-0 transition-opacity opacity-50 group-hover:opacity-100">
+                        {u.role === 'taller' ? '🏭' : '📦'}
+                      </span>
+                      {u.email}
                     </span>
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${u.role === 'vendedor' ? 'bg-sky-500/10 text-sky-400' : 'bg-orange-500/10 text-orange-400'}`}>
                       {u.role}
