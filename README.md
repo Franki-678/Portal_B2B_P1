@@ -4,35 +4,85 @@ Sistema B2B para talleres de chapa y pintura. Conecta talleres con vendedores de
 
 ---
 
-## 🚀 Instalación y ejecución
+## 🚀 Instalación y ejecución local
 
 ```bash
-# Clonar o descomprimir el proyecto
 cd portal-b2b
-
-# Instalar dependencias
 npm install
-
-# Ejecutar en desarrollo
 npm run dev
+# Abrir: http://localhost:3000
+```
 
-# Abrir en el navegador
-# http://localhost:3000
+Copiar `.env.local` con las credenciales del proyecto Supabase:
+```
+NEXT_PUBLIC_SUPABASE_URL=https://TU_PROYECTO.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 ```
 
 ---
 
-## 🔑 Credenciales demo (Supabase)
+## 🗃️ Setup de la base de datos (OBLIGATORIO)
 
-Si ejecutaste el script `supabase/schema.sql` completo, se crearon los siguientes perfiles de forma directa en Supabase Auth, listos para usar:
+### Paso 1 — Ejecutar el script de reset y setup
 
-| Usuario | Email | Contraseña | Rol |
-|---------|-------|------------|-----|
-| Taller Norte | `taller1@demo.com` | `demo1234` | taller |
-| Taller Sur | `taller2@demo.com` | `demo1234` | taller |
-| Distribuidora Central | `vendedor@demo.com` | `demo1234` | vendedor |
+Ir a **Supabase Dashboard → SQL Editor** y ejecutar el archivo completo:
 
-> ⚠️ IMPORTANTE: El portal ahora utiliza la API real de Supabase (`signInWithPassword`) para el inicio de sesión. Ya no se usan datos mockeados en localstorage para la autenticación.
+```
+supabase/reset_and_setup.sql
+```
+
+> ⚠️ Este script **elimina y recrea** todas las tablas, tipos, triggers y políticas RLS desde cero. Es idempotente: se puede ejecutar N veces sin error.
+
+Lo que hace el script:
+- Borra todas las tablas, ENUMs y triggers anteriores
+- Crea los tipos ENUM (`user_role`, `order_status`, etc.)
+- Crea las tablas: `workshops`, `profiles`, `orders`, `order_items`, `order_images`, `quotes`, `quote_items`, `order_events`
+- Crea el trigger `handle_new_user` (crea perfil + workshop automáticamente al registrarse)
+- Aplica todas las políticas RLS correctas
+- Crea índices de rendimiento
+
+---
+
+### Paso 2 — Crear la cuenta de VENDEDOR manualmente
+
+Los vendedores **no se registran desde la app** (solo los talleres lo hacen).
+
+**Opción A — Desde Supabase Dashboard:**
+1. Ir a **Authentication → Users → Add User**
+2. Email: `vendedor01@demo.com` (o el que prefieras)
+3. Contraseña: la que elijas
+4. Hacer clic en "Create User"
+5. Copiar el UUID del usuario creado
+6. En **SQL Editor**, ejecutar:
+
+```sql
+UPDATE profiles
+SET role = 'vendedor', name = 'Vendedor Principal'
+WHERE id = '<UUID del usuario>';
+```
+
+**Opción B — Si el trigger creó el perfil automáticamente como "taller":**
+```sql
+UPDATE profiles
+SET role = 'vendedor'
+WHERE id = (SELECT id FROM auth.users WHERE email = 'vendedor01@demo.com');
+```
+
+---
+
+### Paso 3 — Probar el registro de un taller nuevo
+
+1. Ir a `http://localhost:3000/login`
+2. Click en **"Nuevo taller"**
+3. Completar: nombre del taller, email, contraseña (mín. 6 chars)
+4. Click en **Crear cuenta**
+
+El trigger `handle_new_user` crea automáticamente:
+- Un registro en `profiles` con `role = 'taller'`
+- Un registro en `workshops` con el nombre del taller
+- Vincula `workshop_id` en el perfil
+
+El sistema redirige automáticamente al dashboard `/taller`.
 
 ---
 
@@ -40,10 +90,11 @@ Si ejecutaste el script `supabase/schema.sql` completo, se crearon los siguiente
 
 | Ruta | Descripción |
 |------|-------------|
-| `/` | Landing con info de portales y credenciales |
-| `/login` | Login con acceso rápido demo |
+| `/` | Landing informativa |
+| `/login` | Login + registro rápido de talleres |
+| `/registro` | Registro dedicado de taller nuevo |
 | `/taller` | Dashboard del taller |
-| `/taller/pedidos` | Lista de pedidos del taller |
+| `/taller/pedidos` | Lista de pedidos |
 | `/taller/pedidos/nuevo` | Formulario nuevo pedido |
 | `/taller/pedidos/[id]` | Detalle + cotización + aprobar/rechazar |
 | `/vendedor` | Dashboard del vendedor |
@@ -56,18 +107,29 @@ Si ejecutaste el script `supabase/schema.sql` completo, se crearon los siguiente
 ## 🔄 Flujo del sistema
 
 ```
-1. Taller hace login → entra a /taller
-2. Taller crea pedido → /taller/pedidos/nuevo
-3. Pedido queda en estado "pendiente"
-4. Vendedor ve el pedido → /vendedor/pedidos
-5. Vendedor abre el pedido, lo marca "en revisión"
-6. Vendedor carga cotización (multi-ítem) → estado "cotizado"
-7. Taller recibe la cotización → puede:
+1. Taller se registra → /login → Nuevo taller
+2. Taller hace login → entra a /taller
+3. Taller crea pedido → /taller/pedidos/nuevo
+4. Pedido queda en estado "pendiente"
+5. Vendedor ve el pedido → /vendedor/pedidos
+6. Vendedor lo marca "en revisión"
+7. Vendedor carga cotización (multi-ítem) → estado "cotizado"
+8. Taller recibe la cotización y puede:
    - Aprobar todo → estado "aprobado"
    - Rechazar → estado "rechazado"
-   - Aprobar parcialmente (seleccionar ítems) → "aprobado_parcial"
-8. Vendedor puede cerrar el pedido → "cerrado"
+   - Aprobar parcialmente → "aprobado_parcial"
+9. Vendedor puede cerrar el pedido → "cerrado"
 ```
+
+---
+
+## 🛡️ Autenticación
+
+- **100% Supabase Auth** — `signInWithPassword` y `signUp`
+- **Sin mocks ni datos locales** para autenticación
+- **Timeout de 10 segundos** en todas las operaciones de Supabase
+- **Roles**: `taller` (se registra desde la app) | `vendedor` (creado por admin)
+- El rol se lee siempre desde la tabla `profiles` en la BD
 
 ---
 
@@ -76,8 +138,7 @@ Si ejecutaste el script `supabase/schema.sql` completo, se crearon los siguiente
 - **Framework**: Next.js 14 (App Router)
 - **Lenguaje**: TypeScript
 - **Estilos**: Tailwind CSS
-- **Estado**: React Context combinado con **Supabase** real.
-- **Backend preparado**: Supabase completo con Autenticación activa (ver `/supabase/schema.sql`)
+- **Auth + DB**: Supabase (Auth, PostgreSQL, RLS)
 - **Deploy**: Vercel-ready
 
 ---
@@ -88,75 +149,49 @@ Si ejecutaste el script `supabase/schema.sql` completo, se crearon los siguiente
 src/
 ├── app/
 │   ├── page.tsx              # Landing
-│   ├── login/page.tsx
-│   ├── taller/
-│   │   ├── layout.tsx        # Auth guard + sidebar
-│   │   ├── page.tsx          # Dashboard taller
-│   │   └── pedidos/
-│   │       ├── page.tsx
-│   │       ├── nuevo/page.tsx
-│   │       └── [id]/page.tsx
-│   └── vendedor/
-│       ├── layout.tsx        # Auth guard + sidebar
-│       ├── page.tsx          # Dashboard vendedor
-│       ├── pedidos/
-│       │   ├── page.tsx
-│       │   └── [id]/page.tsx
-│       └── clientes/page.tsx
-├── components/
-│   ├── ui/                   # Button, Badge, Card, FormFields, Layout
-│   └── orders/               # OrderCard, OrderTimeline
+│   ├── login/page.tsx        # Login + tabs (login / nuevo taller)
+│   ├── registro/page.tsx     # Registro dedicado de taller
+│   ├── taller/               # Dashboard del taller (protegido)
+│   └── vendedor/             # Dashboard del vendedor (protegido)
 ├── contexts/
-│   ├── AuthContext.tsx        # Integrado 100% con Supabase Auth
-│   └── DataStoreContext.tsx  # Store reactivo compartido
+│   ├── AuthContext.tsx       # Auth real con Supabase + timeout 10s
+│   └── DataStoreContext.tsx  # Store reactivo de datos
 └── lib/
-    ├── types.ts              # Tipos TypeScript
-    ├── constants.ts          # Labels, colores, opciones
-    ├── utils.ts              # Utilidades
-    └── mock-data.ts          # Datos demo completos
+    ├── supabase/client.ts    # Cliente Supabase singleton
+    ├── types.ts
+    ├── constants.ts
+    └── utils.ts
+
+supabase/
+├── reset_and_setup.sql       # ← EJECUTAR ESTO en Supabase SQL Editor
+└── schema.sql                # Schema anterior (referencia, no usar)
 ```
-
----
-
-## ☁️ Conexión con Supabase configurada
-
-1. Crear proyecto en [supabase.com](https://supabase.com)
-2. Ejecutar `/supabase/schema.sql` en el SQL Editor (este archivo creará esquemas, políticas, RLS, tablas y agregará los usuarios de prueba automáticamente con pgcrypto).
-3. Copiar el contenido de `env.example.txt` hacia un nuevo archivo `.env.local`
-4. Completar las variables con tu proyecto:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-   ```
-5. La aplicación detectará automáticamente las variables y pasará a usar Supabase en lugar de mock data (gracias a `DataStoreContext.tsx` híbrido y `client.ts`).
 
 ---
 
 ## 🚀 Deploy en Vercel
 
 ```bash
-# Build de producción
-npm run build
-
-# Deploy (con Vercel CLI)
-npx vercel
+npm run build   # Verificar sin errores
+npx vercel      # Deploy
 ```
 
-O conectar directamente el repositorio GitHub desde [vercel.com](https://vercel.com).
-
-**Variables de entorno en Vercel**: agregar `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+Agregar en Vercel → Settings → Environment Variables:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ---
 
 ## 🔮 Roadmap (Fase 2+)
 
 - [x] Integración real con Supabase Auth
+- [x] Trigger auto-crea perfil y workshop al registrarse
+- [x] Políticas RLS por rol (taller / vendedor)
+- [x] Timeout en operaciones de red
 - [ ] Upload de imágenes con Supabase Storage
 - [ ] Notificaciones en tiempo real (Supabase Realtime)
-- [ ] Sistema de roles vía JWT
-- [ ] Email/WhatsApp al recibir cotización
+- [ ] Email al recibir cotización
 - [ ] Módulo de proveedores
-- [ ] Historial de precios
 
 ---
 

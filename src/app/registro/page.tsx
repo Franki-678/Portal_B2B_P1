@@ -1,0 +1,180 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/FormFields';
+import Link from 'next/link';
+
+/**
+ * Página de registro de nuevos talleres.
+ * Llama a supabase.auth.signUp con metadata { name, role, workshop_name }.
+ * El trigger handle_new_user() crea el perfil y el workshop automáticamente.
+ */
+export default function RegistroPage() {
+  const [name, setName]         = useState('');
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm]   = useState('');
+
+  const [error, setError]   = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const { registerTaller } = useAuth();
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    // Validaciones client-side
+    if (!name.trim()) {
+      setError('El nombre del taller es obligatorio.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await registerTaller({
+      email: email.trim(),
+      password,
+      name: name.trim(),
+    });
+
+    if (result.success) {
+      // Redirigir al dashboard del taller inmediatamente
+      router.replace('/taller');
+    } else {
+      setError(result.error ?? 'Error al registrar el taller.');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
+      {/* Fondo decorativo */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-orange-600/8 rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-sky-600/8 rounded-full blur-[100px]" />
+      </div>
+
+      <div className="w-full max-w-sm relative z-10">
+        {/* Logo / Branding */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex flex-col items-center gap-3 group">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-500/5 border border-orange-500/20 flex items-center justify-center text-3xl shadow-inner shadow-orange-500/10 group-hover:border-orange-500/40 transition-colors">
+              🏭
+            </div>
+            <div>
+              <div className="text-2xl font-extrabold text-zinc-100 tracking-tight">Portal B2B</div>
+              <div className="text-xs font-semibold text-zinc-500 tracking-widest uppercase mt-0.5">
+                Registro de Taller
+              </div>
+            </div>
+          </Link>
+        </div>
+
+        {/* Card */}
+        <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800/80 rounded-3xl p-7 shadow-2xl relative">
+          {/* Línea decorativa */}
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-orange-500/30 to-transparent rounded-t-3xl" />
+
+          <div className="mb-6">
+            <h1 className="text-lg font-bold text-zinc-100 tracking-tight">Crear cuenta de taller</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              Completá los datos para registrar tu taller
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <Input
+              label="Nombre del taller"
+              id="reg-name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ej: Chapa y Pintura Sur"
+              required
+              autoFocus
+            />
+
+            <Input
+              label="Email"
+              id="reg-email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="taller@email.com"
+              required
+              autoComplete="email"
+            />
+
+            <Input
+              label="Contraseña"
+              id="reg-password"
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              required
+              autoComplete="new-password"
+            />
+
+            <Input
+              label="Confirmar contraseña"
+              id="reg-confirm"
+              type="password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+              placeholder="••••••••"
+              required
+              autoComplete="new-password"
+            />
+
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-3 text-sm font-medium text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-3"
+              >
+                <span className="shrink-0 mt-0.5">⚠️</span>
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" fullWidth loading={loading} size="lg">
+              {loading ? 'Creando cuenta...' : 'Registrar taller'}
+            </Button>
+          </form>
+
+          <p className="text-xs text-zinc-600 text-center mt-5 leading-relaxed">
+            ¿Ya tenés cuenta?{' '}
+            <Link href="/login" className="text-zinc-400 hover:text-zinc-200 font-semibold transition-colors">
+              Iniciá sesión
+            </Link>
+          </p>
+
+          <div className="mt-4 pt-4 border-t border-zinc-800/60">
+            <p className="text-[11px] text-zinc-600 text-center leading-relaxed">
+              Los accesos de vendedor son creados por el administrador
+              del sistema. Si necesitás uno, contactá a tu proveedor.
+            </p>
+          </div>
+        </div>
+
+        <p className="text-center text-sm font-medium text-zinc-600 mt-6">
+          <Link href="/" className="hover:text-zinc-400 transition-colors">
+            ← Volver al inicio
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}
