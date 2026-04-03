@@ -1,8 +1,58 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  ReactNode,
+} from 'react';
+import { useRouter } from 'next/navigation';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { User, UserRole } from '@/lib/types';
 import { getSupabaseClient } from '@/lib/supabase/client';
+
+// ────────────────────────────────────────────────────────────
+// Configuración
+// ────────────────────────────────────────────────────────────
+
+const TIMEOUT_MS = 8_000;
+const PROFILE_MAX_ATTEMPTS = 3;
+const PROFILE_RETRY_DELAY_MS = 400;
+
+const TIMEOUT_MESSAGE = 'La operación tardó demasiado. Verificá tu conexión.';
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isTimeoutError(err: unknown): boolean {
+  return err instanceof Error && err.message === '__AUTH_TIMEOUT__';
+}
+
+function raceTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('__AUTH_TIMEOUT__')), TIMEOUT_MS);
+  });
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    timeout,
+  ]);
+}
+
+function mapAuthError(error: { message: string }): string {
+  const m = error.message;
+  if (m.includes('Invalid login credentials') || m.includes('invalid_credentials')) {
+    return 'Email o contraseña incorrectos.';
+  }
+  if (m.includes('Email not confirmed')) {
+    return 'Tu cuenta no fue confirmada. Revisá tu email.';
+  }
+  return m;
+}
 
 // ────────────────────────────────────────────────────────────
 // Tipos del contexto
@@ -16,57 +66,106 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-interface RegisterTallerData {
+export interface RegisterTallerData {
   email: string;
   password: string;
   name: string;
-  phone?: string;
-  address?: string;
 }
-
-// ────────────────────────────────────────────────────────────
-// Helper: Timeout para operaciones de Supabase Auth (no queries)
-// Las operaciones de auth (signIn, signUp, getSession) retornan
-// Promise estándar, así que el timeout aplica sin problema.
-// Las queries de Supabase (PostgREST) también son awaitables.
-// ────────────────────────────────────────────────────────────
-
-const TIMEOUT_MS = 10_000;
-
-const PROFILE_RETRY_DELAY_MS = 1_000;
-const PROFILE_MAX_ATTEMPTS = 3;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function makeTimeoutError(): Error {
-  return new Error('La operación tardó demasiado. Verificá tu conexión e intentá de nuevo.');
-}
-
-// Versión para operaciones de auth que retornan Promise<T>
-function raceTimeout<T>(promise: Promise<T>, ms = TIMEOUT_MS): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(makeTimeoutError()), ms);
-  });
-  return Promise.race([
-    promise.finally(() => clearTimeout(timer)),
-    timeout,
-  ]);
-}
-
-// ────────────────────────────────────────────────────────────
-// Contexto
-// ────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+// ────────────────────────────────────────────────────────────
+// Provider
+// ────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const loadSeq = useRef(0);
 
-  // Inicializar sesión al montar el componente
+  const hydrateUser = useCallback(
+    async (supabaseUser: SupabaseUser): Promise<User | null> => {
+      const sb = getSupabaseClient();
+      const userId = supabaseUser.id;
+      const email = supabaseUser.email ?? '';
+
+      for (let attempt = 0; attempt < PROFILE_MAX_ATTEMPTS; attempt++) {
+        try {
+          const { data, error } = (await raceTimeout(
+            (sb as any)
+              .from('profiles')
+              .select('name, role, workshop_id')
+              .eq('id', userId)
+              .maybeSingle()
+          )) as { data: unknown; error: unknown };
+
+          if (error) throw error;
+          if (!data) {
+            if (attempt < PROFILE_MAX_ATTEMPTS - 1) {
+              await sleep(PROFILE_RETRY_DELAY_MS);
+              continue;
+            }
+            return null;
+          }
+
+          let workshopName: string | undefined;
+          const wsId = (data as { workshop_id: string | null }).workshop_id;
+          if (wsId) {
+            const { data: ws } = (await raceTimeout(
+              (sb as any).from('workshops').select('name').eq('id', wsId).maybeSingle()
+            )) as { data: unknown };
+            workshopName = (ws as { name?: string } | null)?.name;
+          }
+
+          return {
+            id: userId,
+            email,
+            name: (data as { name: string }).name,
+            role: (data as { role: UserRole }).role,
+            workshopId: wsId ?? undefined,
+            workshopName,
+          };
+        } catch (e) {
+          if (isTimeoutError(e)) throw e;
+          console.error('[Auth] hydrateUser:', e);
+          if (attempt < PROFILE_MAX_ATTEMPTS - 1) await sleep(PROFILE_RETRY_DELAY_MS);
+        }
+      }
+      return null;
+    },
+    []
+  );
+
+  const applySession = useCallback(
+    async (sessionUser: SupabaseUser | null | undefined) => {
+      const seq = ++loadSeq.current;
+      if (!sessionUser) {
+        setUser(null);
+        return;
+      }
+      try {
+        const loaded = await hydrateUser(sessionUser);
+        if (seq !== loadSeq.current) return;
+        if (!loaded) {
+          const sb = getSupabaseClient();
+          await sb.auth.signOut().catch(() => undefined);
+          setUser(null);
+          return;
+        }
+        setUser(loaded);
+      } catch (e) {
+        if (isTimeoutError(e)) {
+          const sb = getSupabaseClient();
+          await sb.auth.signOut().catch(() => undefined);
+          setUser(null);
+        }
+        console.error('[Auth] applySession:', e);
+      }
+    },
+    [hydrateUser]
+  );
+
   useEffect(() => {
     let supabase: ReturnType<typeof getSupabaseClient>;
     try {
@@ -77,287 +176,171 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const initializeAuth = async () => {
+    let unsubscribed = false;
+
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (unsubscribed) return;
+      setIsLoading(true);
       try {
-        // getSession() retorna una Promise estándar → ok con raceTimeout
-        const sessionResult = await raceTimeout(supabase.auth.getSession());
-        if (sessionResult.error) throw sessionResult.error;
-
-        if (sessionResult.data.session?.user) {
-          const { id, email } = sessionResult.data.session.user;
-          const loaded = await loadUserProfile(id, email ?? '');
-          if (!loaded) {
-            await supabase.auth.signOut().catch(() => undefined);
-            setUser(null);
-          }
-        }
-      } catch (err) {
-        console.error('[Auth] Error al inicializar sesión:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    // Listener para cambios de sesión (logout desde otra pestaña, token refresh, etc.)
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
         if (session?.user) {
-          const loaded = await loadUserProfile(session.user.id, session.user.email ?? '');
-          if (!loaded) {
-            await supabase.auth.signOut().catch(() => undefined);
-            setUser(null);
-          }
+          await applySession(session.user);
         } else {
           setUser(null);
         }
-        setIsLoading(false);
+      } catch (e) {
+        if (!isTimeoutError(e)) console.error('[Auth] onAuthStateChange:', e);
+        setUser(null);
+      } finally {
+        if (!unsubscribed) setIsLoading(false);
       }
-    );
+    });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      unsubscribed = true;
+      sub.subscription.unsubscribe();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [applySession]);
 
-  // ──────────────────────────────────────────────────────────
-  // loadUserProfile: busca el perfil en la tabla `profiles`.
-  // Reintenta hasta 3 veces con 1s entre intentos (trigger / réplica).
-  // Retorna el User construido o null si no existe tras los reintentos.
-  // ──────────────────────────────────────────────────────────
-  const loadUserProfile = async (userId: string, email: string): Promise<User | null> => {
-    const supabase = getSupabaseClient();
-
-    for (let attempt = 0; attempt < PROFILE_MAX_ATTEMPTS; attempt++) {
+  const login = useCallback(
+    async (
+      email: string,
+      password: string
+    ): Promise<{ success: boolean; role?: UserRole; error?: string }> => {
+      const sb = getSupabaseClient();
       try {
-        const result = await Promise.race([
-          (supabase as any)
-            .from('profiles')
-            .select('name, role, workshop_id')
-            .eq('id', userId)
-            .maybeSingle(),
-          new Promise<any>((_, reject) =>
-            setTimeout(() => reject(makeTimeoutError()), TIMEOUT_MS)
-          ),
-        ]);
+        const { data, error } = await raceTimeout(
+          sb.auth.signInWithPassword({ email: email.trim(), password })
+        );
 
-        const { data, error } = result as { data: any; error: any };
-
-        if (error) throw error;
-        if (!data) {
-          if (attempt < PROFILE_MAX_ATTEMPTS - 1) {
-            await sleep(PROFILE_RETRY_DELAY_MS);
-            continue;
-          }
-          return null;
+        if (error) {
+          return { success: false, error: mapAuthError(error) };
         }
 
-        let workshopName: string | undefined;
-        const wsId = (data as any).workshop_id;
-        if (wsId) {
-          const { data: wsData } = await (supabase as any)
-            .from('workshops')
-            .select('name')
-            .eq('id', wsId)
-            .maybeSingle();
-          workshopName = wsData?.name;
+        if (!data.user) {
+          return { success: false, error: 'Error inesperado al iniciar sesión.' };
         }
 
-        const loadedUser: User = {
-          id: userId,
-          email,
-          name: (data as any).name,
-          role: (data as any).role as UserRole,
-          workshopId: (data as any).workshop_id ?? undefined,
-          workshopName,
-        };
-        setUser(loadedUser);
-        return loadedUser;
-      } catch (err) {
-        console.error('[Auth] Error al cargar perfil de usuario:', err);
-        if (attempt < PROFILE_MAX_ATTEMPTS - 1) {
-          await sleep(PROFILE_RETRY_DELAY_MS);
-        }
-      }
-    }
-
-    return null;
-  };
-
-  // ──────────────────────────────────────────────────────────
-  // login: autenticación real con Supabase
-  //
-  // Flujo:
-  //   1. signInWithPassword(email, password) con timeout 10s
-  //   2. Si falla → { success: false, error: mensaje en español }
-  //   3. Si ok → busca perfil en tabla `profiles`
-  //   4. Si no hay perfil → logout automático + error claro
-  //   5. Retorna { success: true, role } para redirigir desde la UI
-  // ──────────────────────────────────────────────────────────
-  const login = async (
-    email: string,
-    password: string
-  ): Promise<{ success: boolean; role?: UserRole; error?: string }> => {
-    try {
-      const supabase = getSupabaseClient();
-
-      const { data, error } = await raceTimeout(
-        supabase.auth.signInWithPassword({ email, password })
-      );
-
-      if (error) {
-        if (
-          error.message.includes('Invalid login credentials') ||
-          error.message.includes('invalid_credentials')
-        ) {
-          return { success: false, error: 'Email o contraseña incorrectos.' };
-        }
-        if (error.message.includes('Email not confirmed')) {
+        const loaded = await hydrateUser(data.user);
+        if (!loaded) {
+          await sb.auth.signOut().catch(() => undefined);
+          setUser(null);
           return {
             success: false,
-            error: 'Tu cuenta no fue confirmada. Revisá tu email.',
+            error:
+              'Tu cuenta no tiene perfil asignado. Registrate de nuevo o contactá al administrador.',
           };
         }
-        return { success: false, error: error.message };
+
+        setUser(loaded);
+        return { success: true, role: loaded.role };
+      } catch (e) {
+        if (isTimeoutError(e)) {
+          return { success: false, error: TIMEOUT_MESSAGE };
+        }
+        return {
+          success: false,
+          error: e instanceof Error ? e.message : 'Error de red. Verificá tu conexión.',
+        };
       }
+    },
+    [hydrateUser]
+  );
 
-      if (!data.user) {
-        return { success: false, error: 'Error inesperado al iniciar sesión.' };
-      }
+  const logout = useCallback(async () => {
+    try {
+      const sb = getSupabaseClient();
+      await raceTimeout(sb.auth.signOut());
+    } catch (e) {
+      if (!isTimeoutError(e)) console.error('[Auth] logout:', e);
+    }
+    setUser(null);
+    router.push('/login');
+  }, [router]);
 
-      // Cargar perfil desde la base de datos (roles, workshop_id, etc.)
-      const loadedUser = await loadUserProfile(data.user.id, data.user.email ?? '');
+  const registerTaller = useCallback(
+    async (data: RegisterTallerData): Promise<{ success: boolean; error?: string }> => {
+      const sb = getSupabaseClient();
+      const nombre = data.name.trim();
+      const email = data.email.trim();
 
-      if (!loadedUser) {
-        // Usuario autenticado pero sin perfil en la BD → logout y error claro
-        await supabase.auth.signOut().catch(() => undefined);
+      try {
+        const { data: authData, error } = await raceTimeout(
+          sb.auth.signUp({
+            email,
+            password: data.password,
+            options: {
+              data: {
+                name: nombre,
+                role: 'taller',
+                workshop_name: nombre,
+              },
+            },
+          })
+        );
+
+        if (error) {
+          if (
+            error.message.includes('already registered') ||
+            error.message.includes('User already registered')
+          ) {
+            return { success: false, error: 'Ese email ya está registrado. Intentá iniciar sesión.' };
+          }
+          return { success: false, error: error.message };
+        }
+
+        if (!authData.user) {
+          return { success: false, error: 'No se pudo crear el usuario.' };
+        }
+
+        const userId = authData.user.id;
+
+        await sb.auth.signOut().catch(() => undefined);
+        setUser(null);
+
+        const ac = new AbortController();
+        const t = setTimeout(() => ac.abort(), TIMEOUT_MS);
+
+        let res: Response;
+        try {
+          res = await fetch('/api/setup-workshop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, name: nombre, email }),
+            signal: ac.signal,
+          });
+        } catch {
+          clearTimeout(t);
+          return { success: false, error: TIMEOUT_MESSAGE };
+        }
+        clearTimeout(t);
+
+        const payload = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+
+        if (!res.ok || !payload.success) {
+          return {
+            success: false,
+            error: payload.error ?? 'No se pudo completar el registro del taller.',
+          };
+        }
+
+        return { success: true };
+      } catch (e) {
+        if (isTimeoutError(e)) {
+          return { success: false, error: TIMEOUT_MESSAGE };
+        }
+        await sb.auth.signOut().catch(() => undefined);
         setUser(null);
         return {
           success: false,
-          error:
-            'Tu cuenta no tiene perfil asignado. ' +
-            'Contactá al administrador o intentá registrarte nuevamente.',
+          error: e instanceof Error ? e.message : 'Error de red. Verificá tu conexión.',
         };
       }
-
-      return { success: true, role: loadedUser.role };
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Error de red. Verificá tu conexión.';
-      return { success: false, error: message };
-    }
-  };
-
-  // ──────────────────────────────────────────────────────────
-  // registerTaller: signUp → signOut inmediato → /api/setup-workshop (service role).
-  // Evita conflictos de lock del cliente Auth (múltiples operaciones simultáneas).
-  // ──────────────────────────────────────────────────────────
-  const registerTaller = async (
-    data: RegisterTallerData
-  ): Promise<{ success: boolean; error?: string }> => {
-    const supabase = getSupabaseClient();
-    try {
-      const { data: authData, error } = await raceTimeout(
-        supabase.auth.signUp({
-          email: data.email.trim(),
-          password: data.password,
-          options: {
-            data: {
-              name: data.name.trim(),
-              role: 'taller',
-              workshop_name: data.name.trim(),
-              phone: data.phone ?? null,
-              address: data.address ?? null,
-            },
-          },
-        })
-      );
-
-      if (error) {
-        if (
-          error.message.includes('already registered') ||
-          error.message.includes('User already registered')
-        ) {
-          return {
-            success: false,
-            error: 'Ese email ya está registrado. Intentá iniciar sesión.',
-          };
-        }
-        return { success: false, error: error.message };
-      }
-
-      if (!authData.user) {
-        return { success: false, error: 'No se pudo crear el usuario.' };
-      }
-
-      const userId = authData.user.id;
-      const accessToken = authData.session?.access_token ?? null;
-
-      await supabase.auth.signOut().catch(() => undefined);
-      setUser(null);
-
-      if (!accessToken) {
-        return {
-          success: false,
-          error:
-            'Tu cuenta requiere confirmar el email antes de finalizar el registro. Revisá tu bandeja o desactivá la confirmación por email en Supabase (Auth → Providers → Email) para pruebas.',
-        };
-      }
-
-      const res = await fetch('/api/setup-workshop', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          userId,
-          name: data.name.trim(),
-          email: data.email.trim(),
-          phone: data.phone ?? null,
-          address: data.address ?? null,
-        }),
-      });
-
-      const payload = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean };
-
-      if (!res.ok) {
-        return {
-          success: false,
-          error: payload.error ?? 'No se pudo completar el registro del taller.',
-        };
-      }
-
-      return { success: true };
-    } catch (err: unknown) {
-      try {
-        await getSupabaseClient().auth.signOut().catch(() => undefined);
-      } catch {
-        /* ignore */
-      }
-      setUser(null);
-      const message =
-        err instanceof Error ? err.message : 'Error de red. Verificá tu conexión.';
-      return { success: false, error: message };
-    }
-  };
-
-  // ──────────────────────────────────────────────────────────
-  // logout
-  // ──────────────────────────────────────────────────────────
-  const logout = async () => {
-    try {
-      const supabase = getSupabaseClient();
-      await supabase.auth.signOut();
-    } catch {
-      // No bloquear el logout por errores de configuración
-    }
-    setUser(null);
-  };
+    },
+    []
+  );
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, registerTaller, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, registerTaller }}>
       {children}
     </AuthContext.Provider>
   );
