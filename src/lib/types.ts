@@ -37,6 +37,7 @@ export interface User {
   name: string;
   role: UserRole;
   workshopId?: string; // solo para talleres
+  workshopName?: string; // solo para talleres
 }
 
 export interface Workshop {
@@ -46,6 +47,7 @@ export interface Workshop {
   phone: string;
   contactName: string;
   email: string;
+  tallerNumber?: number;
   createdAt: string;
 }
 
@@ -59,6 +61,7 @@ export interface Order {
   vehicleYear: number;
   internalOrderNumber?: string;
   orderNumber?: string;
+  workshopOrderNumber?: number;
   items: OrderItem[];
   status: OrderStatus;
   quote?: Quote;

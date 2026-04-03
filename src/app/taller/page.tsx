@@ -98,6 +98,7 @@ export default function TallerDashboard() {
                 <OrderCard
                   key={order.id}
                   order={order}
+                  role="taller"
                   onClick={() => router.push(`/taller/pedidos/${order.id}`)}
                 />
               ))}

@@ -171,7 +171,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   return (
     <>
       <TopBar
-        title={`Pedido ${order.orderNumber || order.id.split('-')[0].toUpperCase()}`}
+        title={`Pedido ${order.workshop?.tallerNumber && order.workshopOrderNumber
+          ? `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+          : order.id.split('-')[0].toUpperCase()
+        }`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear} · ${order.workshop?.name}`}
         action={
           <Button variant="ghost" onClick={() => router.push('/vendedor/pedidos')}>
@@ -187,7 +190,12 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <StatusBadge status={order.status} />
-                <span className="text-[11px] text-zinc-100 font-mono font-bold bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50 uppercase tracking-widest">{order.orderNumber || order.id.split('-')[0].toUpperCase()}</span>
+                <span className="text-[11px] text-zinc-100 font-mono font-bold bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50 uppercase tracking-widest">
+                  {order.workshop?.tallerNumber && order.workshopOrderNumber
+                    ? `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+                    : order.id.split('-')[0].toUpperCase()
+                  }
+                </span>
               </div>
               <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Pedido del Taller</h2>
               <p className="text-sm font-medium text-zinc-400 mt-1">
@@ -198,6 +206,23 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             <div className="flex flex-col sm:items-end gap-1 text-xs font-medium text-zinc-500">
               <div>Creado: {formatDate(order.createdAt)}</div>
               <div>Actualizado: {formatDate(order.updatedAt)}</div>
+            </div>
+          </div>
+
+          {/* Datos del Taller */}
+          <div className="mt-6 p-4 bg-zinc-950/40 rounded-2xl border border-zinc-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-lg shadow-inner border border-orange-500/20">🏭</div>
+              <div>
+                <div className="text-sm font-bold text-zinc-100 tracking-tight">{order.workshop?.name}</div>
+                <div className="text-xs font-medium text-zinc-500">Taller Autorizado</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+              <div className="text-[11px] font-medium text-zinc-400">👤 {order.workshop?.contactName || 'Sin contacto'}</div>
+              <div className="text-[11px] font-medium text-zinc-400">📧 {order.workshop?.email || 'Sin email'}</div>
+              <div className="text-[11px] font-medium text-zinc-400">📞 {order.workshop?.phone || 'Sin teléfono'}</div>
+              <div className="text-[11px] font-medium text-zinc-400">📍 {order.workshop?.address || 'Sin dirección'}</div>
             </div>
           </div>
 
@@ -244,8 +269,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               </Button>
             )}
             {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
-              <Button size="sm" variant="secondary" onClick={handleCloseOrder} loading={actionLoading}>
-                🔒 Cerrar pedido
+              <Button size="sm" variant="success" onClick={handleCloseOrder} loading={actionLoading} className="shadow-lg shadow-emerald-500/10">
+                🔒 Cerrar pedido (Finalizado)
               </Button>
             )}
             {hasQuote && canQuote && (

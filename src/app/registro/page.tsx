@@ -27,34 +27,80 @@ export default function RegistroPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    // Validaciones client-side
-    if (!name.trim()) {
-      setError('El nombre del taller es obligatorio.');
-      return;
-    }
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-    if (password !== confirm) {
-      setError('Las contraseñas no coinciden.');
-      return;
-    }
-
     setLoading(true);
 
-    const result = await registerTaller({
-      email: email.trim(),
-      password,
-      name: name.trim(),
-    });
+    const { getSupabaseClient } = await import('@/lib/supabase/client');
+    const supabase = getSupabaseClient();
 
-    if (result.success) {
-      // Redirigir al dashboard del taller inmediatamente
-      router.replace('/taller');
-    } else {
-      setError(result.error ?? 'Error al registrar el taller.');
+    try {
+      // 1. SignUp con metadata (AuthContext.registerTaller ya lo hace, pero vamos a asegurar metadata aquí)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            name: name.trim(),
+            role: 'taller',
+            workshop_name: name.trim(),
+          }
+        }
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('No se pudo crear el usuario.');
+
+      const userId = authData.user.id;
+
+      // 2. Esperar 1.5 segundos
+      await new Promise(r => setTimeout(r, 1500));
+
+      // 3. Verificar si el perfil tiene workshop_id
+      const { data: profile, error: profError } = await (supabase as any)
+        .from('profiles')
+        .select('workshop_id')
+        .eq('id', userId)
+        .single();
+
+      if (profError) throw profError;
+
+      let finalWorkshopId = (profile as any)?.workshop_id;
+
+      // 4. Si workshop_id es NULL, crear el workshop manualmente
+      if (!finalWorkshopId) {
+        console.warn('[Registro] El trigger no creó el workshop. Intentando creación manual...');
+        const { data: wsData, error: wsError } = await (supabase as any)
+          .from('workshops')
+          .insert({
+            name: name.trim(),
+            contact_name: name.trim(),
+            email: email.trim(),
+          })
+          .select('id')
+          .single();
+
+        if (wsError) throw wsError;
+        finalWorkshopId = (wsData as any).id;
+
+        // 5. Actualizar el perfil con el workshop_id
+        const { error: updError } = await (supabase as any)
+          .from('profiles')
+          .update({ workshop_id: finalWorkshopId })
+          .eq('id', userId);
+        
+        if (updError) throw updError;
+      }
+
+      // 6. Si todo salió bien, signOut y redirigir al login con mensaje exitoso
+      await supabase.auth.signOut();
+      
+      // Usamos window.location para asegurar que se limpie cualquier estado y pasar el param
+      window.location.href = '/login?registered=true';
+      
+    } catch (err: any) {
+      console.error('[Registro] Error crítico:', err);
+      // 6. Si falla, signOut y mostrar error
+      await supabase.auth.signOut().catch(() => {});
+      setError(err.message || 'Hubo un error al configurar tu taller. Por favor, contactá al administrador.');
       setLoading(false);
     }
   };

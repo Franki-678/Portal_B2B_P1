@@ -106,6 +106,7 @@ function PedidosContent() {
                   <OrderTableRow
                     key={order.id}
                     order={order}
+                    role="vendedor"
                     onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
                   />
                 ))}

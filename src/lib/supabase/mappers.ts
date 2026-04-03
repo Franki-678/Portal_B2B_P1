@@ -22,6 +22,7 @@ export function mapWorkshop(row: DbWorkshop): Workshop {
     phone: row.phone ?? '',
     contactName: row.contact_name ?? '',
     email: row.email ?? '',
+    tallerNumber: row.taller_number ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -89,6 +90,7 @@ export function mapOrder(
     vehicleYear: row.vehicle_year,
     internalOrderNumber: row.internal_order_number ?? undefined,
     orderNumber: row.order_number ?? undefined,
+    workshopOrderNumber: row.workshop_order_number ?? undefined,
     items: items.map((i) => ({
       id: i.id,
       orderId: i.order_id,

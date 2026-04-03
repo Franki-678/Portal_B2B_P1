@@ -60,23 +60,34 @@ export default function VendedorDashboard() {
               </Button>
             </div>
             <div className="space-y-3">
-              {urgent.map(order => (
-                <div
-                  key={order.id}
-                  onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
-                  className="flex items-center justify-between bg-zinc-950/50 rounded-xl px-5 py-3.5 border border-amber-500/20 hover:border-amber-500/40 hover:bg-zinc-900/80 cursor-pointer transition-all duration-200 shadow-sm group"
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-zinc-100 group-hover:text-amber-400 transition-colors">
-                      {order.items?.length > 1 
-                        ? `${order.items[0]?.partName} (+${order.items.length - 1})`
-                        : (order.items?.[0]?.partName || 'Sin repuestos')}
-                    </span>
-                    <span className="text-xs text-zinc-500 font-medium">{order.workshop?.name}</span>
+              {urgent.map(order => {
+                const orderNum = order.workshop?.tallerNumber && order.workshopOrderNumber
+                  ? `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+                  : order.workshopOrderNumber 
+                    ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+                    : order.id.slice(0, 8).toUpperCase();
+                
+                return (
+                  <div
+                    key={order.id}
+                    onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
+                    className="flex items-center justify-between bg-zinc-950/50 rounded-xl px-5 py-3.5 border border-amber-500/20 hover:border-amber-500/40 hover:bg-zinc-900/80 cursor-pointer transition-all duration-200 shadow-sm group"
+                  >
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono font-bold text-amber-500/80">{orderNum}</span>
+                        <span className="text-sm font-bold text-zinc-100 group-hover:text-amber-400 transition-colors">
+                          {order.items?.length > 1 
+                            ? `${order.items[0]?.partName} (+${order.items.length - 1})`
+                            : (order.items?.[0]?.partName || 'Sin repuestos')}
+                        </span>
+                      </div>
+                      <span className="text-xs text-zinc-500 font-medium">{order.workshop?.name}</span>
+                    </div>
+                    <span className="text-sm font-medium text-zinc-400 bg-zinc-900 px-3 py-1 rounded-lg border border-zinc-800">{order.vehicleBrand} {order.vehicleModel}</span>
                   </div>
-                  <span className="text-sm font-medium text-zinc-400 bg-zinc-900 px-3 py-1 rounded-lg border border-zinc-800">{order.vehicleBrand} {order.vehicleModel}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -106,6 +117,7 @@ export default function VendedorDashboard() {
                   <OrderTableRow
                     key={order.id}
                     order={order}
+                    role="vendedor"
                     onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
                   />
                 ))}

@@ -91,6 +91,7 @@ export default function TallerPedidosPage() {
               <OrderCard
                 key={order.id}
                 order={order}
+                role="taller"
                 onClick={() => router.push(`/taller/pedidos/${order.id}`)}
               />
             ))}

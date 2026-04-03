@@ -115,26 +115,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseClient();
     try {
       // La query PostgREST es awaitable directamente
-      const { data, error } = await Promise.race([
+      const result = await Promise.race([
         supabase
           .from('profiles')
           .select('name, role, workshop_id')
           .eq('id', userId)
           .single(),
-        new Promise<never>((_, reject) =>
+        new Promise<any>((_, reject) =>
           setTimeout(() => reject(makeTimeoutError()), TIMEOUT_MS)
         ),
       ]);
 
+      const { data, error } = result as { data: any, error: any };
+
       if (error) throw error;
       if (!data) return null;
+
+      let workshopName: string | undefined;
+      // Use any to avoid complex typing issues with single/maybeSingle
+      const { data: wsData } = await (supabase as any)
+        .from('workshops')
+        .select('name')
+        .eq('id', (data as any).workshop_id)
+        .single();
+      workshopName = wsData?.name;
 
       const loadedUser: User = {
         id: userId,
         email,
-        name: (data as { name: string }).name,
-        role: (data as { role: string }).role as UserRole,
-        workshopId: (data as { workshop_id?: string }).workshop_id ?? undefined,
+        name: (data as any).name,
+        role: (data as any).role as UserRole,
+        workshopId: (data as any).workshop_id ?? undefined,
+        workshopName,
       };
       setUser(loadedUser);
       return loadedUser;
@@ -251,50 +263,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!authData.user) {
         return { success: false, error: 'No se pudo crear el usuario.' };
-      }
-
-      // Dar tiempo al trigger de la BD para que cree el perfil y workshop
-      await new Promise<void>((r) => setTimeout(r, 1000));
-      
-      const loadedUserProfile = await loadUserProfile(authData.user.id, authData.user.email ?? '');
-
-      if (!loadedUserProfile?.workshopId) {
-        // Fallback: el trigger de SQL no pudo crear el workshop, lo creamos manualmente
-        console.warn('[Auth] Trigger no creó el workshop automáticamente. Fallback manual.');
-        
-        // 1. Crear el workshop
-        const { data: workshopRow, error: wsError } = await (supabase as any)
-          .from('workshops')
-          .insert({
-            name: data.name,
-            contact_name: data.name,
-            email: data.email,
-            phone: data.phone ?? null,
-            address: data.address ?? null,
-          })
-          .select('id')
-          .single();
-
-        if (wsError) {
-          console.error('[Auth] Error creando workshop manual:', wsError.message);
-          return { success: false, error: 'Hubo un error al configurar tu taller.' };
-        }
-
-        const newWorkshopId = workshopRow.id;
-
-        // 2. Actualizar el perfil con el ID del nuevo workshop
-        const { error: profileError } = await (supabase as any)
-          .from('profiles')
-          .update({ workshop_id: newWorkshopId })
-          .eq('id', authData.user.id);
-
-        if (profileError) {
-          console.error('[Auth] Error actualizando perfil manual:', profileError.message);
-          return { success: false, error: 'Error vinculando el taller a tu perfil.' };
-        }
-
-        // 3. Recargar perfil para tener el workshop_id en el estado
-        await loadUserProfile(authData.user.id, authData.user.email ?? '');
       }
 
       return { success: true };

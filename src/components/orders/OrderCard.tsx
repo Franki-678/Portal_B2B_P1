@@ -9,9 +9,10 @@ interface OrderCardProps {
   order: Order;
   onClick?: () => void;
   showWorkshop?: boolean;
+  role?: 'taller' | 'vendedor';
 }
 
-export function OrderCard({ order, onClick, showWorkshop = false }: OrderCardProps) {
+export function OrderCard({ order, onClick, showWorkshop = false, role }: OrderCardProps) {
   const firstItem = order.items?.[0];
   const itemsCount = order.items?.length ?? 0;
   const partNameDisplay = itemsCount > 1 
@@ -31,7 +32,14 @@ export function OrderCard({ order, onClick, showWorkshop = false }: OrderCardPro
       <div className="flex items-start justify-between gap-4 mb-4 relative z-10">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[11px] font-mono font-bold text-zinc-100 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/50 uppercase tracking-wider">{order.orderNumber || `${order.id.split('-')[0]}-${order.id.split('-')[1]}`}</span>
+            <span className="text-[11px] font-mono font-bold text-zinc-100 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/50 uppercase tracking-wider">
+              {role === 'vendedor' && order.workshop?.tallerNumber && order.workshopOrderNumber
+                ? `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+                : order.workshopOrderNumber 
+                  ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+                  : (order.orderNumber || order.id.split('-')[0].toUpperCase())
+              }
+            </span>
             <StatusBadge status={order.status} />
           </div>
           <h3 className="font-bold text-zinc-100 text-base truncate tracking-tight group-hover:text-orange-400 transition-colors">{partNameDisplay}</h3>
@@ -74,9 +82,10 @@ export function OrderCard({ order, onClick, showWorkshop = false }: OrderCardPro
 interface OrderRowProps {
   order: Order;
   onClick?: () => void;
+  role?: 'taller' | 'vendedor';
 }
 
-export function OrderTableRow({ order, onClick }: OrderRowProps) {
+export function OrderTableRow({ order, onClick, role }: OrderRowProps) {
   const firstItem = order.items?.[0];
   const itemsCount = order.items?.length ?? 0;
   const partNameDisplay = itemsCount > 1 
@@ -92,7 +101,14 @@ export function OrderTableRow({ order, onClick }: OrderRowProps) {
       )}
     >
       <td className="px-5 py-4">
-        <span className="text-xs font-mono font-bold text-zinc-300 bg-zinc-900/50 px-2 py-1 border border-zinc-800/80 rounded group-hover:text-zinc-100 transition-colors uppercase">{order.orderNumber || order.id.slice(0, 8)}...</span>
+        <span className="text-xs font-mono font-bold text-zinc-300 bg-zinc-900/50 px-2 py-1 border border-zinc-800/80 rounded group-hover:text-zinc-100 transition-colors uppercase">
+          {role === 'vendedor' && order.workshop?.tallerNumber && order.workshopOrderNumber
+            ? `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+            : order.workshopOrderNumber 
+              ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+              : (order.orderNumber || order.id.slice(0, 8).toUpperCase())
+          }
+        </span>
       </td>
       <td className="px-5 py-4">
         <div className="font-bold text-sm text-zinc-100 group-hover:text-orange-400 transition-colors tracking-tight">{partNameDisplay}</div>

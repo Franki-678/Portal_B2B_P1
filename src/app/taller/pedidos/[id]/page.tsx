@@ -91,7 +91,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   return (
     <>
       <TopBar
-        title={`Pedido ${order.orderNumber || order.id.split('-')[0].toUpperCase()}`}
+        title={`Pedido ${order.workshopOrderNumber ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}` : order.id.split('-')[0].toUpperCase()}`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear}`}
         action={
           <Button variant="ghost" onClick={() => router.push('/taller/pedidos')}>
@@ -107,7 +107,9 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <StatusBadge status={order.status} />
-                <span className="text-[11px] text-zinc-100 font-mono font-bold bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50 uppercase tracking-widest">{order.orderNumber || order.id.split('-')[0].toUpperCase()}</span>
+                <span className="text-[11px] text-zinc-100 font-mono font-bold bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50 uppercase tracking-widest">
+                  {order.workshopOrderNumber ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}` : order.id.split('-')[0].toUpperCase()}
+                </span>
               </div>
               <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Vehículo y Pedido</h2>
               <p className="text-sm font-medium text-zinc-400 mt-2">
@@ -309,9 +311,9 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center justify-center h-full bg-zinc-900/30 rounded-2xl border border-zinc-800/50 border-dashed p-6 text-center">
+                          <div className="flex flex-col items-center justify-center p-6 text-center bg-zinc-900/30 rounded-2xl border border-zinc-800/50 border-dashed min-h-[140px]">
                             <span className="text-2xl opacity-50 mb-2">🤷‍♂️</span>
-                            <span className="text-sm font-bold text-zinc-500 tracking-tight">Vendedor no cotizó / Sin stock</span>
+                            <span className="text-sm font-bold text-zinc-500 tracking-tight">Sin stock o no cotizado</span>
                           </div>
                         )}
                       </div>

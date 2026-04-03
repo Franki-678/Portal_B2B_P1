@@ -71,12 +71,21 @@ export function Sidebar({ navItems, portalLabel, portalIcon, accentColor = 'oran
       {/* User / Logout */}
       <div className="p-4 border-t border-zinc-800/80">
         <div className="flex items-center gap-3 mb-3 bg-zinc-900/50 p-2 rounded-lg border border-zinc-800/50">
-          <div className="w-8 h-8 rounded-md bg-orange-500/10 flex items-center justify-center text-sm font-bold text-orange-500 border border-orange-500/20">
-            {user?.name?.[0]?.toUpperCase() || 'U'}
+          <div className={cn(
+            'w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold border transition-colors',
+            accentColor === 'orange' 
+              ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' 
+              : 'bg-sky-500/10 text-sky-500 border-sky-500/20'
+          )}>
+            {user?.role === 'taller' 
+              ? (user?.workshopName?.[0] || user?.name?.[0] || 'T').toUpperCase()
+              : 'V'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-zinc-200 truncate">{user?.name}</div>
-            <div className="text-[11px] text-zinc-500 truncate">{user?.email}</div>
+            <div className="text-xs font-bold text-zinc-100 truncate tracking-tight">
+              {user?.role === 'taller' ? (user?.workshopName || user?.name) : 'Vendedor'}
+            </div>
+            <div className="text-[10px] font-medium text-zinc-500 truncate">{user?.email}</div>
           </div>
         </div>
         <Button

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +28,16 @@ export default function LoginPage() {
 
   const { login, registerTaller } = useAuth();
   const router = useRouter();
+
+  // Escuchar parámetro de registro exitoso
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('registered')) {
+        setSuccess('Cuenta creada exitosamente. Iniciá sesión.');
+      }
+    }
+  }, []);
 
   const switchTab = (t: Tab) => {
     setTab(t);
@@ -178,6 +188,7 @@ export default function LoginPage() {
                 />
 
                 {error && <ErrorBanner message={error} />}
+                {success && <SuccessBanner message={success} />}
 
                 <Button type="submit" fullWidth loading={loading} size="lg">
                   {loading ? 'Verificando...' : 'Ingresar'}

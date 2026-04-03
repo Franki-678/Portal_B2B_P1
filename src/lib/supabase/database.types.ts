@@ -22,6 +22,7 @@ export type Database = {
           phone: string | null;
           contact_name: string | null;
           email: string | null;
+          taller_number: number | null;
           created_at: string;
         };
         Insert: {
@@ -31,6 +32,7 @@ export type Database = {
           phone?: string | null;
           contact_name?: string | null;
           email?: string | null;
+          taller_number?: number | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['workshops']['Insert']>;
@@ -62,6 +64,7 @@ export type Database = {
           vehicle_year: number;
           internal_order_number: string | null;
           order_number: string | null;
+          workshop_order_number: number | null;
           status:
             | 'pendiente'
             | 'en_revision'
@@ -82,6 +85,7 @@ export type Database = {
           vehicle_year: number;
           internal_order_number?: string | null;
           order_number?: string | null;
+          workshop_order_number?: number | null;
           status?: Database['public']['Tables']['orders']['Row']['status'];
           created_at?: string;
           updated_at?: string;

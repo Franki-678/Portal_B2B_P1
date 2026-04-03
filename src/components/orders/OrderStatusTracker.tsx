@@ -10,11 +10,36 @@ interface OrderStatusTrackerProps {
 }
 
 const STATUS_FLOW = [
-  { key: 'pendiente', label: 'Pendiente', icon: '📝' },
-  { key: 'en_revision', label: 'En revisión', icon: '🔍' },
-  { key: 'cotizado', label: 'Cotizado', icon: '💰' },
-  { key: 'resolve', label: 'Resolución', icon: '✅' }, // Puede ser aprobado/aprobado_parcial/rechazado
-  { key: 'cerrado', label: 'Cerrado', icon: '🔒' },
+  { 
+    key: 'pendiente', 
+    label: 'Pendiente', 
+    icon: '📝',
+    description: 'Pedido enviado. En espera de ser recibido por un vendedor.'
+  },
+  { 
+    key: 'en_revision', 
+    label: 'En revisión', 
+    icon: '🔍',
+    description: 'El vendedor está consultando disponibilidad y precios.'
+  },
+  { 
+    key: 'cotizado', 
+    label: 'Cotizado', 
+    icon: '💰',
+    description: 'Cotización recibida. Revisá los ítems y aprobá para continuar.'
+  },
+  { 
+    key: 'resolve', 
+    label: 'Resolución', 
+    icon: '✅',
+    description: 'Respuesta enviada. El vendedor preparará los repuestos acordados.'
+  },
+  { 
+    key: 'cerrado', 
+    label: 'Cerrado', 
+    icon: '🔒',
+    description: 'El pedido ha sido finalizado y los repuestos entregados.'
+  },
 ];
 
 export function OrderStatusTracker({ status, events }: OrderStatusTrackerProps) {
@@ -109,9 +134,12 @@ export function OrderStatusTracker({ status, events }: OrderStatusTrackerProps) 
                 )}>
                   {displayLabel}
                 </h4>
+                <p className="text-xs font-medium text-zinc-500 mt-1 max-w-xs leading-relaxed">
+                  {step.description}
+                </p>
                 {/* Mobile time display */}
                 {timestamp && !isFuture && (
-                  <span className="md:hidden block text-xs font-medium text-zinc-500 mt-1">{timestamp}</span>
+                  <span className="md:hidden block text-[10px] font-bold text-zinc-600 mt-2 uppercase tracking-tighter">{timestamp}</span>
                 )}
               </div>
             </div>

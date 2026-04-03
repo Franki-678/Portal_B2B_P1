@@ -22,6 +22,16 @@ async function resolveUserName(sb: SupabaseClientType, userId: string): Promise<
   return name;
 }
 
+// Helper to convert File to Base64
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+}
+
 // ============================================================
 // LECTURA DE DATOS
 // ============================================================
@@ -176,17 +186,19 @@ export async function createOrderInDB(
             .from('order-images')
             .upload(fileName, file);
 
+          let finalUrl = '';
           if (uploadError) {
-            console.error('[Supabase] Error uploading image:', uploadError.message);
-            continue;
+            console.warn('[Supabase] Error uploading to storage, using base64 fallback:', uploadError.message);
+            finalUrl = await fileToBase64(file);
+          } else {
+            const { data: urlData } = sb.storage.from('order-images').getPublicUrl(fileName);
+            finalUrl = urlData.publicUrl;
           }
-
-          const { data: urlData } = sb.storage.from('order-images').getPublicUrl(fileName);
           
           await (sb as any).from('order_images').insert({
             order_item_id: orderItemId,
-            url: urlData.publicUrl,
-            storage_path: fileName,
+            url: finalUrl,
+            storage_path: uploadError ? null : fileName,
           });
         }
       }
@@ -266,7 +278,8 @@ export async function createQuoteInDB(
         const { data: urlData } = sb.storage.from('quote-images').getPublicUrl(fileName);
         finalImageUrl = urlData.publicUrl;
       } else {
-        console.error('[Supabase] Error uploading quote image:', uploadError.message);
+        console.warn('[Supabase] Error uploading to storage, using base64 fallback:', uploadError.message);
+        finalImageUrl = await fileToBase64(item.imageFile);
       }
     }
 
