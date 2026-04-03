@@ -250,7 +250,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ──────────────────────────────────────────────────────────
-  // registerTaller: signUp + espera + perfil/workshop manual si hace falta + signOut.
+  // registerTaller: signUp → signOut inmediato → /api/setup-workshop (service role).
+  // Evita conflictos de lock del cliente Auth (múltiples operaciones simultáneas).
   // ──────────────────────────────────────────────────────────
   const registerTaller = async (
     data: RegisterTallerData
@@ -291,81 +292,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const userId = authData.user.id;
-      const nombreTaller = data.name.trim();
-
-      await sleep(2000);
-
-      let { data: profile, error: profileReadError } = await (supabase as any)
-        .from('profiles')
-        .select('id, workshop_id')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileReadError) {
-        await supabase.auth.signOut().catch(() => undefined);
-        return { success: false, error: profileReadError.message };
-      }
-
-      if (!profile) {
-        const { error: insertProfileError } = await (supabase as any).from('profiles').insert({
-          id: userId,
-          name: nombreTaller,
-          role: 'taller',
-        });
-        if (insertProfileError) {
-          await supabase.auth.signOut().catch(() => undefined);
-          return { success: false, error: insertProfileError.message };
-        }
-        const again = await (supabase as any)
-          .from('profiles')
-          .select('id, workshop_id')
-          .eq('id', userId)
-          .maybeSingle();
-        profile = again.data;
-      }
-
-      let workshopId = profile?.workshop_id as string | null | undefined;
-
-      if (!workshopId) {
-        const { data: wsRow, error: wsError } = await (supabase as any)
-          .from('workshops')
-          .insert({
-            name: nombreTaller,
-            contact_name: nombreTaller,
-            email: data.email.trim(),
-            phone: data.phone ?? null,
-            address: data.address ?? null,
-          })
-          .select('id')
-          .single();
-
-        if (wsError) {
-          await supabase.auth.signOut().catch(() => undefined);
-          return { success: false, error: wsError.message };
-        }
-
-        workshopId = (wsRow as any).id;
-
-        const { error: updError } = await (supabase as any)
-          .from('profiles')
-          .update({ workshop_id: workshopId })
-          .eq('id', userId);
-
-        if (updError) {
-          await supabase.auth.signOut().catch(() => undefined);
-          return { success: false, error: updError.message };
-        }
-      }
+      const accessToken = authData.session?.access_token ?? null;
 
       await supabase.auth.signOut().catch(() => undefined);
       setUser(null);
+
+      if (!accessToken) {
+        return {
+          success: false,
+          error:
+            'Tu cuenta requiere confirmar el email antes de finalizar el registro. Revisá tu bandeja o desactivá la confirmación por email en Supabase (Auth → Providers → Email) para pruebas.',
+        };
+      }
+
+      const res = await fetch('/api/setup-workshop', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          userId,
+          name: data.name.trim(),
+          email: data.email.trim(),
+          phone: data.phone ?? null,
+          address: data.address ?? null,
+        }),
+      });
+
+      const payload = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean };
+
+      if (!res.ok) {
+        return {
+          success: false,
+          error: payload.error ?? 'No se pudo completar el registro del taller.',
+        };
+      }
+
       return { success: true };
     } catch (err: unknown) {
       try {
-        await supabase.auth.signOut().catch(() => undefined);
+        await getSupabaseClient().auth.signOut().catch(() => undefined);
       } catch {
         /* ignore */
       }
+      setUser(null);
       const message =
         err instanceof Error ? err.message : 'Error de red. Verificá tu conexión.';
       return { success: false, error: message };
