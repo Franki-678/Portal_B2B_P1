@@ -2,22 +2,29 @@
 
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar } from '@/components/ui/Layout';
-import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { formatDate } from '@/lib/utils';
-import { MOCK_WORKSHOPS } from '@/lib/mock-data';
+import { useRouter } from 'next/navigation';
+import type { Order } from '@/lib/types';
 
 export default function VendedorClientesPage() {
-  const { getAllOrders } = useDataStore();
+  const { getAllOrders, getAllWorkshops } = useDataStore();
   const orders = getAllOrders();
+  const workshopsData = getAllWorkshops();
 
-  const workshops = MOCK_WORKSHOPS.map(ws => {
-    const wsOrders = orders.filter(o => o.workshopId === ws.id);
+  const workshops = workshopsData.map((ws: any) => {
+    const wsOrders = orders.filter((o: Order) => o.workshopId === ws.id);
     return {
-      ...ws,
+      id: ws.id,
+      name: ws.name,
+      contactName: ws.contact_name || ws.name,
+      address: ws.address || 'Sin dirección',
+      phone: ws.phone || 'Sin teléfono',
+      email: ws.email,
+      createdAt: ws.created_at,
       totalOrders: wsOrders.length,
-      pendingOrders: wsOrders.filter(o => o.status === 'pendiente' || o.status === 'en_revision').length,
-      approvedOrders: wsOrders.filter(o => o.status === 'aprobado' || o.status === 'aprobado_parcial').length,
-      lastOrder: wsOrders.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0],
+      pendingOrders: wsOrders.filter((o: Order) => o.status === 'pendiente' || o.status === 'en_revision').length,
+      approvedOrders: wsOrders.filter((o: Order) => o.status === 'aprobado' || o.status === 'aprobado_parcial').length,
+      lastOrder: wsOrders.sort((a: Order, b: Order) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0],
     };
   });
 
@@ -29,7 +36,14 @@ export default function VendedorClientesPage() {
       />
 
       <div className="p-6 space-y-6">
-        <div className="grid md:grid-cols-2 gap-5">
+        {workshops.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 bg-[#1A1D27] border border-white/8 rounded-xl text-center">
+            <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 text-2xl">🏭</div>
+            <h3 className="text-lg font-bold text-white mb-2">No hay talleres registrados todavía</h3>
+            <p className="text-zinc-500 max-w-sm mb-6">Aún no hay clientes vinculados a este portal.</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-5">
           {workshops.map(ws => (
             <div key={ws.id} className="bg-[#1A1D27] border border-white/8 rounded-xl p-5 hover:border-orange-500/25 transition-all">
               <div className="flex items-start justify-between mb-4">
@@ -83,6 +97,7 @@ export default function VendedorClientesPage() {
             </div>
           ))}
         </div>
+        )}
       </div>
     </>
   );

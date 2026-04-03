@@ -255,7 +255,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Dar tiempo al trigger de la BD para que cree el perfil y workshop
       await new Promise<void>((r) => setTimeout(r, 1000));
-      await loadUserProfile(authData.user.id, authData.user.email ?? '');
+      
+      const loadedUserProfile = await loadUserProfile(authData.user.id, authData.user.email ?? '');
+
+      if (!loadedUserProfile?.workshopId) {
+        // Fallback: el trigger de SQL no pudo crear el workshop, lo creamos manualmente
+        console.warn('[Auth] Trigger no creó el workshop automáticamente. Fallback manual.');
+        
+        // 1. Crear el workshop
+        const { data: workshopRow, error: wsError } = await (supabase as any)
+          .from('workshops')
+          .insert({
+            name: data.name,
+            contact_name: data.name,
+            email: data.email,
+            phone: data.phone ?? null,
+            address: data.address ?? null,
+          })
+          .select('id')
+          .single();
+
+        if (wsError) {
+          console.error('[Auth] Error creando workshop manual:', wsError.message);
+          return { success: false, error: 'Hubo un error al configurar tu taller.' };
+        }
+
+        const newWorkshopId = workshopRow.id;
+
+        // 2. Actualizar el perfil con el ID del nuevo workshop
+        const { error: profileError } = await (supabase as any)
+          .from('profiles')
+          .update({ workshop_id: newWorkshopId })
+          .eq('id', authData.user.id);
+
+        if (profileError) {
+          console.error('[Auth] Error actualizando perfil manual:', profileError.message);
+          return { success: false, error: 'Error vinculando el taller a tu perfil.' };
+        }
+
+        // 3. Recargar perfil para tener el workshop_id en el estado
+        await loadUserProfile(authData.user.id, authData.user.email ?? '');
+      }
 
       return { success: true };
     } catch (err: unknown) {

@@ -17,6 +17,7 @@ import {
   updateOrderStatus,
   createQuoteInDB,
   updateQuoteItemsApproval,
+  fetchAllWorkshops,
 } from '@/lib/supabase/queries';
 
 // ============================================================
@@ -25,6 +26,7 @@ import {
 
 interface DataStoreContextType {
   orders: Order[];
+  workshops: any[]; // Todos los talleres
   isLoading: boolean;
   isUsingSupabase: boolean;
   // Taller
@@ -58,6 +60,7 @@ interface DataStoreContextType {
   ) => Promise<void>;
   // Vendedor
   getAllOrders: () => Order[];
+  getAllWorkshops: () => any[];
   setOrderInReview: (orderId: string, userId: string, userName: string, comment?: string) => Promise<void>;
   submitQuote: (
     orderId: string,
@@ -108,6 +111,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
   const usingSupabase = isSupabaseConfigured();
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(usingSupabase);
 
   // ─── Carga inicial desde Supabase ─────────────────────────
@@ -117,10 +121,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     const sb = getSupabaseClient();
     setIsLoading(true);
     try {
-      const data = await fetchAllOrders(sb);
-      setOrders(data);
+      const [ordersData, workshopsData] = await Promise.all([
+        fetchAllOrders(sb),
+        fetchAllWorkshops(sb),
+      ]);
+      setOrders(ordersData);
+      setWorkshops(workshopsData);
     } catch (err) {
-      console.error('[DataStore] Error loading orders from Supabase:', err);
+      console.error('[DataStore] Error loading data from Supabase:', err);
     } finally {
       setIsLoading(false);
     }
@@ -140,6 +148,8 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  const getAllWorkshops = useCallback(() => [...workshops], [workshops]);
 
   // ============================================================
   // GETTERS
@@ -186,6 +196,11 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         }[];
       }
     ): Promise<import("@/lib/types").Order> => {
+
+      if (!data.workshopId) {
+        throw new Error("Tu taller no está configurado correctamente. Contactá al administrador.");
+      }
+
       const sb = getSupabaseClient();
       const orderId = await createOrderInDB(
         sb,
@@ -204,7 +219,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
             images: i.images,
           })),
         },
-        data.workshop?.id ?? data.workshopId
+        data.workshopId // Using genuine workshopId as userId for the event instead of the mock fallback
       );
 
       if (orderId) {
@@ -293,7 +308,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         orderId,
         quoteData.vendorId,
         quoteData.notes,
-        quoteData.items.map(({ approved, ...rest }) => rest)
+        quoteData.items.map(({ approved, ...rest }) => rest as (Omit<QuoteItem, 'id' | 'quoteId' | 'approved'> & { imageFile?: File }))
       );
       await refreshOrders();
     },
@@ -338,6 +353,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
     <DataStoreContext.Provider
       value={{
         orders,
+        workshops,
         isLoading,
         isUsingSupabase: usingSupabase,
         getWorkshopOrders,
@@ -347,6 +363,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         rejectQuote,
         approveQuotePartial,
         getAllOrders,
+        getAllWorkshops,
         setOrderInReview,
         submitQuote,
         closeOrder,

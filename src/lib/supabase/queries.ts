@@ -23,8 +23,18 @@ async function resolveUserName(sb: SupabaseClientType, userId: string): Promise<
 }
 
 // ============================================================
-// LECTURA DE PEDIDOS
+// LECTURA DE DATOS
 // ============================================================
+
+export async function fetchAllWorkshops(sb: SupabaseClientType): Promise<any[]> {
+  const { data, error } = await (sb as any).from('workshops').select('*').order('created_at', { ascending: false });
+  if (error) {
+    console.error('[Supabase] Error fetching workshops:', error.message);
+    return [];
+  }
+  return data ?? [];
+}
+
 
 export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   const { data: rows, error } = await (sb as any)
