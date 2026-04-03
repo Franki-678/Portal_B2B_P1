@@ -7,7 +7,7 @@ import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
-import { OrderTimeline } from '@/components/orders/OrderTimeline';
+import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
 import { formatDate, formatCurrency, canWorkshopRespond } from '@/lib/utils';
 
 interface PageProps {
@@ -70,6 +70,15 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     setPartialMode(false);
   };
 
+  const originalTotal = quote?.items.reduce((acc, item) => acc + item.price, 0) || 0;
+  const approvedTotal = quote?.items.reduce((acc, item) => {
+    if (partialMode) {
+      return selectedItems.has(item.id) ? acc + item.price : acc;
+    }
+    return (item.approved === true || item.approved === null) ? acc + item.price : acc;
+  }, 0) || 0;
+  const rejectedTotal = originalTotal - approvedTotal;
+
   const toggleItem = (itemId: string) => {
     setSelectedItems(prev => {
       const next = new Set(prev);
@@ -82,7 +91,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   return (
     <>
       <TopBar
-        title={`Pedido ${order.id.split('-')[0].toUpperCase()}`}
+        title={`Pedido ${order.orderNumber || order.id.split('-')[0].toUpperCase()}`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear}`}
         action={
           <Button variant="ghost" onClick={() => router.push('/taller/pedidos')}>
@@ -98,7 +107,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <StatusBadge status={order.status} />
-                <span className="text-[11px] text-zinc-500 font-mono font-medium bg-zinc-800/50 px-2 py-0.5 rounded-md border border-zinc-700/50">{order.id.split('-')[0].toUpperCase()}</span>
+                <span className="text-[11px] text-zinc-100 font-mono font-bold bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50 uppercase tracking-widest">{order.orderNumber || order.id.split('-')[0].toUpperCase()}</span>
               </div>
               <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Vehículo y Pedido</h2>
               <p className="text-sm font-medium text-zinc-400 mt-2">
@@ -257,7 +266,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                                   <h4 className="font-bold text-white text-xl">{formatCurrency(quoteItem.price)}</h4>
                                   <div className="flex gap-2 flex-wrap mt-2">
                                     <QualityBadge quality={quoteItem.quality} />
-                                    {quoteItem.manufacturer && <span className="bg-zinc-800/50 px-2 py-1 rounded-md border border-zinc-700/50 text-xs text-zinc-300">🏭 {quoteItem.manufacturer}</span>}
+                                    {/* Cambio 5: Eliminado fabricante y proveedor de la vista taller */}
                                   </div>
                                 </div>
                                 
@@ -313,46 +322,110 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
             </div>
 
             {/* Total Footer */}
-            <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/60 shadow-inner">
+            <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/60 shadow-inner flex flex-col gap-3">
+              {rejectedTotal > 0 && (
+                <>
+                  <div className="flex items-center justify-between opacity-50">
+                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                      Total Original
+                    </span>
+                    <span className="text-sm font-bold text-zinc-300">
+                      {formatCurrency(originalTotal)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between opacity-70">
+                    <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">
+                      Ítems Rechazados
+                    </span>
+                    <span className="text-sm font-bold text-rose-400">
+                      -{formatCurrency(rejectedTotal)}
+                    </span>
+                  </div>
+                  <div className="w-full h-px bg-zinc-800/50 my-1" />
+                </>
+              )}
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-zinc-500 uppercase tracking-widest">
-                  Total Cotización (ítems con precio)
+                <span className="text-sm font-bold text-emerald-500 uppercase tracking-widest">
+                  Total {partialMode ? 'Seleccionado' : 'Aprobado'}
                 </span>
-                <span className="text-2xl font-black text-white tracking-tight">
-                  {formatCurrency(quote.items.reduce((s, i) => s + i.price, 0))}
+                <span className="text-3xl font-black text-white tracking-tight">
+                  {formatCurrency(approvedTotal)}
                 </span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Sin cotización todavía */}
-        {!quote && order.status === 'pendiente' && (
-          <div className="bg-amber-500/5 border border-amber-500/20 rounded-3xl p-10 text-center shadow-sm">
-            <div className="text-4xl mb-4 drop-shadow-sm opacity-90">⏳</div>
-            <h3 className="text-lg font-bold text-amber-100 mb-2 tracking-tight">Esperando cotización</h3>
-            <p className="text-sm font-medium text-amber-400/80 max-w-sm mx-auto">
-              El vendedor pronto revisará los ítems solicitados de tu {order.vehicleBrand} {order.vehicleModel}.
-            </p>
-          </div>
-        )}
+        {/* Sin cotización todavía - Mostrar los ítems que se pidieron */}
+        {!quote && (
+          <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-lg shadow-black/20">
+            <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/50">
+              <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
+                <span className="text-xl drop-shadow-sm">📋</span> Repuestos Solicitados
+              </h3>
+            </div>
+            
+            <div className="divide-y divide-zinc-800/80 bg-zinc-950/30">
+              {order.items.map((orderItem, idx) => (
+                <div key={orderItem.id} className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                     <span className="text-xs font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded uppercase tracking-widest">
+                       Repuesto {idx + 1}
+                     </span>
+                  </div>
+                  
+                  <div className="flex flex-col md:flex-row gap-6">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-zinc-200 text-xl">{orderItem.partName}</h4>
+                      <p className="text-sm text-zinc-400 mt-2">{orderItem.description || 'Sin descripción adicional'}</p>
+                      <div className="flex items-center gap-2 mt-4">
+                        <QualityBadge quality={orderItem.quality} />
+                        <span className="text-xs bg-zinc-800 text-zinc-400 px-3 py-1 rounded-md font-bold">Cantidad: {orderItem.quantity}</span>
+                      </div>
+                    </div>
+                    
+                    {orderItem.images && orderItem.images.length > 0 && (
+                      <div className="flex gap-3 flex-wrap">
+                        {orderItem.images.map(img => (
+                          <img key={img.id} src={img.url} alt="Referencia" className="w-32 h-24 object-cover rounded-xl border border-zinc-700/50" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-        {!quote && order.status === 'en_revision' && (
-          <div className="bg-sky-500/5 border border-sky-500/20 rounded-3xl p-10 text-center shadow-sm">
-            <div className="text-4xl mb-4 drop-shadow-sm opacity-90">🔍</div>
-            <h3 className="text-lg font-bold text-sky-100 mb-2 tracking-tight">En revisión</h3>
-            <p className="text-sm font-medium text-sky-400/80 max-w-sm mx-auto">
-              El vendedor está consultando con sus proveedores o revisando su stock.
-            </p>
+            <div className="p-6 bg-zinc-950/60 border-t border-zinc-800/80">
+              {order.status === 'pendiente' && (
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 text-center shadow-sm">
+                  <div className="text-3xl mb-3 drop-shadow-sm opacity-90">⏳</div>
+                  <h3 className="text-base font-bold text-amber-100 mb-1 tracking-tight">Esperando cotización</h3>
+                  <p className="text-xs font-medium text-amber-400/80 max-w-sm mx-auto">
+                    El vendedor pronto revisará los ítems solicitados de tu {order.vehicleBrand} {order.vehicleModel}.
+                  </p>
+                </div>
+              )}
+
+              {order.status === 'en_revision' && (
+                <div className="bg-sky-500/5 border border-sky-500/20 rounded-2xl p-6 text-center shadow-sm">
+                  <div className="text-3xl mb-3 drop-shadow-sm opacity-90">🔍</div>
+                  <h3 className="text-base font-bold text-sky-100 mb-1 tracking-tight">En revisión</h3>
+                  <p className="text-xs font-medium text-sky-400/80 max-w-sm mx-auto">
+                    El vendedor está consultando con sus proveedores o revisando su stock.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* Historial */}
         <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
-            📜 Historial del pedido
+            📜 Estado del pedido
           </h3>
-          <OrderTimeline events={order.events} />
+          <OrderStatusTracker status={order.status} events={order.events} />
         </div>
         
          {/* Reject dialog */}

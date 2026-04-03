@@ -8,7 +8,7 @@ import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
-import { OrderTimeline } from '@/components/orders/OrderTimeline';
+import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
 import { formatDate, formatCurrency, canVendorQuote } from '@/lib/utils';
 import { QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, QuoteItem } from '@/lib/types';
@@ -171,7 +171,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   return (
     <>
       <TopBar
-        title={`Pedido ${order.id.split('-')[0].toUpperCase()}`}
+        title={`Pedido ${order.orderNumber || order.id.split('-')[0].toUpperCase()}`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear} · ${order.workshop?.name}`}
         action={
           <Button variant="ghost" onClick={() => router.push('/vendedor/pedidos')}>
@@ -187,7 +187,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <StatusBadge status={order.status} />
-                <span className="text-[11px] text-zinc-500 font-mono font-medium bg-zinc-800/50 px-2 py-0.5 rounded-md border border-zinc-700/50">{order.id.split('-')[0].toUpperCase()}</span>
+                <span className="text-[11px] text-zinc-100 font-mono font-bold bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50 uppercase tracking-widest">{order.orderNumber || order.id.split('-')[0].toUpperCase()}</span>
               </div>
               <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Pedido del Taller</h2>
               <p className="text-sm font-medium text-zinc-400 mt-1">
@@ -344,17 +344,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                         </div>
                         
                         <div className="flex flex-col sm:flex-row gap-5">
-                           <div className="flex-1">
-                             <Input
-                               label="URL imagen alternativa (opcional)"
-                               value={item.imageUrl || ''}
-                               onChange={e => updateItem(item.tempId, 'imageUrl', e.target.value)}
-                               placeholder="https://..."
-                               disabled={!!item.imageFile}
-                               hint="O subí un archivo real a la derecha"
-                              />
-                           </div>
-                           <div className="w-full sm:w-auto">
+                           <div className="flex-1 w-full sm:w-auto">
                               <p className="block text-sm font-semibold text-zinc-300 mb-2">Foto real</p>
                               {item.imagePreview ? (
                                 <div className="relative group/img inline-block">
@@ -447,9 +437,9 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         {/* Historial */}
         <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
-            📜 Historial del pedido
+            📜 Estado del pedido
           </h3>
-          <OrderTimeline events={order.events} />
+          <OrderStatusTracker status={order.status} events={order.events} />
         </div>
       </div>
     </>

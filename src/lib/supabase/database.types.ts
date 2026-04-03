@@ -61,6 +61,7 @@ export type Database = {
           vehicle_version: string;
           vehicle_year: number;
           internal_order_number: string | null;
+          order_number: string | null;
           status:
             | 'pendiente'
             | 'en_revision'
@@ -80,6 +81,7 @@ export type Database = {
           vehicle_version: string;
           vehicle_year: number;
           internal_order_number?: string | null;
+          order_number?: string | null;
           status?: Database['public']['Tables']['orders']['Row']['status'];
           created_at?: string;
           updated_at?: string;

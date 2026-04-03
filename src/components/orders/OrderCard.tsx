@@ -31,7 +31,7 @@ export function OrderCard({ order, onClick, showWorkshop = false }: OrderCardPro
       <div className="flex items-start justify-between gap-4 mb-4 relative z-10">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">{order.id.split('-')[0]}-{order.id.split('-')[1]}</span>
+            <span className="text-[11px] font-mono font-bold text-zinc-100 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/50 uppercase tracking-wider">{order.orderNumber || `${order.id.split('-')[0]}-${order.id.split('-')[1]}`}</span>
             <StatusBadge status={order.status} />
           </div>
           <h3 className="font-bold text-zinc-100 text-base truncate tracking-tight group-hover:text-orange-400 transition-colors">{partNameDisplay}</h3>
@@ -45,7 +45,7 @@ export function OrderCard({ order, onClick, showWorkshop = false }: OrderCardPro
             <p className="text-xs font-semibold text-sky-400 mt-2 bg-sky-400/10 inline-flex items-center px-2 py-1 rounded-md border border-sky-400/20">🏷️ Ref. Interna: {order.internalOrderNumber}</p>
           )}
         </div>
-        {firstItem && <QualityBadge quality={firstItem.quality} />}
+        {/* Cambio 3: eliminado el QualityBadge del pedido. Cada item tiene la suya en detalle */}
       </div>
 
       {firstItem?.description && (
@@ -92,7 +92,7 @@ export function OrderTableRow({ order, onClick }: OrderRowProps) {
       )}
     >
       <td className="px-5 py-4">
-        <span className="text-xs font-mono text-zinc-500 group-hover:text-zinc-400 transition-colors">{order.id.toUpperCase().slice(0, 8)}...</span>
+        <span className="text-xs font-mono font-bold text-zinc-300 bg-zinc-900/50 px-2 py-1 border border-zinc-800/80 rounded group-hover:text-zinc-100 transition-colors uppercase">{order.orderNumber || order.id.slice(0, 8)}...</span>
       </td>
       <td className="px-5 py-4">
         <div className="font-bold text-sm text-zinc-100 group-hover:text-orange-400 transition-colors tracking-tight">{partNameDisplay}</div>
@@ -107,7 +107,8 @@ export function OrderTableRow({ order, onClick }: OrderRowProps) {
         <StatusBadge status={order.status} />
       </td>
       <td className="px-5 py-4">
-        {firstItem && <QualityBadge quality={firstItem.quality} />}
+        {/* QualityBadge eliminado por requerimiento de la UI a nivel de pedido global */}
+        <span className="text-zinc-500 text-xs italic opacity-50 block md:hidden">Detalle en pedido</span>
       </td>
       <td className="px-5 py-4">
         <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">{formatRelativeTime(order.updatedAt)}</span>

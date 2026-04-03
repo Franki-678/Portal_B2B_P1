@@ -58,6 +58,7 @@ export interface Order {
   vehicleVersion: string;
   vehicleYear: number;
   internalOrderNumber?: string;
+  orderNumber?: string;
   items: OrderItem[];
   status: OrderStatus;
   quote?: Quote;

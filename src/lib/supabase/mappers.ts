@@ -88,6 +88,7 @@ export function mapOrder(
     vehicleVersion: row.vehicle_version,
     vehicleYear: row.vehicle_year,
     internalOrderNumber: row.internal_order_number ?? undefined,
+    orderNumber: row.order_number ?? undefined,
     items: items.map((i) => ({
       id: i.id,
       orderId: i.order_id,
