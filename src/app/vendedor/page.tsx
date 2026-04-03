@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 
 export default function VendedorDashboard() {
   const { user } = useAuth();
-  const { getAllOrders } = useDataStore();
+  const { getAllOrders, isLoading, loadError, refreshOrders } = useDataStore();
   const router = useRouter();
 
   const orders = getAllOrders();
@@ -35,6 +35,30 @@ export default function VendedorDashboard() {
       />
 
       <div className="p-6 space-y-8">
+        {loadError && (
+          <div
+            role="alert"
+            className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <span>No se pudieron cargar los datos: {loadError}</span>
+            <Button type="button" size="sm" variant="secondary" onClick={() => refreshOrders()}>
+              Reintentar
+            </Button>
+          </div>
+        )}
+
+        {!isLoading && !loadError && orders.length === 0 && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 px-6 py-10 text-center">
+            <div className="text-3xl mb-3 opacity-80">📋</div>
+            <p className="text-zinc-200 font-semibold">No hay pedidos todavía</p>
+            <p className="text-zinc-500 text-sm mt-2 max-w-md mx-auto">
+              Cuando los talleres creen pedidos, aparecerán acá con métricas en tiempo real.
+            </p>
+          </div>
+        )}
+
+        {!loadError && orders.length > 0 && (
+          <>
         {/* Métricas */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <MetricCard label="Total pedidos" value={metrics.total} icon="📋" color="gray" />
@@ -125,6 +149,8 @@ export default function VendedorDashboard() {
             </table>
           </div>
         </div>
+          </>
+        )}
       </div>
     </>
   );

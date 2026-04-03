@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { SupabaseClientType } from './client';
 import { mapOrder, mapWorkshop, mapQuote, mapOrderEvent } from './mappers';
-import { Order, OrderEvent, OrderStatus, QuoteItem } from '@/lib/types';
+import { Order, OrderEvent, OrderStatus, Quote, QuoteItem } from '@/lib/types';
 import { generateId } from '@/lib/utils';
 
 // ============================================================
@@ -40,7 +40,7 @@ export async function fetchAllWorkshops(sb: SupabaseClientType): Promise<any[]> 
   const { data, error } = await (sb as any).from('workshops').select('*').order('created_at', { ascending: false });
   if (error) {
     console.error('[Supabase] Error fetching workshops:', error.message);
-    return [];
+    throw new Error(error.message);
   }
   return data ?? [];
 }
@@ -54,31 +54,54 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
 
   if (error) {
     console.error('[Supabase] Error fetching orders:', error.message);
-    return [];
+    throw new Error(error.message);
   }
   if (!rows || rows.length === 0) return [];
 
   const orderIds = rows.map((r: any) => r.id);
-  const workshopIds = [...new Set(rows.map((r: any) => r.workshop_id))];
+  const workshopIds = [...new Set(rows.map((r: any) => r.workshop_id).filter(Boolean))];
 
-  const [workshopsRes, itemsRes, imagesRes, quotesRes, eventsRes] = await Promise.all([
-    (sb as any).from('workshops').select('*').in('id', workshopIds),
+  const [workshopsRes, itemsRes, quotesRes, eventsRes] = await Promise.all([
+    workshopIds.length > 0
+      ? (sb as any).from('workshops').select('*').in('id', workshopIds)
+      : Promise.resolve({ data: [] }),
     (sb as any).from('order_items').select('*').in('order_id', orderIds),
-    (sb as any).from('order_images').select('*, order_items!inner(order_id)').in('order_items.order_id', orderIds),
     (sb as any).from('quotes').select('*').in('order_id', orderIds),
     (sb as any).from('order_events').select('*').in('order_id', orderIds).order('created_at', { ascending: true }),
   ]);
 
   const workshops: any[] = workshopsRes.data ?? [];
   const orderItems: any[] = itemsRes.data ?? [];
-  const orderImages: any[] = imagesRes.data ?? [];
+  const itemIds = orderItems.map((i: any) => i.id);
+
+  let orderImages: any[] = [];
+  if (itemIds.length > 0) {
+    const { data: imgRows, error: imgErr } = await (sb as any)
+      .from('order_images')
+      .select('*')
+      .in('order_item_id', itemIds);
+    if (imgErr) {
+      console.error('[Supabase] Error fetching order_images:', imgErr.message);
+      throw new Error(imgErr.message);
+    }
+    orderImages = imgRows ?? [];
+  }
   const quotes: any[] = quotesRes.data ?? [];
   const allEvents: any[] = eventsRes.data ?? [];
 
   const quoteIds = quotes.map((q: any) => q.id);
-  const { data: allItems } = quoteIds.length > 0
-    ? await (sb as any).from('quote_items').select('*').in('quote_id', quoteIds)
-    : { data: [] };
+  let allItems: any[] = [];
+  if (quoteIds.length > 0) {
+    const { data: qiRows, error: qiErr } = await (sb as any)
+      .from('quote_items')
+      .select('*')
+      .in('quote_id', quoteIds);
+    if (qiErr) {
+      console.error('[Supabase] Error fetching quote_items:', qiErr.message);
+      throw new Error(qiErr.message);
+    }
+    allItems = qiRows ?? [];
+  }
 
   // Resolver nombres de usuario
   const uniqueUserIds = [...new Set(allEvents.map((e: any) => e.user_id))] as string[];
@@ -348,4 +371,16 @@ export async function insertEvent(
   if (error) {
     console.error('[Supabase] Error inserting event:', error.message);
   }
+}
+
+/** Pedido único con ítems, order_images anidadas vía mapOrder y cotización con quote_items (incl. image_url). */
+export async function fetchOrderById(sb: SupabaseClientType, orderId: string): Promise<Order | null> {
+  const orders = await fetchAllOrders(sb);
+  return orders.find(o => o.id === orderId) ?? null;
+}
+
+/** Cotización del pedido (quote_items con image_url). */
+export async function fetchQuoteByOrderId(sb: SupabaseClientType, orderId: string): Promise<Quote | null> {
+  const order = await fetchOrderById(sb, orderId);
+  return order?.quote ?? null;
 }

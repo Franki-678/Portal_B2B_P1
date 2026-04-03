@@ -28,6 +28,8 @@ interface DataStoreContextType {
   orders: Order[];
   workshops: any[]; // Todos los talleres
   isLoading: boolean;
+  /** Mensaje si falló la carga desde Supabase (sin datos mock). */
+  loadError: string | null;
   isUsingSupabase: boolean;
   // Taller
   getWorkshopOrders: (workshopId: string) => Order[];
@@ -113,6 +115,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [workshops, setWorkshops] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(usingSupabase);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // ─── Carga inicial desde Supabase ─────────────────────────
 
@@ -120,6 +123,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     if (!usingSupabase) return;
     const sb = getSupabaseClient();
     setIsLoading(true);
+    setLoadError(null);
     try {
       const [ordersData, workshopsData] = await Promise.all([
         fetchAllOrders(sb),
@@ -129,6 +133,9 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       setWorkshops(workshopsData);
     } catch (err) {
       console.error('[DataStore] Error loading data from Supabase:', err);
+      const message =
+        err instanceof Error ? err.message : 'No se pudieron cargar los datos. Intentá de nuevo más tarde.';
+      setLoadError(message);
     } finally {
       setIsLoading(false);
     }
@@ -355,6 +362,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         orders,
         workshops,
         isLoading,
+        loadError,
         isUsingSupabase: usingSupabase,
         getWorkshopOrders,
         getOrderById,

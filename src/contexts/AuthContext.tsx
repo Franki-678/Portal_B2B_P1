@@ -33,6 +33,13 @@ interface RegisterTallerData {
 
 const TIMEOUT_MS = 10_000;
 
+const PROFILE_RETRY_DELAY_MS = 1_000;
+const PROFILE_MAX_ATTEMPTS = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function makeTimeoutError(): Error {
   return new Error('La operación tardó demasiado. Verificá tu conexión e intentá de nuevo.');
 }
@@ -78,7 +85,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (sessionResult.data.session?.user) {
           const { id, email } = sessionResult.data.session.user;
-          await loadUserProfile(id, email ?? '');
+          const loaded = await loadUserProfile(id, email ?? '');
+          if (!loaded) {
+            await supabase.auth.signOut().catch(() => undefined);
+            setUser(null);
+          }
         }
       } catch (err) {
         console.error('[Auth] Error al inicializar sesión:', err);
@@ -93,7 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
-          await loadUserProfile(session.user.id, session.user.email ?? '');
+          const loaded = await loadUserProfile(session.user.id, session.user.email ?? '');
+          if (!loaded) {
+            await supabase.auth.signOut().catch(() => undefined);
+            setUser(null);
+          }
         } else {
           setUser(null);
         }
@@ -108,52 +123,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ──────────────────────────────────────────────────────────
   // loadUserProfile: busca el perfil en la tabla `profiles`.
-  // Retorna el User construido o null si no existe.
-  // NO asigna roles hardcodeados.
+  // Reintenta hasta 3 veces con 1s entre intentos (trigger / réplica).
+  // Retorna el User construido o null si no existe tras los reintentos.
   // ──────────────────────────────────────────────────────────
   const loadUserProfile = async (userId: string, email: string): Promise<User | null> => {
     const supabase = getSupabaseClient();
-    try {
-      // La query PostgREST es awaitable directamente
-      const result = await Promise.race([
-        supabase
-          .from('profiles')
-          .select('name, role, workshop_id')
-          .eq('id', userId)
-          .single(),
-        new Promise<any>((_, reject) =>
-          setTimeout(() => reject(makeTimeoutError()), TIMEOUT_MS)
-        ),
-      ]);
 
-      const { data, error } = result as { data: any, error: any };
+    for (let attempt = 0; attempt < PROFILE_MAX_ATTEMPTS; attempt++) {
+      try {
+        const result = await Promise.race([
+          (supabase as any)
+            .from('profiles')
+            .select('name, role, workshop_id')
+            .eq('id', userId)
+            .maybeSingle(),
+          new Promise<any>((_, reject) =>
+            setTimeout(() => reject(makeTimeoutError()), TIMEOUT_MS)
+          ),
+        ]);
 
-      if (error) throw error;
-      if (!data) return null;
+        const { data, error } = result as { data: any; error: any };
 
-      let workshopName: string | undefined;
-      // Use any to avoid complex typing issues with single/maybeSingle
-      const { data: wsData } = await (supabase as any)
-        .from('workshops')
-        .select('name')
-        .eq('id', (data as any).workshop_id)
-        .single();
-      workshopName = wsData?.name;
+        if (error) throw error;
+        if (!data) {
+          if (attempt < PROFILE_MAX_ATTEMPTS - 1) {
+            await sleep(PROFILE_RETRY_DELAY_MS);
+            continue;
+          }
+          return null;
+        }
 
-      const loadedUser: User = {
-        id: userId,
-        email,
-        name: (data as any).name,
-        role: (data as any).role as UserRole,
-        workshopId: (data as any).workshop_id ?? undefined,
-        workshopName,
-      };
-      setUser(loadedUser);
-      return loadedUser;
-    } catch (err) {
-      console.error('[Auth] Error al cargar perfil de usuario:', err);
-      return null;
+        let workshopName: string | undefined;
+        const wsId = (data as any).workshop_id;
+        if (wsId) {
+          const { data: wsData } = await (supabase as any)
+            .from('workshops')
+            .select('name')
+            .eq('id', wsId)
+            .maybeSingle();
+          workshopName = wsData?.name;
+        }
+
+        const loadedUser: User = {
+          id: userId,
+          email,
+          name: (data as any).name,
+          role: (data as any).role as UserRole,
+          workshopId: (data as any).workshop_id ?? undefined,
+          workshopName,
+        };
+        setUser(loadedUser);
+        return loadedUser;
+      } catch (err) {
+        console.error('[Auth] Error al cargar perfil de usuario:', err);
+        if (attempt < PROFILE_MAX_ATTEMPTS - 1) {
+          await sleep(PROFILE_RETRY_DELAY_MS);
+        }
+      }
     }
+
+    return null;
   };
 
   // ──────────────────────────────────────────────────────────
@@ -221,26 +250,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   // ──────────────────────────────────────────────────────────
-  // registerTaller: registro de nuevo taller via Supabase signUp.
-  //
-  // Envía metadata: { name, role: 'taller', workshop_name }
-  // El trigger handle_new_user() crea el perfil y workshop en la BD.
+  // registerTaller: signUp + espera + perfil/workshop manual si hace falta + signOut.
   // ──────────────────────────────────────────────────────────
   const registerTaller = async (
     data: RegisterTallerData
   ): Promise<{ success: boolean; error?: string }> => {
+    const supabase = getSupabaseClient();
     try {
-      const supabase = getSupabaseClient();
-
       const { data: authData, error } = await raceTimeout(
         supabase.auth.signUp({
-          email: data.email,
+          email: data.email.trim(),
           password: data.password,
           options: {
             data: {
-              name: data.name,
+              name: data.name.trim(),
               role: 'taller',
-              workshop_name: data.name,
+              workshop_name: data.name.trim(),
               phone: data.phone ?? null,
               address: data.address ?? null,
             },
@@ -265,8 +290,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: 'No se pudo crear el usuario.' };
       }
 
+      const userId = authData.user.id;
+      const nombreTaller = data.name.trim();
+
+      await sleep(2000);
+
+      let { data: profile, error: profileReadError } = await (supabase as any)
+        .from('profiles')
+        .select('id, workshop_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileReadError) {
+        await supabase.auth.signOut().catch(() => undefined);
+        return { success: false, error: profileReadError.message };
+      }
+
+      if (!profile) {
+        const { error: insertProfileError } = await (supabase as any).from('profiles').insert({
+          id: userId,
+          name: nombreTaller,
+          role: 'taller',
+        });
+        if (insertProfileError) {
+          await supabase.auth.signOut().catch(() => undefined);
+          return { success: false, error: insertProfileError.message };
+        }
+        const again = await (supabase as any)
+          .from('profiles')
+          .select('id, workshop_id')
+          .eq('id', userId)
+          .maybeSingle();
+        profile = again.data;
+      }
+
+      let workshopId = profile?.workshop_id as string | null | undefined;
+
+      if (!workshopId) {
+        const { data: wsRow, error: wsError } = await (supabase as any)
+          .from('workshops')
+          .insert({
+            name: nombreTaller,
+            contact_name: nombreTaller,
+            email: data.email.trim(),
+            phone: data.phone ?? null,
+            address: data.address ?? null,
+          })
+          .select('id')
+          .single();
+
+        if (wsError) {
+          await supabase.auth.signOut().catch(() => undefined);
+          return { success: false, error: wsError.message };
+        }
+
+        workshopId = (wsRow as any).id;
+
+        const { error: updError } = await (supabase as any)
+          .from('profiles')
+          .update({ workshop_id: workshopId })
+          .eq('id', userId);
+
+        if (updError) {
+          await supabase.auth.signOut().catch(() => undefined);
+          return { success: false, error: updError.message };
+        }
+      }
+
+      await supabase.auth.signOut().catch(() => undefined);
+      setUser(null);
       return { success: true };
     } catch (err: unknown) {
+      try {
+        await supabase.auth.signOut().catch(() => undefined);
+      } catch {
+        /* ignore */
+      }
       const message =
         err instanceof Error ? err.message : 'Error de red. Verificá tu conexión.';
       return { success: false, error: message };

@@ -70,14 +70,32 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     setPartialMode(false);
   };
 
-  const originalTotal = quote?.items.reduce((acc, item) => acc + item.price, 0) || 0;
-  const approvedTotal = quote?.items.reduce((acc, item) => {
-    if (partialMode) {
-      return selectedItems.has(item.id) ? acc + item.price : acc;
-    }
-    return (item.approved === true || item.approved === null) ? acc + item.price : acc;
-  }, 0) || 0;
-  const rejectedTotal = originalTotal - approvedTotal;
+  const quoteItems = quote?.items ?? [];
+  const subtotalOriginal = quoteItems.reduce((acc, item) => acc + item.price, 0);
+
+  const montoRechazado = partialMode
+    ? quoteItems.filter(i => !selectedItems.has(i.id)).reduce((s, i) => s + i.price, 0)
+    : order.status === 'aprobado_parcial' || order.status === 'cerrado'
+      ? quoteItems.filter(i => i.approved === false).reduce((s, i) => s + i.price, 0)
+      : order.status === 'rechazado'
+        ? subtotalOriginal
+        : 0;
+
+  const totalAPagar = partialMode
+    ? quoteItems.filter(i => selectedItems.has(i.id)).reduce((s, i) => s + i.price, 0)
+    : order.status === 'aprobado'
+      ? subtotalOriginal
+      : order.status === 'aprobado_parcial' || order.status === 'cerrado'
+        ? quoteItems.filter(i => i.approved === true).reduce((s, i) => s + i.price, 0)
+        : order.status === 'rechazado'
+          ? 0
+          : subtotalOriginal;
+
+  const mostrarDesglose =
+    partialMode ||
+    montoRechazado > 0 ||
+    order.status === 'aprobado_parcial' ||
+    (order.status === 'cerrado' && quoteItems.some(i => i.approved === false));
 
   const toggleItem = (itemId: string) => {
     setSelectedItems(prev => {
@@ -220,12 +238,12 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                     </div>
 
                     {/* Grid Comparativa */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 relative items-start">
                       {/* Línea divisoria en desktop */}
                       <div className="hidden md:block absolute top-0 bottom-0 left-1/2 w-px bg-zinc-800/50 -translate-x-1/2 rounded-full" />
 
                       {/* Izqda: Lo que pidió el taller */}
-                      <div className="space-y-4">
+                      <div className="space-y-4 min-w-0">
                         <div className="inline-block px-3 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-400 uppercase">
                           Lo que pediste
                         </div>
@@ -255,40 +273,55 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                       </div>
 
                       {/* Dcha: Lo que cotizó el vendedor */}
-                      <div className="space-y-4 pt-4 md:pt-0 border-t md:border-t-0 border-zinc-800/50 relative">
-                        <div className="inline-block px-3 py-1 rounded-md bg-orange-500/10 border border-orange-500/20 text-xs font-bold text-orange-400 uppercase">
-                          Cotización del vendedor
+                      <div className="space-y-4 pt-4 md:pt-0 border-t md:border-t-0 border-zinc-800/50 relative min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="inline-block px-3 py-1 rounded-md bg-orange-500/10 border border-orange-500/20 text-xs font-bold text-orange-400 uppercase">
+                            Cotización del vendedor
+                          </div>
+                          {!quoteItem && (
+                            <span className="inline-flex items-center rounded-md border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-400">
+                              Sin stock
+                            </span>
+                          )}
                         </div>
 
                         {quoteItem ? (
                           <div className="flex flex-col h-full justify-between">
                             <div className="space-y-3">
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0 flex-1">
                                   <h4 className="font-bold text-white text-xl">{formatCurrency(quoteItem.price)}</h4>
                                   <div className="flex gap-2 flex-wrap mt-2">
                                     <QualityBadge quality={quoteItem.quality} />
-                                    {/* Cambio 5: Eliminado fabricante y proveedor de la vista taller */}
                                   </div>
                                 </div>
-                                
-                                <div className="flex flex-col items-end flex-shrink-0">
-                                  {/* Checkbox Parcial / Badge Estado */}
+
+                                <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 sm:gap-1.5 flex-shrink-0 self-start sm:self-auto">
                                   {partialMode && (
-                                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors shadow-sm ${
-                                      isSelected ? 'border-emerald-500 bg-emerald-500/20' : 'border-zinc-600 bg-zinc-900 border-dashed'
-                                    }`}>
+                                    <div
+                                      className={`order-first sm:order-none w-7 h-7 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors shadow-sm ${
+                                        isSelected
+                                          ? 'border-emerald-500 bg-emerald-500/20'
+                                          : 'border-zinc-600 bg-zinc-900 border-dashed'
+                                      }`}
+                                    >
                                       {isSelected && <span className="text-emerald-400 text-sm font-bold">✓</span>}
                                     </div>
                                   )}
                                   {!partialMode && wasApproved && (
-                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 inline-block px-2 py-1 rounded-md border border-emerald-500/20 shadow-sm mt-1">✅ Aprobado</span>
+                                    <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 inline-block px-2 py-1 rounded-md border border-emerald-500/20 shadow-sm whitespace-nowrap">
+                                      ✅ Aprobado
+                                    </span>
                                   )}
                                   {!partialMode && wasRejected && (
-                                    <span className="text-xs font-bold text-rose-400 bg-rose-500/10 inline-block px-2 py-1 rounded-md border border-rose-500/20 shadow-sm mt-1">❌ Rechazado</span>
+                                    <span className="text-xs font-bold text-rose-400 bg-rose-500/10 inline-block px-2 py-1 rounded-md border border-rose-500/20 shadow-sm whitespace-nowrap">
+                                      ❌ Rechazado
+                                    </span>
                                   )}
                                   {!partialMode && quoteItem.approved === null && order.status === 'cotizado' && (
-                                    <span className="text-xs font-bold text-amber-400 bg-amber-500/10 inline-block px-2 py-1 rounded-md border border-amber-500/20 shadow-sm mt-1">⏳ Pendiente</span>
+                                    <span className="text-xs font-bold text-amber-400 bg-amber-500/10 inline-block px-2 py-1 rounded-md border border-amber-500/20 shadow-sm whitespace-nowrap">
+                                      ⏳ Pendiente
+                                    </span>
                                   )}
                                 </div>
                               </div>
@@ -311,9 +344,10 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center justify-center p-6 text-center bg-zinc-900/30 rounded-2xl border border-zinc-800/50 border-dashed min-h-[140px]">
-                            <span className="text-2xl opacity-50 mb-2">🤷‍♂️</span>
-                            <span className="text-sm font-bold text-zinc-500 tracking-tight">Sin stock o no cotizado</span>
+                          <div className="rounded-2xl border border-dashed border-zinc-700/60 bg-zinc-950/40 p-4 text-left">
+                            <p className="text-sm font-medium leading-relaxed text-zinc-400">
+                              El vendedor no cotizó este repuesto (sin stock o no disponible).
+                            </p>
                           </div>
                         )}
                       </div>
@@ -325,35 +359,46 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
 
             {/* Total Footer */}
             <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/60 shadow-inner flex flex-col gap-3">
-              {rejectedTotal > 0 && (
+              {mostrarDesglose ? (
                 <>
-                  <div className="flex items-center justify-between opacity-50">
+                  <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                      Total Original
+                      Subtotal original
                     </span>
-                    <span className="text-sm font-bold text-zinc-300">
-                      {formatCurrency(originalTotal)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between opacity-70">
-                    <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">
-                      Ítems Rechazados
-                    </span>
-                    <span className="text-sm font-bold text-rose-400">
-                      -{formatCurrency(rejectedTotal)}
+                    <span className="text-sm font-bold text-zinc-200">
+                      {formatCurrency(subtotalOriginal)}
                     </span>
                   </div>
+                  {montoRechazado > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">
+                        Ítems rechazados
+                      </span>
+                      <span className="text-sm font-bold text-rose-400">
+                        −{formatCurrency(montoRechazado)}
+                      </span>
+                    </div>
+                  )}
                   <div className="w-full h-px bg-zinc-800/50 my-1" />
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="text-sm font-bold text-emerald-500 uppercase tracking-widest">
+                      Total a pagar
+                    </span>
+                    <span className="text-3xl font-black text-white tracking-tight">
+                      {formatCurrency(totalAPagar)}
+                    </span>
+                  </div>
                 </>
+              ) : (
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-sm font-bold text-zinc-400 uppercase tracking-widest">
+                    {order.status === 'cotizado' ? 'Total cotizado' : 'Total a pagar'}
+                  </span>
+                  <span className="text-3xl font-black text-white tracking-tight">
+                    {formatCurrency(order.status === 'cotizado' ? subtotalOriginal : totalAPagar)}
+                  </span>
+                </div>
               )}
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-emerald-500 uppercase tracking-widest">
-                  Total {partialMode ? 'Seleccionado' : 'Aprobado'}
-                </span>
-                <span className="text-3xl font-black text-white tracking-tight">
-                  {formatCurrency(approvedTotal)}
-                </span>
-              </div>
             </div>
           </div>
         )}
