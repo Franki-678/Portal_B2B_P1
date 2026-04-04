@@ -7,12 +7,13 @@ import {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
   ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { User, UserRole } from '@/lib/types';
-import { getSupabaseClient } from '@/lib/supabase/client';
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
 // ────────────────────────────────────────────────────────────
 // Configuración
@@ -90,16 +91,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const loadSeq = useRef(0);
 
+  /** Una sola referencia al cliente de Supabase en todo el provider. */
+  const supabase = useMemo(() => {
+    if (!isSupabaseConfigured()) return null;
+    try {
+      return getSupabaseClient();
+    } catch {
+      return null;
+    }
+  }, []);
+
   const hydrateUser = useCallback(
     async (supabaseUser: SupabaseUser): Promise<User | null> => {
-      const sb = getSupabaseClient();
+      if (!supabase) return null;
       const userId = supabaseUser.id;
       const email = supabaseUser.email ?? '';
 
       for (let attempt = 0; attempt < PROFILE_MAX_ATTEMPTS; attempt++) {
         try {
           const { data, error } = (await raceTimeout(
-            (sb as any)
+            supabase
               .from('profiles')
               .select('name, role, workshop_id')
               .eq('id', userId)
@@ -119,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const wsId = (data as { workshop_id: string | null }).workshop_id;
           if (wsId) {
             const { data: ws } = (await raceTimeout(
-              (sb as any).from('workshops').select('name').eq('id', wsId).maybeSingle()
+              supabase.from('workshops').select('name').eq('id', wsId).maybeSingle()
             )) as { data: unknown };
             workshopName = (ws as { name?: string } | null)?.name;
           }
@@ -140,11 +151,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return null;
     },
-    []
+    [supabase]
   );
 
   const applySession = useCallback(
     async (sessionUser: SupabaseUser | null | undefined) => {
+      if (!supabase) return;
       const seq = ++loadSeq.current;
       if (!sessionUser) {
         setUser(null);
@@ -154,30 +166,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const loaded = await hydrateUser(sessionUser);
         if (seq !== loadSeq.current) return;
         if (!loaded) {
-          const sb = getSupabaseClient();
-          await sb.auth.signOut().catch(() => undefined);
+          await supabase.auth.signOut().catch(() => undefined);
           setUser(null);
           return;
         }
         setUser(loaded);
       } catch (e) {
         if (isTimeoutError(e)) {
-          const sb = getSupabaseClient();
-          await sb.auth.signOut().catch(() => undefined);
+          await supabase.auth.signOut().catch(() => undefined);
           setUser(null);
         }
         console.error('[Auth] applySession:', e);
       }
     },
-    [hydrateUser]
+    [supabase, hydrateUser]
   );
 
   useEffect(() => {
-    let supabase: ReturnType<typeof getSupabaseClient>;
-    try {
-      supabase = getSupabaseClient();
-    } catch (err) {
-      console.error('[Auth] Supabase no configurado:', err);
+    if (!supabase) {
+      console.error('[Auth] Supabase no configurado');
       setIsLoading(false);
       return;
     }
@@ -205,17 +212,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribed = true;
       sub.subscription.unsubscribe();
     };
-  }, [applySession]);
+  }, [supabase, applySession]);
 
   const login = useCallback(
     async (
       email: string,
       password: string
     ): Promise<{ success: boolean; role?: UserRole; error?: string }> => {
-      const sb = getSupabaseClient();
+      if (!supabase) {
+        return { success: false, error: 'Supabase no está configurado.' };
+      }
       try {
         const { data, error } = await raceTimeout(
-          sb.auth.signInWithPassword({ email: email.trim(), password })
+          supabase.auth.signInWithPassword({ email: email.trim(), password })
         );
 
         if (error) {
@@ -228,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const loaded = await hydrateUser(data.user);
         if (!loaded) {
-          await sb.auth.signOut().catch(() => undefined);
+          await supabase.auth.signOut().catch(() => undefined);
           setUser(null);
           return {
             success: false,
@@ -249,29 +258,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     },
-    [hydrateUser]
+    [supabase, hydrateUser]
   );
 
   const logout = useCallback(async () => {
-    try {
-      const sb = getSupabaseClient();
-      await raceTimeout(sb.auth.signOut());
-    } catch (e) {
-      if (!isTimeoutError(e)) console.error('[Auth] logout:', e);
+    if (supabase) {
+      try {
+        await raceTimeout(supabase.auth.signOut());
+      } catch (e) {
+        if (!isTimeoutError(e)) console.error('[Auth] logout:', e);
+      }
     }
     setUser(null);
     router.push('/login');
-  }, [router]);
+  }, [supabase, router]);
 
   const registerTaller = useCallback(
     async (data: RegisterTallerData): Promise<{ success: boolean; error?: string }> => {
-      const sb = getSupabaseClient();
+      if (!supabase) {
+        return { success: false, error: 'Supabase no está configurado.' };
+      }
       const nombre = data.name.trim();
       const email = data.email.trim();
 
       try {
         const { data: authData, error } = await raceTimeout(
-          sb.auth.signUp({
+          supabase.auth.signUp({
             email,
             password: data.password,
             options: {
@@ -300,7 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const userId = authData.user.id;
 
-        await sb.auth.signOut().catch(() => undefined);
+        await supabase.auth.signOut().catch(() => undefined);
         setUser(null);
 
         const ac = new AbortController();
@@ -334,7 +346,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isTimeoutError(e)) {
           return { success: false, error: TIMEOUT_MESSAGE };
         }
-        await sb.auth.signOut().catch(() => undefined);
+        await supabase.auth.signOut().catch(() => undefined);
         setUser(null);
         return {
           success: false,
@@ -342,7 +354,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     },
-    []
+    [supabase]
   );
 
   return (

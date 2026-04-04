@@ -1,15 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
+import type { Database } from './database.types';
 
 // ============================================================
-// DETECCIÓN: ¿Está Supabase configurado?
+// Singleton del cliente browser (una sola instancia = un solo lock de auth)
 // ============================================================
+
+type BrowserClient = ReturnType<typeof createBrowserClient<Database>>;
+
+let supabaseInstance: BrowserClient | null = null;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /**
  * Retorna true si las variables de entorno de Supabase están presentes y
- * no son los placeholders del .env.example.
+ * no son placeholders vacíos.
  */
 export function isSupabaseConfigured(): boolean {
   return !!(
@@ -21,40 +26,44 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
-// ============================================================
-// CLIENTE SUPABASE (singleton, sin tipado genérico para evitar
-// conflictos con las versiones del SDK)
-// ============================================================
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _client: ReturnType<typeof createClient> | null = null;
-
 /**
- * Obtiene la instancia del cliente Supabase.
- * Lanza error descriptivo si no está configurado.
+ * Cliente Supabase para el navegador (singleton).
+ * Usar siempre esta función; no instanciar createClient / createBrowserClient en otro lado.
  */
-export function getSupabaseClient(): ReturnType<typeof createClient> {
+export function getSupabaseClient(): BrowserClient {
+  if (supabaseInstance) return supabaseInstance;
+
   if (!isSupabaseConfigured()) {
     throw new Error(
       '[Supabase] Variables de entorno no configuradas. ' +
-      'Copia .env.example a .env.local y completa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY'
+        'Copia .env.example a .env.local y completa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY'
     );
   }
 
-  if (!_client) {
-    _client = createClient(supabaseUrl!, supabaseAnonKey!);
-  }
+  const url = supabaseUrl!;
+  const key = supabaseAnonKey!;
 
-  return _client;
+  supabaseInstance = createBrowserClient<Database>(url, key, {
+    isSingleton: true,
+    auth: {
+      storageKey: 'sb-portal-b2b-auth',
+      ...(typeof window !== 'undefined' ? { storage: window.localStorage } : {}),
+    },
+  });
+
+  return supabaseInstance;
 }
 
 /**
- * Para uso seguro: retorna el cliente o null si no está configurado.
- * Usar en lugares donde queremos fallback a mock data.
+ * Cliente o null si no hay configuración (sin lanzar).
  */
-export function getSupabaseClientOrNull(): ReturnType<typeof createClient> | null {
+export function getSupabaseClientOrNull(): BrowserClient | null {
   if (!isSupabaseConfigured()) return null;
-  return getSupabaseClient();
+  try {
+    return getSupabaseClient();
+  } catch {
+    return null;
+  }
 }
 
-export type SupabaseClientType = ReturnType<typeof createClient>;
+export type SupabaseClientType = BrowserClient;
