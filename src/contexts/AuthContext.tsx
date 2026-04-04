@@ -32,15 +32,21 @@ function isTimeoutError(err: unknown): boolean {
   return err instanceof Error && err.message === '__AUTH_TIMEOUT__';
 }
 
-function raceTimeout<T>(promise: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('__AUTH_TIMEOUT__')), TIMEOUT_MS);
+/** Compatible con thenables de Supabase (no tienen .finally()). */
+function raceTimeout<T>(promise: PromiseLike<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('__AUTH_TIMEOUT__')), TIMEOUT_MS);
+    Promise.resolve(promise).then(
+      val => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      err => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
   });
-  return Promise.race([
-    promise.finally(() => clearTimeout(timer)),
-    timeout,
-  ]);
 }
 
 function mapAuthError(error: { message: string }): string {
