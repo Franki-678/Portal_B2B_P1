@@ -25,12 +25,19 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
     }
   }, [user, isLoading, router]);
 
-  if (isLoading || !user || user.role !== 'vendedor') {
-    return (
-      <div className="min-h-screen bg-[#0F1117] flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
+  if (!user) {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-[#0F1117] flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      );
+    }
+    return null;
+  }
+
+  if (user.role !== 'vendedor') {
+    return null;
   }
 
   return (

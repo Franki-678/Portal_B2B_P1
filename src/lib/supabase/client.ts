@@ -1,66 +1,45 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
-// ============================================================
-// Singleton del cliente browser (createClient + lock noop → sin Web Locks API)
-// ============================================================
+type AppSupabaseClient = SupabaseClient<Database>;
 
-type AppSupabaseClient = ReturnType<typeof createClient<Database>>;
+let instance: AppSupabaseClient | null = null;
 
-let supabaseInstance: AppSupabaseClient | null = null;
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-/**
- * Retorna true si las variables de entorno de Supabase están presentes y
- * no son placeholders vacíos.
- */
 export function isSupabaseConfigured(): boolean {
   return !!(
-    supabaseUrl &&
-    supabaseAnonKey &&
-    supabaseUrl.startsWith('https://') &&
-    supabaseUrl.includes('.supabase.co') &&
-    supabaseAnonKey.length > 20
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 }
 
 /**
- * Cliente Supabase para el navegador (singleton).
- * Usar siempre esta función; no instanciar createClient en otro lado (salvo API con service role).
+ * Cliente browser singleton. Sin Web Locks API (lock noop).
  */
 export function getSupabaseClient(): AppSupabaseClient {
-  if (supabaseInstance) return supabaseInstance;
+  if (instance) return instance;
 
   if (!isSupabaseConfigured()) {
     throw new Error(
-      '[Supabase] Variables de entorno no configuradas. ' +
-        'Copia .env.example a .env.local y completa NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY'
+      '[Supabase] Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local'
     );
   }
 
-  const url = supabaseUrl!;
-  const key = supabaseAnonKey!;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  supabaseInstance = createClient<Database>(url, key, {
+  instance = createClient<Database>(url, key, {
     auth: {
       storageKey: 'sb-portal-b2b-auth',
-      ...(typeof window !== 'undefined' ? { storage: window.localStorage } : {}),
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
-      flowType: 'pkce',
-      lock: async (_name, _acquireTimeout, fn) => fn(),
+      lock: async <R,>(_name: string, _timeout: number, fn: () => Promise<R>) => fn(),
     },
-  });
+  }) as AppSupabaseClient;
 
-  return supabaseInstance;
+  return instance;
 }
 
-/**
- * Cliente o null si no hay configuración (sin lanzar).
- */
 export function getSupabaseClientOrNull(): AppSupabaseClient | null {
   if (!isSupabaseConfigured()) return null;
   try {
