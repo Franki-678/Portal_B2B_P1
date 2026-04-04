@@ -8,6 +8,7 @@ import { OrderCard } from '@/components/orders/OrderCard';
 import { Button } from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
 import { Order } from '@/lib/types';
+import { getTallerDisplayName } from '@/lib/utils';
 
 export default function TallerDashboard() {
   const { user } = useAuth();
@@ -32,7 +33,7 @@ export default function TallerDashboard() {
   return (
     <>
       <TopBar
-        title={`Buenos días, ${user?.name}`}
+        title={`Buenos días, ${getTallerDisplayName(user)}`}
         subtitle="Resumen de tus pedidos activos"
         action={
           <Button onClick={() => router.push('/taller/pedidos/nuevo')}>

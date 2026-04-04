@@ -1,4 +1,4 @@
-import { OrderStatus } from './types';
+import { OrderStatus, User } from './types';
 
 // ============================================================
 // FORMATEO
@@ -82,6 +82,23 @@ export function getStatusProgress(status: OrderStatus): number {
     cerrado: 6,
   };
   return progression[status];
+}
+
+// ============================================================
+// NOMBRE PARA MOSTRAR (taller)
+// ============================================================
+
+/** Prioridad: workshop → nombre de perfil (si no es email) → email */
+export function getTallerDisplayName(
+  user: Pick<User, 'name' | 'email' | 'workshopName'> | null | undefined
+): string {
+  if (!user) return '';
+  const email = (user.email ?? '').trim();
+  const ws = (user.workshopName ?? '').trim();
+  if (ws) return ws;
+  const n = (user.name ?? '').trim();
+  if (n && n !== email && !n.includes('@')) return n;
+  return n || email;
 }
 
 // ============================================================

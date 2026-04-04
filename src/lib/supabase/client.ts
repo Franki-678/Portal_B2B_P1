@@ -1,13 +1,13 @@
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
 // ============================================================
-// Singleton del cliente browser (una sola instancia = un solo lock de auth)
+// Singleton del cliente browser (createClient + lock noop → sin Web Locks API)
 // ============================================================
 
-type BrowserClient = ReturnType<typeof createBrowserClient<Database>>;
+type AppSupabaseClient = ReturnType<typeof createClient<Database>>;
 
-let supabaseInstance: BrowserClient | null = null;
+let supabaseInstance: AppSupabaseClient | null = null;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -28,9 +28,9 @@ export function isSupabaseConfigured(): boolean {
 
 /**
  * Cliente Supabase para el navegador (singleton).
- * Usar siempre esta función; no instanciar createClient / createBrowserClient en otro lado.
+ * Usar siempre esta función; no instanciar createClient en otro lado (salvo API con service role).
  */
-export function getSupabaseClient(): BrowserClient {
+export function getSupabaseClient(): AppSupabaseClient {
   if (supabaseInstance) return supabaseInstance;
 
   if (!isSupabaseConfigured()) {
@@ -43,11 +43,15 @@ export function getSupabaseClient(): BrowserClient {
   const url = supabaseUrl!;
   const key = supabaseAnonKey!;
 
-  supabaseInstance = createBrowserClient<Database>(url, key, {
-    isSingleton: true,
+  supabaseInstance = createClient<Database>(url, key, {
     auth: {
       storageKey: 'sb-portal-b2b-auth',
       ...(typeof window !== 'undefined' ? { storage: window.localStorage } : {}),
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+      flowType: 'pkce',
+      lock: async (_name, _acquireTimeout, fn) => fn(),
     },
   });
 
@@ -57,7 +61,7 @@ export function getSupabaseClient(): BrowserClient {
 /**
  * Cliente o null si no hay configuración (sin lanzar).
  */
-export function getSupabaseClientOrNull(): BrowserClient | null {
+export function getSupabaseClientOrNull(): AppSupabaseClient | null {
   if (!isSupabaseConfigured()) return null;
   try {
     return getSupabaseClient();
@@ -66,4 +70,4 @@ export function getSupabaseClientOrNull(): BrowserClient | null {
   }
 }
 
-export type SupabaseClientType = BrowserClient;
+export type SupabaseClientType = AppSupabaseClient;

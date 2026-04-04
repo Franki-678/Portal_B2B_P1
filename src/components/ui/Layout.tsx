@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { cn } from '@/lib/utils';
+import { cn, getTallerDisplayName } from '@/lib/utils';
 import { Button } from './Button';
 
 interface NavItem {
@@ -22,6 +22,7 @@ interface SidebarProps {
 export function Sidebar({ navItems, portalLabel, portalIcon, accentColor = 'orange' }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const tallerLabel = user?.role === 'taller' ? getTallerDisplayName(user) : '';
 
   const accent = accentColor === 'orange'
     ? 'bg-orange-500/15 text-orange-400 border-orange-500/30'
@@ -77,13 +78,13 @@ export function Sidebar({ navItems, portalLabel, portalIcon, accentColor = 'oran
               ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' 
               : 'bg-sky-500/10 text-sky-500 border-sky-500/20'
           )}>
-            {user?.role === 'taller' 
-              ? (user?.workshopName?.[0] || user?.name?.[0] || 'T').toUpperCase()
+            {user?.role === 'taller'
+              ? (tallerLabel[0] || 'T').toUpperCase()
               : 'V'}
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-xs font-bold text-zinc-100 truncate tracking-tight">
-              {user?.role === 'taller' ? (user?.workshopName || user?.name) : 'Vendedor'}
+              {user?.role === 'taller' ? tallerLabel : 'Vendedor'}
             </div>
             <div className="text-[10px] font-medium text-zinc-500 truncate">{user?.email}</div>
           </div>
