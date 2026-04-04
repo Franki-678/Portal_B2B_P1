@@ -7,7 +7,6 @@ import { TopBar } from '@/components/ui/Layout';
 import { OrderCard } from '@/components/orders/OrderCard';
 import { Button } from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
-import { Order } from '@/lib/types';
 import { getTallerDisplayName } from '@/lib/utils';
 
 export default function TallerDashboard() {
