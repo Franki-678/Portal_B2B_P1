@@ -2,19 +2,20 @@ import { Resend } from 'resend';
 import type { EmailQuoteResponsePayload, Order, Quote, Workshop } from '@/lib/types';
 import { calculateQuoteTotal, formatCurrency, formatDateTime, formatVendorOrderLabel } from '@/lib/utils';
 
+/**
+ * Remitente de prueba de Resend (dominio verificado por Resend).
+ * Sin dominio propio verificado (ej. portalb2b.com), NO uses RESEND_FROM_EMAIL custom:
+ * Resend rechaza el envío. Cuando verifiques tu dominio en resend.com, podés cambiar
+ * a `Portal B2B <noreply@tudominio.com>` aquí o vía env.
+ *
+ * Plan gratuito: los `to` deben ser emails verificados en tu cuenta Resend,
+ * o usar delivered@resend.dev para pruebas.
+ */
+const RESEND_FROM = 'Portal B2B <onboarding@resend.dev>';
+
 // ============================================================
 // Config (servidor)
 // ============================================================
-
-function getResend(): Resend | null {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return null;
-  return new Resend(key);
-}
-
-function getFromAddress(): string {
-  return process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev';
-}
 
 export function getAppBaseUrl(): string {
   const v = process.env.NEXT_PUBLIC_APP_URL?.trim();
@@ -97,31 +98,51 @@ function rowHtml(label: string, value: string): string {
   return `<p style="margin:12px 0 0;"><span style="color:#a1a1aa;font-size:13px;">${escapeHtml(label)}</span><br/><strong style="color:#fafafa;">${escapeHtml(value)}</strong></p>`;
 }
 
-async function send(opts: { to: string; subject: string; html: string }): Promise<{ ok: boolean; error?: string; skipped?: string }> {
-  const resend = getResend();
-  if (!resend) {
+export type SendEmailResult = {
+  ok: boolean;
+  error?: string;
+  skipped?: string;
+  emailId?: string;
+};
+
+async function send(opts: { to: string; subject: string; html: string }): Promise<SendEmailResult> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.error('[Email] RESEND_API_KEY no configurada');
     return { ok: false, skipped: 'no_resend_key', error: 'RESEND_API_KEY no configurada' };
   }
   if (!opts.to?.trim()) {
     return { ok: false, skipped: 'no_recipient', error: 'Sin destinatario' };
   }
-  const { error } = await resend.emails.send({
-    from: getFromAddress(),
-    to: [opts.to.trim()],
-    subject: opts.subject,
-    html: opts.html,
-  });
-  if (error) {
-    return { ok: false, error: error.message };
+
+  const resend = new Resend(apiKey);
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: RESEND_FROM,
+      to: [opts.to.trim()],
+      subject: opts.subject,
+      html: opts.html,
+    });
+
+    if (error) {
+      console.error('[Email] Error:', error);
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: true, emailId: data?.id };
+  } catch (networkError) {
+    console.error('[Email] Network error:', networkError);
+    const msg = networkError instanceof Error ? networkError.message : String(networkError);
+    return { ok: false, error: msg };
   }
-  return { ok: true };
 }
 
 // ============================================================
 // Notificaciones públicas (server)
 // ============================================================
 
-export async function notifyVendorNewOrder(order: Order, workshop: Workshop): Promise<{ ok: boolean; error?: string; skipped?: string }> {
+export async function notifyVendorNewOrder(order: Order, workshop: Workshop): Promise<SendEmailResult> {
   const num = orderLabel(order);
   const taller = workshop.name || 'Taller';
   const itemsCount = order.items?.length ?? 0;
@@ -149,10 +170,7 @@ export async function notifyVendorNewOrder(order: Order, workshop: Workshop): Pr
   });
 }
 
-export async function notifyTallerOrderInReview(
-  order: Order,
-  tallerEmail: string
-): Promise<{ ok: boolean; error?: string; skipped?: string }> {
+export async function notifyTallerOrderInReview(order: Order, tallerEmail: string): Promise<SendEmailResult> {
   const num = orderLabel(order);
   const body =
     `<p style="margin:0;">El vendedor está revisando tu pedido y consultando disponibilidad con sus proveedores.</p>` +
@@ -171,7 +189,7 @@ export async function notifyTallerQuoteReceived(
   order: Order,
   quote: Quote,
   tallerEmail: string
-): Promise<{ ok: boolean; error?: string; skipped?: string }> {
+): Promise<SendEmailResult> {
   const num = orderLabel(order);
   const total = calculateQuoteTotal(quote.items);
   const nItems = quote.items?.length ?? 0;
@@ -192,7 +210,7 @@ export async function notifyVendorQuoteResponse(
   order: Order,
   workshop: Workshop,
   response: EmailQuoteResponsePayload
-): Promise<{ ok: boolean; error?: string; skipped?: string }> {
+): Promise<SendEmailResult> {
   const num = orderLabel(order);
   const taller = workshop.name || 'Taller';
   const kindLabel =
@@ -222,10 +240,7 @@ export async function notifyVendorQuoteResponse(
   });
 }
 
-export async function notifyTallerOrderClosed(
-  order: Order,
-  tallerEmail: string
-): Promise<{ ok: boolean; error?: string; skipped?: string }> {
+export async function notifyTallerOrderClosed(order: Order, tallerEmail: string): Promise<SendEmailResult> {
   const num = orderLabel(order);
   const body =
     `<p style="margin:0;">Tu pedido fue marcado como cerrado en el sistema.</p>` +
