@@ -10,18 +10,34 @@
 
 El **Portal B2B Autopartes** es una solución integral diseñada para digitalizar y optimizar la relación comercial entre repuesterías y sus clientes estratégicos (talleres de chapa y pintura). Este prototipo 1.1 establece una plataforma privada y segura donde cada interacción, desde la solicitud inicial hasta la aprobación final, ocurre de manera estructurada y profesional.
 
-### El Problema
-Históricamente, la comunicación entre talleres y repuesterías se ha visto afectada por el caos de WhatsApp, llamadas telefónicas constantes y falta de seguimiento formal. Esto genera errores en los pedidos, cotizaciones perdidas y una carga operativa excesiva para el vendedor.
 
-### Beneficios Principales
-- **Centralización:** Toda la información en un solo lugar.
-- **Precisión:** Uso de fotografías tanto para la solicitud como para la oferta.
-- **Trazabilidad:** Cada pedido tiene un historial de estados inalterable.
-- **Eficiencia:** Reducción drástica del tiempo dedicado a la gestión manual.
+## 3. PROBLEMA ACTUAL DEL NEGOCIO ⚠️
+
+- **Gestión por WhatsApp:** Pedidos perdidos, falta de registro formal y dispersión de la información.
+- **Sin trazabilidad:** No existe un historial estructurado de clientes ni de pedidos realizados.
+- **Carga Operativa:** Tiempo excesivo dedicado a la coordinación manual y seguimiento de mensajes.
+- **Ambigüedad:** Errores constantes en las cotizaciones por falta de fotos precisas o descripciones técnicas completas.
 
 ---
 
-## 3. ROLES DEL SISTEMA 👤
+## 4. IMPACTO ESPERADO DEL CRM 📈
+
+- **Eficiencia Temporal:** Reducción del tiempo de gestión por pedido de **30 min a solo 5 min**.
+- **Fiabilidad Total:** Cero pedidos perdidos; cada interacción queda registrada y auditada.
+- **Memoria Institucional:** Historial completo por taller para mejores decisiones comerciales.
+- **Precisión Operativa:** Cotizaciones respaldadas por fotos, minimizando errores y devoluciones.
+- **Profesionalismo:** Proyecta una imagen corporativa sólida y moderna ante los talleres clientes.
+
+---
+
+## 5. POR QUÉ EL CRM ES LA BASE 🏗️
+
+Sin un orden interno robusto, el negocio no puede escalar de manera sostenible. Este CRM no es solo una herramienta de software; es el **primer paso necesario** para establecer una estructura profesional. Es la base sobre la cual se puede construir cualquier crecimiento futuro, permitiendo que la repuestería maneje un volumen mucho mayor de operaciones sin perder el control ni la calidad del servicio.
+
+---
+
+## 6. ROLES DEL SISTEMA 👤
+
 
 El sistema opera bajo una estructura de permisos diferenciada para garantizar la integridad de los datos.
 
@@ -128,17 +144,37 @@ El proceso sigue una secuencia lógica de 7 pasos diseñados para eliminar la am
 
 ---
 
-## 9. ROADMAP FUTURO 🗺️
+## 12. ROADMAP POR ETAPAS 🗺️
 
-- [ ] **Notificaciones:** Alertas automáticas vía Email y WhatsApp para cambios de estado.
-- [ ] **Módulo de Proveedores:** Integración directa para gestionar compras externas.
-- [ ] **Predicción de Precios:** Historial comparativo de costos por repuesto.
-- [ ] **Business Intelligence:** Métricas y reportes de rentabilidad por taller.
-- [ ] **App Móvil Nativa:** Mayor fluidez en la toma y subida de fotografías.
+### ETAPA 1 (Actual - Prototipo 1.1) 🚀
+- CRM funcionando con portales diferenciados para Taller y Vendedor.
+- Gestión completa de pedidos de repuestos y carga de cotizaciones.
+- Soporte multimedia: fotos de referencia y del stock disponible.
+- Aprobación parcial con recálculo automático de totales.
+- Historial de estados con registro de fechas y horas.
+- Módulo de registro y autogestión de talleres.
+
+### ETAPA 2 (Próximos 2-3 meses) 🛠️
+- **Notificaciones:** Alertas automáticas por email para cambios de estado.
+- **Perfiles:** Página de configuración y personalización de datos de usuario.
+- **Analytics:** Métricas y reportes básicos de actividad.
+- **Optimización:** Mejoras de performance y pulido de interfaz UX/UI.
+
+### ETAPA 3 (6 meses) 🌐
+- **Integración:** Conexión directa con sistemas de proveedores clave.
+- **Catálogo:** Implementación de catálogo dinámico de repuestos con precios base.
+- **Precios:** Historial inteligente de variaciones de precios por repuesto.
+- **Proveedores:** Módulo para gestionar múltiples fuentes de stock simultáneamente.
+
+### ETAPA 4 (Largo Plazo) 🤖
+- **Automatización:** Chatbot de WhatsApp integrado para consultas rápidas.
+- **API:** Integración oficial con Meta Business API.
+- **Fidelización:** Herramientas de seguimiento automático y CRM avanzado.
+- **Movilidad:** Lanzamiento de App móvil nativa (iOS/Android).
 
 ---
 
-## 10. DATOS DE CONTACTO 📞
+## 13. DATOS DE CONTACTO 📞
 
 Para más información, consultas técnicas o soporte:
 
