@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 
 export default function VendedorDashboard() {
   const { user } = useAuth();
-  const { getAllOrders, isLoading, loadError, refreshOrders } = useDataStore();
+  const { getAllOrders, isLoadingOrders, loadError, refreshOrders } = useDataStore();
   const router = useRouter();
 
   const orders = getAllOrders();
@@ -35,6 +35,18 @@ export default function VendedorDashboard() {
       />
 
       <div className="p-6 space-y-8">
+        {isLoadingOrders && !loadError && orders.length === 0 && (
+          <div className="space-y-8 animate-pulse" aria-busy="true" aria-label="Cargando pedidos">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-2xl bg-zinc-900/80 border border-zinc-800" />
+              ))}
+            </div>
+            <div className="h-36 rounded-2xl bg-zinc-900/80 border border-zinc-800" />
+            <div className="h-56 rounded-2xl bg-zinc-900/80 border border-zinc-800" />
+          </div>
+        )}
+
         {loadError && (
           <div
             role="alert"
@@ -47,7 +59,7 @@ export default function VendedorDashboard() {
           </div>
         )}
 
-        {!isLoading && !loadError && orders.length === 0 && (
+        {!isLoadingOrders && !loadError && orders.length === 0 && (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 px-6 py-10 text-center">
             <div className="text-3xl mb-3 opacity-80">📋</div>
             <p className="text-zinc-200 font-semibold">No hay pedidos todavía</p>

@@ -37,7 +37,7 @@ async function fileToBase64(file: File): Promise<string> {
 // ============================================================
 
 export async function fetchAllWorkshops(sb: SupabaseClientType): Promise<any[]> {
-  const { data, error } = await (sb as any).from('workshops').select('*').order('created_at', { ascending: false });
+  const { data, error } = await (sb as any).from('workshops').select('*').order('name', { ascending: true });
   if (error) {
     console.error('[Supabase] Error fetching workshops:', error.message);
     throw new Error(error.message);
@@ -50,7 +50,7 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   const { data: rows, error } = await (sb as any)
     .from('orders')
     .select('*')
-    .order('updated_at', { ascending: false });
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error('[Supabase] Error fetching orders:', error.message);
@@ -206,54 +206,56 @@ export async function createOrderInDB(
 
   const orderId = (row as any).id;
 
-  // Insertar los ítems uno por uno para poder asociar las imágenes a sus IDs reales
-  if (data.items.length > 0) {
-    for (const item of data.items) {
-      const { data: itemRow, error: itemError } = await (sb as any).from('order_items').insert({
-        order_id: orderId,
-        part_name: item.partName,
-        description: item.description,
-        quality: item.quality,
-        quantity: item.quantity,
-      }).select('id').single();
+  async function insertOneItemWithImages(item: (typeof data.items)[0]): Promise<void> {
+    const { data: itemRow, error: itemError } = await (sb as any).from('order_items').insert({
+      order_id: orderId,
+      part_name: item.partName,
+      description: item.description,
+      quality: item.quality,
+      quantity: item.quantity,
+    }).select('id').single();
 
-      if (itemError) {
-        console.error('[Supabase] Error creating order item:', itemError.message);
-        continue;
-      }
-
-      const orderItemId = (itemRow as any).id;
-
-      // Subir imágenes para este ítem
-      if (item.images && item.images.length > 0) {
-        for (const file of item.images) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${orderItemId}-${generateId()}.${fileExt}`;
-          
-          const { error: uploadError } = await sb.storage
-            .from('order-images')
-            .upload(fileName, file);
-
-          let finalUrl = '';
-          if (uploadError) {
-            console.warn('[Supabase] Error uploading to storage, using base64 fallback:', uploadError.message);
-            finalUrl = await fileToBase64(file);
-          } else {
-            const { data: urlData } = sb.storage.from('order-images').getPublicUrl(fileName);
-            finalUrl = urlData.publicUrl;
-          }
-          
-          await (sb as any).from('order_images').insert({
-            order_item_id: orderItemId,
-            url: finalUrl,
-            storage_path: uploadError ? null : fileName,
-          });
-        }
-      }
+    if (itemError) {
+      console.error('[Supabase] Error creating order item:', itemError.message);
+      return;
     }
+
+    const orderItemId = (itemRow as any).id;
+
+    if (!item.images?.length) return;
+
+    await Promise.all(
+      item.images.map(async file => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${orderItemId}-${generateId()}.${fileExt}`;
+
+        const { error: uploadError } = await sb.storage.from('order-images').upload(fileName, file);
+
+        let finalUrl = '';
+        if (uploadError) {
+          console.warn('[Supabase] Error uploading to storage, using base64 fallback:', uploadError.message);
+          finalUrl = await fileToBase64(file);
+        } else {
+          const { data: urlData } = sb.storage.from('order-images').getPublicUrl(fileName);
+          finalUrl = urlData.publicUrl;
+        }
+
+        const { error: imgErr } = await (sb as any).from('order_images').insert({
+          order_item_id: orderItemId,
+          url: finalUrl,
+          storage_path: uploadError ? null : fileName,
+        });
+        if (imgErr) {
+          console.error('[Supabase] Error inserting order_images:', imgErr.message);
+        }
+      })
+    );
   }
 
-  await insertEvent(sb, orderId, userId, 'pedido_creado', 'Pedido ingresado desde el portal.');
+  const eventPromise = insertEvent(sb, orderId, userId, 'pedido_creado', 'Pedido ingresado desde el portal.');
+  const itemTasks = data.items.map(item => insertOneItemWithImages(item));
+  await Promise.all([eventPromise, ...itemTasks]);
+
   return orderId;
 }
 
@@ -349,32 +351,42 @@ export async function createQuoteInDB(
     }
 
     const quoteItemId = (insertedRow as { id: string }).id;
+
     let firstUrl: string | null = null;
 
-    for (const file of files) {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${quoteId}-${quoteItemId}-${generateId()}.${fileExt}`;
-      const { error: uploadError } = await sb.storage.from('quote-images').upload(fileName, file);
+    if (files.length > 0) {
+      const uploadResults = await Promise.all(
+        files.map(async file => {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${quoteId}-${quoteItemId}-${generateId()}.${fileExt}`;
+          const { error: uploadError } = await sb.storage.from('quote-images').upload(fileName, file);
 
-      let finalUrl: string;
-      if (!uploadError) {
-        const { data: urlData } = sb.storage.from('quote-images').getPublicUrl(fileName);
-        finalUrl = urlData.publicUrl;
-      } else {
-        console.warn('[Supabase] quote image upload fallback:', uploadError.message);
-        finalUrl = await fileToBase64(file);
-      }
+          let finalUrl: string;
+          if (!uploadError) {
+            const { data: urlData } = sb.storage.from('quote-images').getPublicUrl(fileName);
+            finalUrl = urlData.publicUrl;
+          } else {
+            console.warn('[Supabase] quote image upload fallback:', uploadError.message);
+            finalUrl = await fileToBase64(file);
+          }
+          return { finalUrl, uploadError, fileName };
+        })
+      );
 
-      if (!firstUrl) firstUrl = finalUrl;
+      firstUrl = uploadResults[0]?.finalUrl ?? null;
 
-      const { error: imgInsErr } = await (sb as any).from('quote_item_images').insert({
-        quote_item_id: quoteItemId,
-        url: finalUrl,
-        storage_path: uploadError ? null : fileName,
-      });
-      if (imgInsErr) {
-        console.warn('[Supabase] quote_item_images insert:', imgInsErr.message);
-      }
+      await Promise.all(
+        uploadResults.map(async r => {
+          const { error: imgInsErr } = await (sb as any).from('quote_item_images').insert({
+            quote_item_id: quoteItemId,
+            url: r.finalUrl,
+            storage_path: r.uploadError ? null : r.fileName,
+          });
+          if (imgInsErr) {
+            console.warn('[Supabase] quote_item_images insert:', imgInsErr.message);
+          }
+        })
+      );
     }
 
     if (!firstUrl && item.imageUrl) {

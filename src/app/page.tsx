@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
-import { DEMO_USERS } from '@/lib/constants';
-
 export default function HomePage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -104,40 +102,40 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Demo credentials */}
+        {/* Acceso (sin credenciales reales) */}
         <div className="bg-zinc-900/30 backdrop-blur-xl border border-zinc-800/60 rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 via-rose-500 to-sky-500 opacity-20" />
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-            <div>
-              <h3 className="text-xl font-bold text-zinc-100 tracking-tight flex items-center gap-2">
-                <span className="text-amber-500">🔑</span> Credenciales de acceso
-              </h3>
-              <p className="text-sm text-zinc-500 mt-1">Usá estas cuentas pre-configuradas para explorar las funcionalidades del sistema</p>
+
+          <div className="mb-6">
+            <h3 className="text-xl font-bold text-zinc-100 tracking-tight flex items-center gap-2">
+              <span className="text-amber-500">🔑</span> Acceso al portal
+            </h3>
+            <p className="text-sm text-zinc-500 mt-1 max-w-2xl">
+              Usá el enlace de abajo para iniciar sesión con la cuenta que te asignó tu organización. No compartas contraseñas en pantallas públicas.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-zinc-950/50 rounded-2xl p-5 border border-zinc-800/80">
+              <div className="text-sm font-bold text-orange-400 mb-2 tracking-tight flex items-center gap-2">🏭 Portal taller</div>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Ejemplo de usuario: <span className="text-zinc-200 font-mono text-xs">taller@ejemplo.com</span> · Taller genérico (ej. Taller AutoSur).
+              </p>
+            </div>
+            <div className="bg-zinc-950/50 rounded-2xl p-5 border border-zinc-800/80">
+              <div className="text-sm font-bold text-sky-400 mb-2 tracking-tight flex items-center gap-2">📦 Portal vendedor</div>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Ejemplo de usuario: <span className="text-zinc-200 font-mono text-xs">vendedor@ejemplo.com</span> · Gestión de pedidos y cotizaciones.
+              </p>
             </div>
           </div>
-          
-          <div className="grid md:grid-cols-3 gap-4">
-            {DEMO_USERS.map((u, idx) => {
-              const color = u.role === 'vendedor' ? 'sky' : 'orange';
-              return (
-                <div key={idx} className="bg-zinc-950/50 rounded-2xl p-5 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
-                  <div className="text-sm font-bold text-zinc-200 mb-4 tracking-tight flex items-center gap-2">
-                    {u.role === 'taller' ? '🏭' : '📦'} {u.name}
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">Email</span>
-                      <code className={`text-sm text-${color}-400 bg-${color}-500/10 px-2.5 py-1 rounded-md border border-${color}-500/20 block truncate`}>{u.email}</code>
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider block mb-1">Contraseña</span>
-                      <code className="text-sm text-zinc-300 bg-zinc-800 px-2.5 py-1 rounded-md border border-zinc-700 block">{u.password}</code>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+
+          <div className="mt-6 flex justify-center">
+            <Link href="/login">
+              <Button size="lg" variant="primary">
+                Ir a iniciar sesión
+              </Button>
+            </Link>
           </div>
         </div>
 

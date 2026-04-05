@@ -9,7 +9,15 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
-import { formatDate, formatCurrency, canVendorQuote, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
+import {
+  formatDate,
+  formatCurrency,
+  canVendorQuote,
+  quoteLineTotal,
+  formatVendorOrderLabel,
+  withOperationTimeout,
+  OPERATION_TIMEOUT_MESSAGE,
+} from '@/lib/utils';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
 import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { QUALITY_OPTIONS } from '@/lib/constants';
@@ -169,17 +177,24 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         return;
       }
 
-      await submitQuote(order.id, {
-        notes: quoteNotes,
-        vendorId: user!.id,
-        vendorName: user!.name,
-        items: finalItems,
-      });
+      await withOperationTimeout(
+        submitQuote(order.id, {
+          notes: quoteNotes,
+          vendorId: user!.id,
+          vendorName: user!.name,
+          items: finalItems,
+        })
+      );
 
       setShowQuoteForm(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert('Hubo un error al enviar la cotización: ' + err.message);
+      if (err instanceof Error && err.message === 'timeout') {
+        alert(OPERATION_TIMEOUT_MESSAGE);
+      } else {
+        const msg = err instanceof Error ? err.message : 'Error desconocido';
+        alert('Hubo un error al enviar la cotización: ' + msg);
+      }
     } finally {
       setLoading(false);
     }

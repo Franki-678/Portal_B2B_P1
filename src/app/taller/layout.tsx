@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDataStore } from '@/contexts/DataStoreContext';
 import { Sidebar } from '@/components/ui/Layout';
 import { LoadingSpinner } from '@/components/ui/Layout';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
@@ -18,7 +19,13 @@ const tallerNav = [
 export default function TallerLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const { refreshData } = useDataStore();
   const [vendorWa, setVendorWa] = useState<string | null>(null);
+
+  useEffect(() => {
+    void refreshData();
+  }, [pathname, refreshData]);
 
   useEffect(() => {
     if (!isLoading) {

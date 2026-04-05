@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { VEHICLE_BRANDS, QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, NewOrderItemForm } from '@/lib/types';
-import { generateId } from '@/lib/utils';
+import { generateId, withOperationTimeout, OPERATION_TIMEOUT_MESSAGE } from '@/lib/utils';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 30 }, (_, i) => ({
@@ -70,29 +70,36 @@ export default function NuevoPedidoPage() {
     setLoading(true);
 
     try {
-      const newOrder = await createOrder({
-        workshopId: user?.workshopId || '',
-        vehicleBrand,
-        vehicleModel,
-        vehicleVersion,
-        vehicleYear: parseInt(vehicleYear),
-        internalOrderNumber: internalOrderNumber.trim() || undefined,
-        items: items.map(i => ({
-          partName: i.partName,
-          description: i.description,
-          quality: i.quality,
-          quantity: i.quantity,
-          images: i.images,
-        })),
-      });
+      const newOrder = await withOperationTimeout(
+        createOrder({
+          workshopId: user?.workshopId || '',
+          vehicleBrand,
+          vehicleModel,
+          vehicleVersion,
+          vehicleYear: parseInt(vehicleYear),
+          internalOrderNumber: internalOrderNumber.trim() || undefined,
+          items: items.map(i => ({
+            partName: i.partName,
+            description: i.description,
+            quality: i.quality,
+            quantity: i.quantity,
+            images: i.images,
+          })),
+        })
+      );
 
       setSuccess(true);
       setTimeout(() => {
         router.push(`/taller/pedidos/${newOrder.id}`);
       }, 1000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert('Hubo un error al crear el pedido: ' + err.message);
+      if (err instanceof Error && err.message === 'timeout') {
+        alert(OPERATION_TIMEOUT_MESSAGE);
+      } else {
+        const msg = err instanceof Error ? err.message : 'Error desconocido';
+        alert('Hubo un error al crear el pedido: ' + msg);
+      }
       setLoading(false);
     }
   };

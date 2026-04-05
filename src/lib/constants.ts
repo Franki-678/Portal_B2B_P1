@@ -75,8 +75,3 @@ export const QUALITY_OPTIONS: { value: OrderQuality; label: string; desc: string
   { value: 'media', label: '🟡 Media', desc: 'Aftermarket de buena calidad' },
   { value: 'baja', label: '⚪ Económica', desc: 'La opción más económica disponible' },
 ];
-
-export const DEMO_USERS = [
-  { email: 'taller01@demo.com', password: 'demo1234', name: 'Taller 01', role: 'taller' },
-  { email: 'vendedor01@demo.com', password: 'demo1234', name: 'Vendedor 01', role: 'vendedor' },
-];

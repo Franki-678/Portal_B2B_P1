@@ -6,8 +6,10 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   ReactNode,
 } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { Order, Quote, QuoteItem, OrderEvent, OrderStatus } from '@/lib/types';
 import { calculateQuoteTotal, generateId, quoteLineTotal } from '@/lib/utils';
 import { isSupabaseConfigured, getSupabaseClient } from '@/lib/supabase/client';
@@ -26,10 +28,15 @@ import {
 // TIPOS DEL STORE
 // ============================================================
 
+const WORKSHOPS_CACHE_MS = 5 * 60 * 1000;
+
 interface DataStoreContextType {
   orders: Order[];
   workshops: any[]; // Todos los talleres
+  /** True si cualquier bloque de datos está cargando (compatibilidad). */
   isLoading: boolean;
+  isLoadingOrders: boolean;
+  isLoadingWorkshops: boolean;
   /** Mensaje si falló la carga desde Supabase (sin datos mock). */
   loadError: string | null;
   isUsingSupabase: boolean;
@@ -76,6 +83,9 @@ interface DataStoreContextType {
     }
   ) => Promise<void>;
   closeOrder: (orderId: string, userId: string, userName: string, comment?: string) => Promise<void>;
+  /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
+  refreshData: (opts?: { forceWorkshops?: boolean }) => Promise<void>;
+  /** Fuerza recarga de pedidos y talleres (botón Reintentar). */
   refreshOrders: () => Promise<void>;
 }
 
@@ -112,42 +122,88 @@ function makeEvent(
 // ============================================================
 
 export function DataStoreProvider({ children }: { children: ReactNode }) {
+  const { user, isLoading: authLoading } = useAuth();
   const usingSupabase = isSupabaseConfigured();
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [workshops, setWorkshops] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(usingSupabase);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [isLoadingWorkshops, setIsLoadingWorkshops] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // ─── Carga inicial desde Supabase ─────────────────────────
-
-  const refreshOrders = useCallback(async () => {
-    if (!usingSupabase) return;
-    const sb = getSupabaseClient();
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      const [ordersData, workshopsData] = await Promise.all([
-        fetchAllOrders(sb),
-        fetchAllWorkshops(sb),
-      ]);
-      setOrders(ordersData);
-      setWorkshops(workshopsData);
-    } catch (err) {
-      console.error('[DataStore] Error loading data from Supabase:', err);
-      const message =
-        err instanceof Error ? err.message : 'No se pudieron cargar los datos. Intentá de nuevo más tarde.';
-      setLoadError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [usingSupabase]);
+  const workshopsRef = useRef<any[]>([]);
+  const lastWorkshopsFetchRef = useRef(0);
 
   useEffect(() => {
-    if (usingSupabase) {
-      refreshOrders();
+    workshopsRef.current = workshops;
+  }, [workshops]);
+
+  const isLoading = isLoadingOrders || isLoadingWorkshops;
+
+  // ─── Carga desde Supabase (tras auth; talleres con caché 5 min) ──
+
+  const refreshData = useCallback(
+    async (opts?: { forceWorkshops?: boolean }) => {
+      if (!usingSupabase || !user) return;
+      const sb = getSupabaseClient();
+      setLoadError(null);
+
+      const now = Date.now();
+      const workshopsStale =
+        Boolean(opts?.forceWorkshops) ||
+        lastWorkshopsFetchRef.current === 0 ||
+        now - lastWorkshopsFetchRef.current >= WORKSHOPS_CACHE_MS;
+
+      setIsLoadingOrders(true);
+      if (workshopsStale) setIsLoadingWorkshops(true);
+
+      try {
+        const ordersPromise = fetchAllOrders(sb);
+        const workshopsPromise = workshopsStale
+          ? fetchAllWorkshops(sb).then(data => {
+              lastWorkshopsFetchRef.current = Date.now();
+              return data;
+            })
+          : Promise.resolve(workshopsRef.current);
+
+        const [ordersData, workshopsData] = await Promise.all([ordersPromise, workshopsPromise]);
+        setOrders(ordersData);
+        if (workshopsStale) {
+          setWorkshops(workshopsData);
+        }
+      } catch (err) {
+        console.error('[DataStore] Error loading data from Supabase:', err);
+        const message =
+          err instanceof Error ? err.message : 'No se pudieron cargar los datos. Intentá de nuevo más tarde.';
+        setLoadError(message);
+      } finally {
+        setIsLoadingOrders(false);
+        setIsLoadingWorkshops(false);
+      }
+    },
+    [usingSupabase, user]
+  );
+
+  const refreshOrders = useCallback(async () => {
+    await refreshData({ forceWorkshops: true });
+  }, [refreshData]);
+
+  useEffect(() => {
+    if (!user) {
+      setOrders([]);
+      setWorkshops([]);
+      setLoadError(null);
+      lastWorkshopsFetchRef.current = 0;
+      setIsLoadingOrders(false);
+      setIsLoadingWorkshops(false);
     }
-  }, [usingSupabase, refreshOrders]);
+  }, [user]);
+
+  useEffect(() => {
+    if (!usingSupabase) return;
+    if (authLoading || !user) return;
+    void refreshData();
+  }, [usingSupabase, user, authLoading, refreshData]);
 
   // ─── Helper para actualizar estado local ──────────────────
 
@@ -174,13 +230,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     [orders]
   );
 
-  const getAllOrders = useCallback(
-    () =>
-      [...orders].sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      ),
-    [orders]
-  );
+  const getAllOrders = useCallback(() => [...orders], [orders]);
 
   // ============================================================
   // TALLER ACTIONS
@@ -232,7 +282,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       );
 
       if (orderId) {
-        await refreshOrders();
+        await refreshData();
         const full = await fetchOrderById(sb, orderId);
         if (full?.workshop) {
           postNotify('vendor_new_order', orderId, {
@@ -247,7 +297,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       
       throw new Error("No se pudo crear el pedido en la base de datos");
     },
-    [refreshOrders]
+    [refreshData]
   );
 
   const approveQuote = useCallback(
@@ -257,7 +307,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       const allIds = order?.quote?.items.map(i => i.id) ?? [];
       await updateQuoteItemsApproval(sb, allIds, []);
       await updateOrderStatus(sb, orderId, 'aprobado', userId, 'cotizacion_aprobada', 'Cotización aprobada en su totalidad.');
-      await refreshOrders();
+      await refreshData();
       const full = await fetchOrderById(sb, orderId);
       if (full?.workshop && full.quote) {
         const total = calculateQuoteTotal(full.quote.items);
@@ -268,14 +318,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [orders, refreshOrders]
+    [orders, refreshData]
   );
 
   const rejectQuote = useCallback(
     async (orderId: string, userId: string, userName: string, comment: string) => {
       const sb = getSupabaseClient();
       await updateOrderStatus(sb, orderId, 'rechazado', userId, 'cotizacion_rechazada', comment);
-      await refreshOrders();
+      await refreshData();
       const full = await fetchOrderById(sb, orderId);
       if (full?.workshop) {
         postNotify('vendor_quote_response', orderId, {
@@ -285,7 +335,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [refreshOrders]
+    [refreshData]
   );
 
   const approveQuotePartial = useCallback(
@@ -307,7 +357,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         'cotizacion_aprobada_parcial',
         comment || 'Cotización aprobada parcialmente.'
       );
-      await refreshOrders();
+      await refreshData();
       const full = await fetchOrderById(sb, orderId);
       if (full?.workshop && full.quote) {
         const total = full.quote.items
@@ -320,7 +370,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [refreshOrders]
+    [refreshData]
   );
 
   // ============================================================
@@ -331,7 +381,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     async (orderId: string, userId: string, userName: string, comment?: string) => {
       const sb = getSupabaseClient();
       await updateOrderStatus(sb, orderId, 'en_revision', userId, 'pedido_en_revision', comment);
-      await refreshOrders();
+      await refreshData();
       const full = await fetchOrderById(sb, orderId);
       const tallerEmail = full?.workshop?.email?.trim();
       if (full && tallerEmail) {
@@ -341,7 +391,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [refreshOrders]
+    [refreshData]
   );
 
   const submitQuote = useCallback(
@@ -362,7 +412,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         quoteData.notes,
         quoteData.items.map(({ approved, ...rest }) => rest)
       );
-      await refreshOrders();
+      await refreshData();
       const full = await fetchOrderById(sb, orderId);
       const tallerEmail = full?.workshop?.email?.trim();
       if (full?.quote && tallerEmail) {
@@ -373,14 +423,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [refreshOrders]
+    [refreshData]
   );
 
   const closeOrder = useCallback(
     async (orderId: string, userId: string, userName: string, comment?: string) => {
       const sb = getSupabaseClient();
       await updateOrderStatus(sb, orderId, 'cerrado', userId, 'pedido_cerrado', comment);
-      await refreshOrders();
+      await refreshData();
       const full = await fetchOrderById(sb, orderId);
       const tallerEmail = full?.workshop?.email?.trim();
       if (full && tallerEmail) {
@@ -390,7 +440,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [refreshOrders]
+    [refreshData]
   );
 
   // ============================================================
@@ -424,6 +474,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         orders,
         workshops,
         isLoading,
+        isLoadingOrders,
+        isLoadingWorkshops,
         loadError,
         isUsingSupabase: usingSupabase,
         getWorkshopOrders,
@@ -437,6 +489,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         setOrderInReview,
         submitQuote,
         closeOrder,
+        refreshData,
         refreshOrders,
       }}
     >

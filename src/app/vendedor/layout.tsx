@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDataStore } from '@/contexts/DataStoreContext';
 import { Sidebar, LoadingSpinner } from '@/components/ui/Layout';
 
 const vendedorNav = [
@@ -15,6 +16,12 @@ const vendedorNav = [
 export default function VendedorLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const { refreshData } = useDataStore();
+
+  useEffect(() => {
+    void refreshData();
+  }, [pathname, refreshData]);
 
   useEffect(() => {
     if (!isLoading) {

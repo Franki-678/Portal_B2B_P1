@@ -8,7 +8,8 @@ import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import type { Order } from '@/lib/types';
 
 export default function VendedorClientesPage() {
-  const { getAllOrders, getAllWorkshops, loadError, refreshOrders, isLoading } = useDataStore();
+  const { getAllOrders, getAllWorkshops, loadError, refreshOrders, isLoadingWorkshops, isLoadingOrders } =
+    useDataStore();
   const orders = getAllOrders();
   const workshopsData = getAllWorkshops();
 
@@ -37,6 +38,18 @@ export default function VendedorClientesPage() {
       />
 
       <div className="p-6 space-y-6">
+        {(isLoadingWorkshops || isLoadingOrders) && !loadError && workshopsData.length === 0 && (
+          <div
+            className="grid md:grid-cols-2 gap-5 animate-pulse"
+            aria-busy="true"
+            aria-label="Cargando talleres"
+          >
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-48 rounded-xl bg-[#1A1D27] border border-white/8" />
+            ))}
+          </div>
+        )}
+
         {loadError && (
           <div
             role="alert"
@@ -49,7 +62,7 @@ export default function VendedorClientesPage() {
           </div>
         )}
 
-        {!isLoading && !loadError && workshops.length === 0 && (
+        {!isLoadingWorkshops && !isLoadingOrders && !loadError && workshops.length === 0 && (
           <div className="flex flex-col items-center justify-center p-12 bg-[#1A1D27] border border-white/8 rounded-xl text-center">
             <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 text-2xl">🏭</div>
             <h3 className="text-lg font-bold text-white mb-2">No hay talleres registrados todavía</h3>

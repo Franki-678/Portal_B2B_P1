@@ -20,6 +20,6 @@ export function postNotify(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ event, orderId, data }),
   }).catch(err => {
-    console.warn('[postNotify]', event, err);
+    console.error('[postNotify]', event, err);
   });
 }

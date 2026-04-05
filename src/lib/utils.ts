@@ -150,3 +150,19 @@ export function formatVendorOrderLabel(order: Order): string {
   }
   return order.id.replace(/-/g, '').slice(0, 12).toUpperCase();
 }
+
+// ============================================================
+// Operaciones largas (UI)
+// ============================================================
+
+export const OPERATION_TIMEOUT_MS = 15_000;
+export const OPERATION_TIMEOUT_MESSAGE = 'La operación tardó demasiado. Intentá de nuevo.';
+
+export function withOperationTimeout<T>(promise: Promise<T>, ms = OPERATION_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('timeout')), ms);
+    }),
+  ]);
+}
