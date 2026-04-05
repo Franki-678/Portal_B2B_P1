@@ -84,16 +84,16 @@ function LoginForm() {
             <p className="text-sm text-zinc-500 mt-0.5">Ingresá email y contraseña</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate autoComplete="off">
             <Input
               label="Email"
               id="login-email"
               type="email"
+              inputMode="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="tu@email.com"
               required
-              autoComplete="email"
               autoFocus
               disabled={loading}
             />
@@ -105,7 +105,6 @@ function LoginForm() {
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              autoComplete="current-password"
               disabled={loading}
             />
 

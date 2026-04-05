@@ -8,7 +8,8 @@ import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
-import { formatDate, formatCurrency, canWorkshopRespond } from '@/lib/utils';
+import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal } from '@/lib/utils';
+import { useImageLightbox } from '@/components/ui/ImageLightbox';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -25,6 +26,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [loading, setLoading] = useState(false);
   const [partialMode, setPartialMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const lightbox = useImageLightbox();
 
   const order = getOrderById(id);
 
@@ -71,22 +73,23 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   };
 
   const quoteItems = quote?.items ?? [];
-  const subtotalOriginal = quoteItems.reduce((acc, item) => acc + item.price, 0);
+  const lineAmt = (i: (typeof quoteItems)[0]) => quoteLineTotal(i);
+  const subtotalOriginal = quoteItems.reduce((acc, item) => acc + lineAmt(item), 0);
 
   const montoRechazado = partialMode
-    ? quoteItems.filter(i => !selectedItems.has(i.id)).reduce((s, i) => s + i.price, 0)
+    ? quoteItems.filter(i => !selectedItems.has(i.id)).reduce((s, i) => s + lineAmt(i), 0)
     : order.status === 'aprobado_parcial' || order.status === 'cerrado'
-      ? quoteItems.filter(i => i.approved === false).reduce((s, i) => s + i.price, 0)
+      ? quoteItems.filter(i => i.approved === false).reduce((s, i) => s + lineAmt(i), 0)
       : order.status === 'rechazado'
         ? subtotalOriginal
         : 0;
 
   const totalAPagar = partialMode
-    ? quoteItems.filter(i => selectedItems.has(i.id)).reduce((s, i) => s + i.price, 0)
+    ? quoteItems.filter(i => selectedItems.has(i.id)).reduce((s, i) => s + lineAmt(i), 0)
     : order.status === 'aprobado'
       ? subtotalOriginal
       : order.status === 'aprobado_parcial' || order.status === 'cerrado'
-        ? quoteItems.filter(i => i.approved === true).reduce((s, i) => s + i.price, 0)
+        ? quoteItems.filter(i => i.approved === true).reduce((s, i) => s + lineAmt(i), 0)
         : order.status === 'rechazado'
           ? 0
           : subtotalOriginal;
@@ -258,15 +261,32 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                         </div>
 
                         {orderItem.images && orderItem.images.length > 0 && (
-                          <div className="flex gap-2 flex-wrap">
-                            {orderItem.images.map(img => (
-                              <div key={img.id} className="relative group">
-                                <img src={img.url} alt="Referencia" className="w-24 h-20 object-cover rounded-xl border border-zinc-700/50 opacity-80" />
-                                <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl backdrop-blur-[2px]">
-                                   <span className="text-[10px] font-bold text-white uppercase tracking-widest leading-none">Tu foto</span>
-                                   <span className="text-xl">🔍</span>
+                          <div className="flex flex-wrap gap-2">
+                            {orderItem.images.map((img, ii) => (
+                              <button
+                                key={img.id}
+                                type="button"
+                                className="group relative overflow-hidden rounded-xl border border-zinc-700/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                                onClick={() =>
+                                  lightbox.open(
+                                    orderItem.images!.map(i => i.url),
+                                    ii
+                                  )
+                                }
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={img.url}
+                                  alt="Referencia"
+                                  className="h-20 w-24 object-cover opacity-90"
+                                />
+                                <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-black/40 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100">
+                                  <span className="text-[10px] font-bold uppercase leading-none tracking-widest text-white">
+                                    Tu foto
+                                  </span>
+                                  <span className="text-xl">🔍</span>
                                 </div>
-                              </div>
+                              </button>
                             ))}
                           </div>
                         )}
@@ -290,8 +310,34 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                             <div className="space-y-3">
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0 flex-1">
-                                  <h4 className="font-bold text-white text-xl">{formatCurrency(quoteItem.price)}</h4>
-                                  <div className="flex gap-2 flex-wrap mt-2">
+                                  <p className="text-sm text-zinc-400">
+                                    Precio unitario:{' '}
+                                    <span className="font-bold text-white">{formatCurrency(quoteItem.price)}</span>
+                                  </p>
+                                  <p
+                                    className={`mt-1 text-sm font-medium ${
+                                      quoteItem.quantityOffered < orderItem.quantity
+                                        ? 'rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-200'
+                                        : 'text-zinc-300'
+                                    }`}
+                                  >
+                                    Cantidad ofrecida:{' '}
+                                    <span className="font-bold text-white">{quoteItem.quantityOffered}</span>
+                                    {' · '}
+                                    solicitaste: {orderItem.quantity}
+                                    {quoteItem.quantityOffered < orderItem.quantity && (
+                                      <span className="ml-2 text-xs uppercase tracking-wide text-amber-400">
+                                        (menor a lo pedido)
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="mt-2 text-lg font-bold text-white">
+                                    Subtotal: {formatCurrency(quoteLineTotal(quoteItem))}
+                                    <span className="ml-2 text-xs font-normal text-zinc-500">
+                                      ({quoteItem.quantityOffered} × {formatCurrency(quoteItem.price)})
+                                    </span>
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
                                     <QualityBadge quality={quoteItem.quality} />
                                   </div>
                                 </div>
@@ -332,15 +378,42 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                                 </p>
                               )}
                               
-                              {quoteItem.imageUrl && (
-                                <div className="mt-3 relative group w-fit">
-                                  <img src={quoteItem.imageUrl} alt="Repuesto cotizado" className="h-32 w-auto min-w-[120px] object-cover rounded-xl border border-orange-500/30 shadow-md shadow-orange-500/5" />
-                                  <div className="absolute inset-0 bg-orange-500/30 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl backdrop-blur-[2px]">
-                                     <span className="text-[10px] font-bold text-white uppercase tracking-widest leading-none drop-shadow-md">Foto proveedor</span>
-                                     <span className="text-xl drop-shadow-md">👀</span>
+                              {(() => {
+                                const fromRows =
+                                  quoteItem.images?.map(i => i.url).filter(Boolean) ?? [];
+                                const photoUrls =
+                                  fromRows.length > 0
+                                    ? fromRows
+                                    : quoteItem.imageUrl
+                                      ? [quoteItem.imageUrl]
+                                      : [];
+                                if (photoUrls.length === 0) return null;
+                                return (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {photoUrls.map((u, ui) => (
+                                      <button
+                                        key={ui}
+                                        type="button"
+                                        className="group relative overflow-hidden rounded-xl border border-orange-500/30 shadow-md shadow-orange-500/5 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                                        onClick={() => lightbox.open(photoUrls, ui)}
+                                      >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={u}
+                                          alt="Repuesto cotizado"
+                                          className="h-32 min-w-[120px] w-auto object-cover"
+                                        />
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-xl bg-orange-500/30 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100">
+                                          <span className="text-[10px] font-bold uppercase leading-none tracking-widest text-white drop-shadow-md">
+                                            Foto proveedor
+                                          </span>
+                                          <span className="text-xl drop-shadow-md">👀</span>
+                                        </div>
+                                      </button>
+                                    ))}
                                   </div>
-                                </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           </div>
                         ) : (
@@ -432,9 +505,26 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                     </div>
                     
                     {orderItem.images && orderItem.images.length > 0 && (
-                      <div className="flex gap-3 flex-wrap">
-                        {orderItem.images.map(img => (
-                          <img key={img.id} src={img.url} alt="Referencia" className="w-32 h-24 object-cover rounded-xl border border-zinc-700/50" />
+                      <div className="flex flex-wrap gap-3">
+                        {orderItem.images.map((img, ii) => (
+                          <button
+                            key={img.id}
+                            type="button"
+                            className="overflow-hidden rounded-xl border border-zinc-700/50 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                            onClick={() =>
+                              lightbox.open(
+                                orderItem.images!.map(i => i.url),
+                                ii
+                              )
+                            }
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.url}
+                              alt="Referencia"
+                              className="h-24 w-32 object-cover"
+                            />
+                          </button>
                         ))}
                       </div>
                     )}
@@ -486,7 +576,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
               onChange={e => setRejectComment(e.target.value)}
               placeholder="Indicá el motivo del rechazo total..."
               rows={3}
-              className="w-full px-4 py-3 bg-zinc-950/50 border border-zinc-800 rounded-xl text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500/40 resize-y min-h-[80px]"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="min-h-[80px] w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-rose-500/40 focus:outline-none focus:ring-2 focus:ring-rose-500/40"
             />
             <div className="flex items-center gap-3 mt-4 justify-end">
               <Button variant="ghost" size="sm" onClick={() => setRejecting(false)}>Cancelar</Button>
@@ -498,6 +592,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
         )}
 
       </div>
+      {lightbox.node}
     </>
   );
 }

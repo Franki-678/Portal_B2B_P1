@@ -3,7 +3,8 @@
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
-import { formatDate } from '@/lib/utils';
+import { formatDate, digitsOnlyPhone } from '@/lib/utils';
+import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import type { Order } from '@/lib/types';
 
 export default function VendedorClientesPage() {
@@ -18,7 +19,7 @@ export default function VendedorClientesPage() {
       name: ws.name,
       contactName: ws.contact_name || ws.name,
       address: ws.address || 'Sin dirección',
-      phone: ws.phone || 'Sin teléfono',
+      phone: ws.phone || '',
       email: ws.email,
       createdAt: ws.created_at,
       totalOrders: wsOrders.length,
@@ -65,8 +66,16 @@ export default function VendedorClientesPage() {
                     <div className="w-11 h-11 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-xl">
                       🏭
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-white">{ws.name}</h3>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-white">{ws.name}</h3>
+                        {digitsOnlyPhone(ws.phone).length >= 8 && (
+                          <WhatsAppLink
+                            phone={ws.phone}
+                            message="Hola, te contacto desde el portal B2B."
+                          />
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500">{ws.contactName}</p>
                     </div>
                   </div>
@@ -81,7 +90,7 @@ export default function VendedorClientesPage() {
                     <span>📍</span> {ws.address}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <span>📞</span> {ws.phone}
+                    <span>📞</span> {ws.phone || 'Sin teléfono'}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <span>📧</span> {ws.email}

@@ -5,6 +5,8 @@ type Body = {
   userId: string;
   name: string;
   email: string;
+  phone?: string;
+  address?: string;
 };
 
 /**
@@ -29,13 +31,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Solicitud inválida.' }, { status: 400 });
   }
 
-  const { userId, name, email } = body;
+  const { userId, name, email, phone, address } = body;
   if (!userId || !name?.trim() || !email?.trim()) {
     return NextResponse.json({ success: false, error: 'Faltan datos obligatorios.' }, { status: 400 });
   }
 
   const nombre = name.trim();
   const emailNorm = email.trim().toLowerCase();
+  const phoneDigits = (phone ?? '').replace(/\D/g, '');
+  if (phoneDigits.length < 8) {
+    return NextResponse.json(
+      { success: false, error: 'El teléfono debe tener al menos 8 dígitos.' },
+      { status: 400 }
+    );
+  }
 
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -96,6 +105,8 @@ export async function POST(req: NextRequest) {
       name: nombre,
       contact_name: nombre,
       email: email.trim(),
+      phone: phoneDigits,
+      address: address?.trim() || null,
     })
     .select('id')
     .single();

@@ -206,6 +206,20 @@ CREATE TABLE IF NOT EXISTS quote_items (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE quote_items ADD COLUMN IF NOT EXISTS quantity_offered INT NOT NULL DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS quote_item_images (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  quote_item_id UUID NOT NULL REFERENCES quote_items(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  storage_path TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS company_address TEXT;
+
 -- ────────────────────────────────────────────────────────────
 -- HISTORIAL DE EVENTOS
 -- ────────────────────────────────────────────────────────────
@@ -230,12 +244,20 @@ ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE quote_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quote_item_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_events ENABLE ROW LEVEL SECURITY;
 
 -- ─── PROFILES ───
 DROP POLICY IF EXISTS "profiles: owner can read" ON profiles;
 CREATE POLICY "profiles: owner can read" ON profiles
   FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "profiles: taller read vendedor" ON profiles;
+CREATE POLICY "profiles: taller read vendedor" ON profiles
+  FOR SELECT USING (
+    role = 'vendedor'
+    AND EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'taller')
+  );
 
 DROP POLICY IF EXISTS "profiles: owner can update" ON profiles;
 CREATE POLICY "profiles: owner can update" ON profiles
@@ -251,6 +273,12 @@ CREATE POLICY "workshops: taller can read own" ON workshops
     )
     OR
     (SELECT role FROM profiles WHERE id = auth.uid()) = 'vendedor'
+  );
+
+DROP POLICY IF EXISTS "workshops: taller can update own" ON workshops;
+CREATE POLICY "workshops: taller can update own" ON workshops
+  FOR UPDATE USING (
+    id IN (SELECT workshop_id FROM profiles WHERE id = auth.uid() AND role = 'taller')
   );
 
 
@@ -358,6 +386,25 @@ CREATE POLICY "quote_items: taller can update approved" ON quote_items
   FOR UPDATE USING (true);
 
 
+-- ─── QUOTE ITEM IMAGES ───
+DROP POLICY IF EXISTS "quote_item_images: select" ON quote_item_images;
+CREATE POLICY "quote_item_images: select" ON quote_item_images
+  FOR SELECT USING (
+    (SELECT role FROM profiles WHERE id = auth.uid()) = 'vendedor'
+    OR EXISTS (
+      SELECT 1 FROM quote_items qi
+      INNER JOIN quotes q ON q.id = qi.quote_id
+      INNER JOIN orders o ON o.id = q.order_id
+      WHERE qi.id = quote_item_images.quote_item_id
+        AND o.workshop_id IN (SELECT workshop_id FROM profiles WHERE id = auth.uid() AND role = 'taller')
+    )
+  );
+
+DROP POLICY IF EXISTS "quote_item_images: insert vendor" ON quote_item_images;
+CREATE POLICY "quote_item_images: insert vendor" ON quote_item_images
+  FOR INSERT WITH CHECK ((SELECT role FROM profiles WHERE id = auth.uid()) = 'vendedor');
+
+
 -- ─── ORDER EVENTS ───
 DROP POLICY IF EXISTS "order_events: readable" ON order_events;
 CREATE POLICY "order_events: readable" ON order_events
@@ -384,6 +431,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_updated ON orders(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_quotes_order ON quotes(order_id);
 CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id);
+CREATE INDEX IF NOT EXISTS idx_quote_item_images_item ON quote_item_images(quote_item_id);
 CREATE INDEX IF NOT EXISTS idx_events_order ON order_events(order_id);
 CREATE INDEX IF NOT EXISTS idx_events_created ON order_events(created_at DESC);
 

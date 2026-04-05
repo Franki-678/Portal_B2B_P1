@@ -172,7 +172,7 @@ export default function NuevoPedidoPage() {
 
       <div className="p-6">
         <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
             {/* Vehículo - Orden exacto: Marca, Modelo, Versión, Año */}
             <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
               <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
@@ -328,6 +328,7 @@ export default function NuevoPedidoPage() {
                               accept="image/*"
                               multiple
                               className="hidden"
+                              autoComplete="off"
                               onChange={(e) => handleImageUpload(item.tempId, e)}
                             />
                           </label>

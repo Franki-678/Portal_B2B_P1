@@ -68,7 +68,7 @@ interface DataStoreContextType {
     orderId: string,
     quoteData: {
       notes: string;
-      items: (Omit<QuoteItem, 'id' | 'quoteId'> & { imageFile?: File })[];
+      items: (Omit<QuoteItem, 'id' | 'quoteId' | 'images'> & { imageFile?: File; imageFiles?: File[] })[];
       vendorId: string;
       vendorName: string;
     }
@@ -304,7 +304,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       orderId: string,
       quoteData: {
         notes: string;
-        items: (Omit<QuoteItem, 'id' | 'quoteId'> & { imageFile?: File })[];
+        items: (Omit<QuoteItem, 'id' | 'quoteId' | 'images'> & { imageFile?: File; imageFiles?: File[] })[];
         vendorId: string;
         vendorName: string;
       }
@@ -315,7 +315,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         orderId,
         quoteData.vendorId,
         quoteData.notes,
-        quoteData.items.map(({ approved, ...rest }) => rest as (Omit<QuoteItem, 'id' | 'quoteId' | 'approved'> & { imageFile?: File }))
+        quoteData.items.map(({ approved, ...rest }) => rest)
       );
       await refreshOrders();
     },

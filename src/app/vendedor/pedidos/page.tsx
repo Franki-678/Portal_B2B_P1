@@ -54,7 +54,11 @@ function PedidosContent() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="🔍 Buscar por repuesto, vehículo, taller..."
-            className="w-full max-w-md px-4 py-2.5 bg-[#1A1D27] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500/40"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            className="w-full max-w-md rounded-xl border border-white/10 bg-[#1A1D27] px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-orange-500/40 focus:outline-none"
           />
           <div className="flex items-center gap-2 flex-wrap">
             {STATUS_FILTERS.map(f => (

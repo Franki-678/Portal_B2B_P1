@@ -5,6 +5,7 @@ import {
   DbOrderImage,
   DbQuote,
   DbQuoteItem,
+  DbQuoteItemImage,
   DbOrderEvent,
   DbWorkshop,
 } from './database.types';
@@ -27,7 +28,23 @@ export function mapWorkshop(row: DbWorkshop): Workshop {
   };
 }
 
-export function mapQuoteItem(row: DbQuoteItem): QuoteItem {
+export function mapQuoteItem(row: DbQuoteItem, extraImages: DbQuoteItemImage[] = []): QuoteItem {
+  const fromTable = extraImages.map(img => ({
+    id: img.id,
+    quoteItemId: img.quote_item_id,
+    url: img.url,
+    createdAt: img.created_at,
+  }));
+  let images = [...fromTable];
+  if (row.image_url && !images.some(i => i.url === row.image_url)) {
+    images.push({
+      id: `legacy-${row.id}`,
+      quoteItemId: row.id,
+      url: row.image_url,
+      createdAt: row.created_at,
+    });
+  }
+
   return {
     id: row.id,
     quoteId: row.quote_id,
@@ -38,7 +55,9 @@ export function mapQuoteItem(row: DbQuoteItem): QuoteItem {
     manufacturer: row.manufacturer ?? undefined,
     supplier: row.supplier ?? undefined,
     price: Number(row.price),
+    quantityOffered: row.quantity_offered ?? 1,
     imageUrl: row.image_url ?? undefined,
+    images: images.length > 0 ? images : undefined,
     notes: row.notes ?? undefined,
     approved: row.approved,
   };
@@ -46,7 +65,8 @@ export function mapQuoteItem(row: DbQuoteItem): QuoteItem {
 
 export function mapQuote(
   row: DbQuote,
-  items: DbQuoteItem[]
+  items: DbQuoteItem[],
+  imagesByItemId: Record<string, DbQuoteItemImage[]> = {}
 ): Quote {
   return {
     id: row.id,
@@ -54,7 +74,7 @@ export function mapQuote(
     vendorId: row.vendor_id,
     notes: row.notes ?? '',
     status: row.status,
-    items: items.map(mapQuoteItem),
+    items: items.map(i => mapQuoteItem(i, imagesByItemId[i.id] ?? [])),
     sentAt: row.sent_at ?? undefined,
     createdAt: row.created_at,
   };

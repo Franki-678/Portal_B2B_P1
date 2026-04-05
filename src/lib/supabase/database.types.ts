@@ -43,6 +43,9 @@ export type Database = {
           name: string;
           role: 'taller' | 'vendedor';
           workshop_id: string | null;
+          phone: string | null;
+          company_name: string | null;
+          company_address: string | null;
           created_at: string;
         };
         Insert: {
@@ -50,6 +53,9 @@ export type Database = {
           name: string;
           role?: 'taller' | 'vendedor';
           workshop_id?: string | null;
+          phone?: string | null;
+          company_name?: string | null;
+          company_address?: string | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
@@ -162,6 +168,7 @@ export type Database = {
           manufacturer: string | null;
           supplier: string | null;
           price: number;
+          quantity_offered: number;
           image_url: string | null;
           notes: string | null;
           approved: boolean | null;
@@ -177,12 +184,30 @@ export type Database = {
           manufacturer?: string | null;
           supplier?: string | null;
           price?: number;
+          quantity_offered?: number;
           image_url?: string | null;
           notes?: string | null;
           approved?: boolean | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['quote_items']['Insert']>;
+      };
+      quote_item_images: {
+        Row: {
+          id: string;
+          quote_item_id: string;
+          url: string;
+          storage_path: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          quote_item_id: string;
+          url: string;
+          storage_path?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['quote_item_images']['Insert']>;
       };
       order_events: {
         Row: {
@@ -222,6 +247,7 @@ export type DbOrderItem = Database['public']['Tables']['order_items']['Row'];
 export type DbOrderImage = Database['public']['Tables']['order_images']['Row'];
 export type DbQuote = Database['public']['Tables']['quotes']['Row'];
 export type DbQuoteItem = Database['public']['Tables']['quote_items']['Row'];
+export type DbQuoteItemImage = Database['public']['Tables']['quote_item_images']['Row'];
 export type DbOrderEvent = Database['public']['Tables']['order_events']['Row'];
 export type DbWorkshop = Database['public']['Tables']['workshops']['Row'];
 export type DbProfile = Database['public']['Tables']['profiles']['Row'];

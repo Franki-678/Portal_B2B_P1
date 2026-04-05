@@ -66,6 +66,9 @@ export interface RegisterTallerData {
   email: string;
   password: string;
   name: string;
+  /** Solo dígitos, mín. 8 */
+  phone: string;
+  address?: string;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -268,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = getSupabaseClient();
     const nombre = data.name.trim();
     const email = data.email.trim();
+    const phoneDigits = data.phone.replace(/\D/g, '');
 
     try {
       const { data: authData, error } = await new Promise<{
@@ -280,7 +284,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email,
             password: data.password,
             options: {
-              data: { name: nombre, role: 'taller', workshop_name: nombre },
+              data: {
+                name: nombre,
+                role: 'taller',
+                workshop_name: nombre,
+                phone: phoneDigits,
+                address: (data.address ?? '').trim() || undefined,
+              },
             },
           })
         ).then(
@@ -319,7 +329,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         res = await fetch('/api/setup-workshop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, name: nombre, email }),
+          body: JSON.stringify({
+            userId,
+            name: nombre,
+            email,
+            phone: phoneDigits,
+            address: (data.address ?? '').trim() || undefined,
+          }),
           signal: ac.signal,
         });
       } catch {

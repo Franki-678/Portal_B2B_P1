@@ -103,6 +103,27 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
     allItems = qiRows ?? [];
   }
 
+  const quoteItemIds = allItems.map((i: any) => i.id);
+  let quoteItemImages: any[] = [];
+  if (quoteItemIds.length > 0) {
+    const { data: qiiRows, error: qiiErr } = await (sb as any)
+      .from('quote_item_images')
+      .select('*')
+      .in('quote_item_id', quoteItemIds);
+    if (qiiErr) {
+      console.warn('[Supabase] quote_item_images (¿migración pendiente?):', qiiErr.message);
+    } else {
+      quoteItemImages = qiiRows ?? [];
+    }
+  }
+
+  const imagesByQuoteItemId: Record<string, any[]> = {};
+  for (const img of quoteItemImages) {
+    const k = img.quote_item_id as string;
+    if (!imagesByQuoteItemId[k]) imagesByQuoteItemId[k] = [];
+    imagesByQuoteItemId[k].push(img);
+  }
+
   // Resolver nombres de usuario
   const uniqueUserIds = [...new Set(allEvents.map((e: any) => e.user_id))] as string[];
   const userNames: Record<string, string> = {};
@@ -116,6 +137,10 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
     const workshop = workshops.find((w: any) => w.id === row.workshop_id);
     const quote = quotes.find((q: any) => q.order_id === row.id);
     const items = (allItems ?? []).filter((i: any) => i.quote_id === quote?.id);
+    const imagesByItem: Record<string, any[]> = {};
+    for (const it of items) {
+      imagesByItem[it.id] = imagesByQuoteItemId[it.id] ?? [];
+    }
     const relatedOrderItems = orderItems.filter((i: any) => i.order_id === row.id);
     
     // Filtramos manualmente en caso de error en query relacional
@@ -131,7 +156,7 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
       relatedOrderItems,
       relatedImages,
       workshop ? mapWorkshop(workshop) : undefined,
-      quote ? mapQuote(quote, items) : undefined,
+      quote ? mapQuote(quote, items, imagesByItem) : undefined,
       events
     );
   });
@@ -263,7 +288,10 @@ export async function createQuoteInDB(
   orderId: string,
   vendorId: string,
   notes: string,
-  items: (Omit<QuoteItem, 'id' | 'quoteId' | 'approved'> & { imageFile?: File })[]
+  items: (Omit<QuoteItem, 'id' | 'quoteId' | 'approved' | 'images'> & {
+    imageFile?: File;
+    imageFiles?: File[];
+  })[]
 ): Promise<boolean> {
   const now = new Date().toISOString();
 
@@ -286,42 +314,75 @@ export async function createQuoteInDB(
 
   const quoteId = (quoteRow as any).id;
 
-  // Insertar ítems con fotos si aplica
   for (const item of items) {
-    let finalImageUrl = item.imageUrl ?? null;
+    const qtyOffered = Math.max(1, Math.floor(Number(item.quantityOffered) || 1));
 
-    if (item.imageFile) {
-      const fileExt = item.imageFile.name.split('.').pop();
-      const fileName = `${quoteId}-${generateId()}.${fileExt}`;
-      const { error: uploadError } = await sb.storage
-        .from('quote-images')
-        .upload(fileName, item.imageFile);
+    const files: File[] = [];
+    if (item.imageFiles && item.imageFiles.length > 0) {
+      files.push(...item.imageFiles.slice(0, 5));
+    } else if (item.imageFile) {
+      files.push(item.imageFile);
+    }
 
+    const { data: insertedRow, error: itemError } = await (sb as any)
+      .from('quote_items')
+      .insert({
+        quote_id: quoteId,
+        order_item_id: item.orderItemId ?? null,
+        part_name: item.partName,
+        description: item.description,
+        quality: item.quality,
+        manufacturer: item.manufacturer ?? null,
+        supplier: item.supplier ?? null,
+        price: item.price,
+        quantity_offered: qtyOffered,
+        image_url: null,
+        notes: item.notes ?? null,
+        approved: null,
+      })
+      .select('id')
+      .single();
+
+    if (itemError || !insertedRow) {
+      console.error('[Supabase] Error creating quote item:', itemError?.message);
+      continue;
+    }
+
+    const quoteItemId = (insertedRow as { id: string }).id;
+    let firstUrl: string | null = null;
+
+    for (const file of files) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${quoteId}-${quoteItemId}-${generateId()}.${fileExt}`;
+      const { error: uploadError } = await sb.storage.from('quote-images').upload(fileName, file);
+
+      let finalUrl: string;
       if (!uploadError) {
         const { data: urlData } = sb.storage.from('quote-images').getPublicUrl(fileName);
-        finalImageUrl = urlData.publicUrl;
+        finalUrl = urlData.publicUrl;
       } else {
-        console.warn('[Supabase] Error uploading to storage, using base64 fallback:', uploadError.message);
-        finalImageUrl = await fileToBase64(item.imageFile);
+        console.warn('[Supabase] quote image upload fallback:', uploadError.message);
+        finalUrl = await fileToBase64(file);
+      }
+
+      if (!firstUrl) firstUrl = finalUrl;
+
+      const { error: imgInsErr } = await (sb as any).from('quote_item_images').insert({
+        quote_item_id: quoteItemId,
+        url: finalUrl,
+        storage_path: uploadError ? null : fileName,
+      });
+      if (imgInsErr) {
+        console.warn('[Supabase] quote_item_images insert:', imgInsErr.message);
       }
     }
 
-    const { error: itemError } = await (sb as any).from('quote_items').insert({
-      quote_id: quoteId,
-      order_item_id: item.orderItemId ?? null,
-      part_name: item.partName,
-      description: item.description,
-      quality: item.quality,
-      manufacturer: item.manufacturer ?? null,
-      supplier: item.supplier ?? null,
-      price: item.price,
-      image_url: finalImageUrl,
-      notes: item.notes ?? null,
-      approved: null,
-    });
+    if (!firstUrl && item.imageUrl) {
+      firstUrl = item.imageUrl;
+    }
 
-    if (itemError) {
-      console.error('[Supabase] Error creating quote item:', itemError.message);
+    if (firstUrl) {
+      await (sb as any).from('quote_items').update({ image_url: firstUrl }).eq('id', quoteItemId);
     }
   }
 

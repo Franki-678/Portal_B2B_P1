@@ -9,6 +9,7 @@ const vendedorNav = [
   { href: '/vendedor', label: 'Dashboard', icon: '📊' },
   { href: '/vendedor/pedidos', label: 'Pedidos', icon: '📋' },
   { href: '/vendedor/clientes', label: 'Clientes', icon: '🏭' },
+  { href: '/vendedor/configuracion', label: 'Configuración', icon: '⚙️' },
 ];
 
 export default function VendedorLayout({ children }: { children: React.ReactNode }) {

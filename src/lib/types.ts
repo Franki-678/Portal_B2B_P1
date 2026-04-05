@@ -99,6 +99,13 @@ export interface Quote {
   createdAt: string;
 }
 
+export interface QuoteItemImage {
+  id: string;
+  quoteItemId: string;
+  url: string;
+  createdAt: string;
+}
+
 export interface QuoteItem {
   id: string;
   quoteId: string;
@@ -108,8 +115,13 @@ export interface QuoteItem {
   quality: OrderQuality;
   manufacturer?: string;
   supplier?: string;
+  /** Precio unitario (ARS) */
   price: number;
+  /** Cantidad ofrecida en la cotización */
+  quantityOffered: number;
   imageUrl?: string;
+  /** Fotos del vendedor (tabla quote_item_images + image_url legacy) */
+  images?: QuoteItemImage[];
   notes?: string;
   approved?: boolean | null; // null = pendiente, true = aprobado, false = rechazado
 }

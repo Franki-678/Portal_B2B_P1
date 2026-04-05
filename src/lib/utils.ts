@@ -1,4 +1,4 @@
-import { OrderStatus, User } from './types';
+import { Order, OrderStatus, User } from './types';
 
 // ============================================================
 // FORMATEO
@@ -113,8 +113,40 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
 // CALCULAR TOTAL DE COTIZACIÓN
 // ============================================================
 
-export function calculateQuoteTotal(items: { price: number; approved?: boolean | null }[]): number {
+/** Precio unitario × cantidad ofrecida (cotización). */
+export function quoteLineTotal(item: { price: number; quantityOffered?: number }): number {
+  const q = item.quantityOffered ?? 1;
+  return item.price * q;
+}
+
+export function calculateQuoteTotal(
+  items: { price: number; quantityOffered?: number; approved?: boolean | null }[]
+): number {
   return items
     .filter(item => item.approved !== false)
-    .reduce((sum, item) => sum + item.price, 0);
+    .reduce((sum, item) => sum + quoteLineTotal(item), 0);
+}
+
+/** Solo dígitos para wa.me */
+export function digitsOnlyPhone(phone: string): string {
+  return (phone ?? '').replace(/\D/g, '');
+}
+
+export function buildWhatsAppUrl(phone: string, text?: string): string | null {
+  const d = digitsOnlyPhone(phone);
+  if (d.length < 8) return null;
+  const base = `https://wa.me/${d}`;
+  if (!text?.trim()) return base;
+  return `${base}?text=${encodeURIComponent(text.trim())}`;
+}
+
+/** Etiqueta corta del pedido para mensajes (vista vendedor). */
+export function formatVendorOrderLabel(order: Order): string {
+  if (order.workshop?.tallerNumber != null && order.workshopOrderNumber != null) {
+    return `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`;
+  }
+  if (order.workshopOrderNumber != null) {
+    return `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`;
+  }
+  return order.id.replace(/-/g, '').slice(0, 12).toUpperCase();
 }

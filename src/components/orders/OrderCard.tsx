@@ -2,7 +2,8 @@
 
 import { Order } from '@/lib/types';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
-import { formatRelativeTime, formatCurrency } from '@/lib/utils';
+import { formatRelativeTime, formatCurrency, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
+import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { cn } from '@/lib/utils';
 
 interface OrderCardProps {
@@ -19,7 +20,8 @@ export function OrderCard({ order, onClick, showWorkshop = false, role }: OrderC
     ? `${firstItem?.partName} (+${itemsCount - 1})` 
     : (firstItem?.partName || 'Sin repuestos');
   const quoteItemsCount = order.quote?.items.length ?? 0;
-  const totalPrice = order.quote?.items.reduce((sum, item) => sum + item.price, 0) ?? 0;
+  const totalPrice =
+    order.quote?.items.reduce((sum, item) => sum + quoteLineTotal(item), 0) ?? 0;
 
   return (
     <div
@@ -116,7 +118,17 @@ export function OrderTableRow({ order, onClick, role }: OrderRowProps) {
       </td>
       <td className="px-5 py-4">
         {order.workshop && (
-          <div className="text-sm font-semibold text-zinc-300 flex items-center gap-2"><span className="text-[10px] grayscale opacity-50">🏭</span> {order.workshop.name}</div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-zinc-300">
+              <span className="text-[10px] grayscale opacity-50">🏭</span> {order.workshop.name}
+            </div>
+            {role === 'vendedor' && order.workshop.phone && (
+              <WhatsAppLink
+                phone={order.workshop.phone}
+                message={`Hola, te contacto por el pedido ${formatVendorOrderLabel(order)}`}
+              />
+            )}
+          </div>
         )}
       </td>
       <td className="px-5 py-4">

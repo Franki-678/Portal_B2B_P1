@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/FormFields';
+import { Input, Textarea } from '@/components/ui/FormFields';
 import Link from 'next/link';
 
 const FORM_TIMEOUT_MS = 8_000;
@@ -20,6 +20,8 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 export default function RegistroPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
 
@@ -39,6 +41,11 @@ export default function RegistroPage() {
       setError('El nombre del taller es obligatorio.');
       return;
     }
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 8) {
+      setError('El teléfono es obligatorio (solo números, mínimo 8 dígitos).');
+      return;
+    }
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres.');
       return;
@@ -56,6 +63,8 @@ export default function RegistroPage() {
           email: email.trim(),
           password,
           name: name.trim(),
+          phone: phoneDigits,
+          address: address.trim() || undefined,
         }),
         FORM_TIMEOUT_MS
       );
@@ -106,7 +115,7 @@ export default function RegistroPage() {
             <p className="text-sm text-zinc-500 mt-0.5">Completá los datos para registrar tu taller</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate autoComplete="off">
             <Input
               label="Nombre del taller"
               id="reg-name"
@@ -122,11 +131,34 @@ export default function RegistroPage() {
               label="Email"
               id="reg-email"
               type="email"
+              inputMode="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="taller@email.com"
               required
-              autoComplete="email"
+              disabled={loading}
+            />
+
+            <Input
+              label="Teléfono"
+              id="reg-phone"
+              type="tel"
+              inputMode="numeric"
+              value={phone}
+              onChange={e => setPhone(e.target.value.replace(/[^\d+\s()-]/g, ''))}
+              placeholder="Ej: 1123456789"
+              required
+              disabled={loading}
+              hint="Solo números, mínimo 8 dígitos"
+            />
+
+            <Textarea
+              label="Dirección (opcional)"
+              id="reg-address"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="Calle, localidad..."
+              rows={2}
               disabled={loading}
             />
 
@@ -138,7 +170,6 @@ export default function RegistroPage() {
               onChange={e => setPassword(e.target.value)}
               placeholder="Mínimo 6 caracteres"
               required
-              autoComplete="new-password"
               disabled={loading}
             />
 
@@ -150,7 +181,6 @@ export default function RegistroPage() {
               onChange={e => setConfirm(e.target.value)}
               placeholder="••••••••"
               required
-              autoComplete="new-password"
               disabled={loading}
             />
 

@@ -1,6 +1,13 @@
 import { cn } from '@/lib/utils';
 import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, forwardRef } from 'react';
 
+const NO_AUTOFILL = {
+  autoComplete: 'off' as const,
+  autoCorrect: 'off' as const,
+  autoCapitalize: 'off' as const,
+  spellCheck: false,
+};
+
 // ─── INPUT ─────────────────────────────────────────────────
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -21,6 +28,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({ label, error, h
       <input
         ref={ref}
         id={inputId}
+        {...NO_AUTOFILL}
         className={cn(
           'w-full px-4 py-2.5 bg-zinc-950/50 border rounded-xl text-sm text-zinc-100 placeholder-zinc-600',
           'focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-200 shadow-sm',
@@ -58,6 +66,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(({ label, error
       <select
         ref={ref}
         id={selectId}
+        autoComplete="off"
         className={cn(
           'w-full px-4 py-2.5 bg-zinc-950/50 border rounded-xl text-sm text-zinc-100 appearance-none',
           'focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-200 shadow-sm',
@@ -98,6 +107,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(({ label,
       <textarea
         ref={ref}
         id={textareaId}
+        {...NO_AUTOFILL}
         className={cn(
           'w-full px-4 py-2.5 bg-zinc-950/50 border rounded-xl text-sm text-zinc-100 placeholder-zinc-600 resize-y min-h-[80px]',
           'focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-200 shadow-sm',

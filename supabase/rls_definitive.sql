@@ -47,6 +47,7 @@ BEGIN
         'order_images',
         'quotes',
         'quote_items',
+        'quote_item_images',
         'order_events'
       )
   LOOP
@@ -58,7 +59,9 @@ END $$;
 
 CREATE POLICY "profiles_select" ON public.profiles
   FOR SELECT USING (
-    auth.uid() = id OR public.get_my_role() = 'vendedor'
+    auth.uid() = id
+    OR public.get_my_role() = 'vendedor'
+    OR (public.get_my_role() = 'taller' AND profiles.role = 'vendedor')
   );
 
 CREATE POLICY "profiles_insert_own" ON public.profiles
@@ -73,6 +76,12 @@ CREATE POLICY "workshops_select" ON public.workshops
   FOR SELECT USING (
     public.get_my_role() = 'vendedor'
     OR id = public.get_my_workshop_id()
+  );
+
+CREATE POLICY "workshops_update_taller_own" ON public.workshops
+  FOR UPDATE USING (
+    public.get_my_role() = 'taller'
+    AND id = public.get_my_workshop_id()
   );
 
 -- ─── ORDERS ───
@@ -194,6 +203,23 @@ CREATE POLICY "quote_items_update" ON public.quote_items
         AND public.get_my_role() = 'taller'
     )
   );
+
+-- ─── QUOTE ITEM IMAGES ───
+
+CREATE POLICY "quote_item_images_select" ON public.quote_item_images
+  FOR SELECT USING (
+    public.get_my_role() = 'vendedor'
+    OR EXISTS (
+      SELECT 1 FROM public.quote_items qi
+      INNER JOIN public.quotes q ON q.id = qi.quote_id
+      INNER JOIN public.orders o ON o.id = q.order_id
+      WHERE qi.id = quote_item_images.quote_item_id
+        AND o.workshop_id = public.get_my_workshop_id()
+    )
+  );
+
+CREATE POLICY "quote_item_images_insert" ON public.quote_item_images
+  FOR INSERT WITH CHECK (public.get_my_role() = 'vendedor');
 
 -- ─── ORDER EVENTS ───
 

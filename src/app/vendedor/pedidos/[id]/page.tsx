@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
-import { formatDate, formatCurrency, canVendorQuote } from '@/lib/utils';
+import { formatDate, formatCurrency, canVendorQuote, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
+import { useImageLightbox } from '@/components/ui/ImageLightbox';
+import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, QuoteItem } from '@/lib/types';
 
@@ -17,11 +19,12 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved'> {
+interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved' | 'images'> {
   tempId: string;
   isAvailable: boolean;
-  imageFile?: File;
-  imagePreview?: string;
+  requestedQuantity: number;
+  imageFiles: File[];
+  imagePreviews: string[];
 }
 
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
@@ -36,6 +39,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const lightbox = useImageLightbox();
 
   const order = getOrderById(id);
 
@@ -47,14 +51,18 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           tempId: i.id,
           orderItemId: i.id,
           partName: i.partName,
-          description: '', 
+          description: '',
           quality: i.quality,
           manufacturer: '',
           supplier: '',
           price: 0,
+          quantityOffered: i.quantity,
+          requestedQuantity: i.quantity,
           imageUrl: '',
           notes: '',
           isAvailable: true,
+          imageFiles: [],
+          imagePreviews: [],
         }))
       );
     }
@@ -104,30 +112,37 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   };
 
   const handleImageUpload = (tempId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const picked = Array.from(e.target.files || []);
+    if (picked.length === 0) return;
+    e.target.value = '';
 
     setItems(prev => prev.map(item => {
       if (item.tempId !== tempId) return item;
-      return {
-        ...item,
-        imageFile: file,
-        imagePreview: URL.createObjectURL(file),
-      };
+      const room = 5 - item.imageFiles.length;
+      const add = picked.slice(0, Math.max(0, room));
+      const newFiles = [...item.imageFiles, ...add];
+      const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+      item.imagePreviews.forEach(u => URL.revokeObjectURL(u));
+      return { ...item, imageFiles: newFiles, imagePreviews: newPreviews };
     }));
   };
 
-  const removeImage = (tempId: string) => {
+  const removeImageAt = (tempId: string, idx: number) => {
     setItems(prev => prev.map(item => {
       if (item.tempId !== tempId) return item;
-      return { ...item, imageFile: undefined, imagePreview: undefined };
+      const newFiles = item.imageFiles.filter((_, i) => i !== idx);
+      const newPreviews = item.imagePreviews.filter((_, i) => i !== idx);
+      URL.revokeObjectURL(item.imagePreviews[idx] ?? '');
+      return { ...item, imageFiles: newFiles, imagePreviews: newPreviews };
     }));
   };
 
   const validateQuote = (): boolean => {
     const errs: Record<string, string> = {};
     items.filter(i => i.isAvailable).forEach(item => {
-      if (!item.price || item.price <= 0) errs[`${item.tempId}-price`] = 'Ingresá un precio válido';
+      if (!item.price || item.price <= 0) errs[`${item.tempId}-price`] = 'Ingresá un precio unitario válido';
+      const q = Math.floor(Number(item.quantityOffered) || 0);
+      if (q < 1) errs[`${item.tempId}-qty`] = 'Cantidad ofrecida mínimo 1';
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -139,12 +154,14 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setLoading(true);
 
     try {
-      const finalItems = items
-        .filter(i => i.isAvailable)
-        .map(({ tempId, isAvailable, imagePreview, ...rest }) => ({
+      const finalItems = items.filter(i => i.isAvailable).map(
+        ({ tempId, isAvailable, imagePreviews, requestedQuantity, ...rest }) => ({
           ...rest,
+          quantityOffered: Math.max(1, Math.floor(Number(rest.quantityOffered) || 1)),
+          imageFiles: rest.imageFiles,
           approved: null,
-        }));
+        })
+      );
         
       if (finalItems.length === 0) {
         alert("Debes cotizar al menos un ítem.");
@@ -201,7 +218,16 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               <p className="text-sm font-medium text-zinc-400 mt-1">
                 🚗 {order.vehicleBrand} {order.vehicleModel} <span className="text-sky-400 font-bold">{order.vehicleVersion}</span> — {order.vehicleYear}
               </p>
-              <p className="text-sm font-semibold text-orange-500 mt-2 bg-orange-500/10 inline-flex items-center px-2 py-1 rounded-md border border-orange-500/20">🏭 {order.workshop?.name}</p>
+              <p className="text-sm font-semibold text-orange-500 mt-2 bg-orange-500/10 inline-flex items-center gap-2 flex-wrap px-2 py-1 rounded-md border border-orange-500/20">
+                🏭 {order.workshop?.name}
+                {order.workshop?.phone && (
+                  <WhatsAppLink
+                    phone={order.workshop.phone}
+                    message={`Hola, te contacto por el pedido ${formatVendorOrderLabel(order)}`}
+                    className="!px-2 !py-0.5"
+                  />
+                )}
+              </p>
             </div>
             <div className="flex flex-col sm:items-end gap-1 text-xs font-medium text-zinc-500">
               <div>Creado: {formatDate(order.createdAt)}</div>
@@ -213,9 +239,17 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           <div className="mt-6 p-4 bg-zinc-950/40 rounded-2xl border border-zinc-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-lg shadow-inner border border-orange-500/20">🏭</div>
-              <div>
-                <div className="text-sm font-bold text-zinc-100 tracking-tight">{order.workshop?.name}</div>
-                <div className="text-xs font-medium text-zinc-500">Taller Autorizado</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div>
+                  <div className="text-sm font-bold text-zinc-100 tracking-tight">{order.workshop?.name}</div>
+                  <div className="text-xs font-medium text-zinc-500">Taller Autorizado</div>
+                </div>
+                {order.workshop?.phone && (
+                  <WhatsAppLink
+                    phone={order.workshop.phone}
+                    message={`Hola, te contacto por el pedido ${formatVendorOrderLabel(order)}`}
+                  />
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
@@ -246,8 +280,21 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                    
                    {it.images && it.images.length > 0 && (
                      <div className="flex-shrink-0 flex gap-2 overflow-x-auto pb-2 md:pb-0">
-                       {it.images.map(img => (
-                         <img key={img.id} src={img.url} alt="Referencia" className="w-24 h-20 object-cover rounded-xl border border-zinc-700/50 shadow-sm" />
+                       {it.images.map((img, imgIdx) => (
+                         <button
+                           key={img.id}
+                           type="button"
+                           className="shrink-0 rounded-xl border border-zinc-700/50 overflow-hidden focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                           onClick={() =>
+                             lightbox.open(
+                               it.images!.map(i => i.url),
+                               imgIdx
+                             )
+                           }
+                         >
+                           {/* eslint-disable-next-line @next/next/no-img-element */}
+                           <img src={img.url} alt="Referencia" className="w-24 h-20 object-cover shadow-sm" />
+                         </button>
                        ))}
                      </div>
                    )}
@@ -283,7 +330,11 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
         {/* FORMULARIO DE COTIZACIÓN */}
         {showQuoteForm && (
-          <form onSubmit={handleSubmitQuote} className="bg-zinc-900 border border-orange-500/30 rounded-3xl overflow-hidden shadow-orange-500/5 shadow-xl relative">
+          <form
+            onSubmit={handleSubmitQuote}
+            className="relative overflow-hidden rounded-3xl border border-orange-500/30 bg-zinc-900 shadow-xl shadow-orange-500/5"
+            autoComplete="off"
+          >
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-500 opacity-50" />
             <div className="p-6 border-b border-zinc-800/80 bg-orange-500/5">
               <h3 className="text-lg font-bold text-orange-100 flex items-center gap-2 tracking-tight">
@@ -327,11 +378,31 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                     {item.isAvailable && (
                       <div className="space-y-5">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="mb-2 block text-sm font-semibold text-zinc-300">Cantidad solicitada (taller)</p>
+                            <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-2.5 text-sm text-zinc-400">
+                              {item.requestedQuantity} unidad{item.requestedQuantity !== 1 ? 'es' : ''}
+                            </div>
+                          </div>
                           <Input
-                            label="Precio (ARS)"
+                            label="Cantidad ofrecida"
+                            required
+                            type="number"
+                            min={1}
+                            value={item.quantityOffered || ''}
+                            onChange={e =>
+                              updateItem(item.tempId, 'quantityOffered', parseInt(e.target.value, 10) || 1)
+                            }
+                            error={errors[`${item.tempId}-qty`]}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            label="Precio unitario (ARS)"
                             required
                             type="number"
                             min="0"
+                            step="0.01"
                             value={item.price || ''}
                             onChange={e => updateItem(item.tempId, 'price', parseFloat(e.target.value) || 0)}
                             placeholder="0"
@@ -343,6 +414,20 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                             onChange={e => updateItem(item.tempId, 'quality', e.target.value as OrderQuality)}
                             options={QUALITY_OPTIONS.map(q => ({ value: q.value, label: q.label }))}
                           />
+                        </div>
+                        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3 text-sm">
+                          <span className="font-medium text-orange-200/90">Total ítem: </span>
+                          <span className="text-lg font-black text-white">
+                            {formatCurrency(
+                              quoteLineTotal({
+                                price: item.price || 0,
+                                quantityOffered: item.quantityOffered || 1,
+                              })
+                            )}
+                          </span>
+                          <span className="ml-2 text-xs text-zinc-500">
+                            ({item.quantityOffered || 1} × {formatCurrency(item.price || 0)})
+                          </span>
                         </div>
 
                         <Textarea
@@ -368,26 +453,42 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                           />
                         </div>
                         
-                        <div className="flex flex-col sm:flex-row gap-5">
-                           <div className="flex-1 w-full sm:w-auto">
-                              <p className="block text-sm font-semibold text-zinc-300 mb-2">Foto real</p>
-                              {item.imagePreview ? (
-                                <div className="relative group/img inline-block">
-                                  <img src={item.imagePreview} alt="preview" className="w-20 h-20 object-cover rounded-xl border border-zinc-700/50" />
-                                  <button
-                                    type="button"
-                                    onClick={() => removeImage(item.tempId)}
-                                    className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-lg"
-                                  >✕</button>
-                                </div>
-                              ) : (
-                                <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-zinc-700/50 rounded-xl bg-zinc-950/30 hover:bg-zinc-900/50 hover:border-orange-500/30 transition-all cursor-pointer">
-                                  <span className="text-xl mb-1">📷</span>
-                                  <span className="text-[9px] uppercase font-bold text-zinc-500">Subir</span>
-                                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(item.tempId, e)} />
-                                </label>
-                              )}
-                           </div>
+                        <div>
+                          <p className="mb-2 block text-sm font-semibold text-zinc-300">
+                            Fotos del repuesto (máx. 5)
+                          </p>
+                          <div className="flex flex-wrap items-start gap-3">
+                            {item.imagePreviews.map((preview, pi) => (
+                              <div key={pi} className="group/img relative inline-block">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={preview}
+                                  alt=""
+                                  className="h-20 w-20 rounded-xl border border-zinc-700/50 object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeImageAt(item.tempId, pi)}
+                                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white shadow-lg"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                            {item.imageFiles.length < 5 && (
+                              <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-700/50 bg-zinc-950/30 transition-all hover:border-orange-500/30 hover:bg-zinc-900/50">
+                                <span className="mb-1 text-xl">📷</span>
+                                <span className="text-[9px] font-bold uppercase text-zinc-500">Agregar</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  onChange={e => handleImageUpload(item.tempId, e)}
+                                />
+                              </label>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -396,11 +497,44 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               </div>
 
               {/* Total */}
-              <div className="bg-orange-500/10 rounded-2xl p-5 border border-orange-500/20 flex items-center justify-between shadow-inner mt-4">
-                <span className="text-sm font-bold text-orange-400 uppercase tracking-widest">Total cotización</span>
-                <span className="text-2xl font-black text-white tracking-tight">
-                  {formatCurrency(items.filter(i => i.isAvailable).reduce((s, i) => s + (i.price || 0), 0))}
-                </span>
+              <div className="mt-4 space-y-2 rounded-2xl border border-orange-500/20 bg-orange-500/10 p-5 shadow-inner">
+                <div className="text-xs font-bold uppercase tracking-widest text-orange-400">Resumen</div>
+                <ul className="space-y-1 text-sm text-zinc-300">
+                  {items
+                    .filter(i => i.isAvailable)
+                    .map(i => (
+                      <li key={i.tempId} className="flex justify-between gap-2">
+                        <span className="truncate font-medium">{i.partName}</span>
+                        <span className="shrink-0 text-zinc-100">
+                          {i.quantityOffered || 1} × {formatCurrency(i.price || 0)} ={' '}
+                          {formatCurrency(
+                            quoteLineTotal({
+                              price: i.price || 0,
+                              quantityOffered: i.quantityOffered || 1,
+                            })
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+                <div className="flex items-center justify-between border-t border-orange-500/20 pt-3">
+                  <span className="text-sm font-bold uppercase tracking-widest text-orange-400">Total general</span>
+                  <span className="text-2xl font-black tracking-tight text-white">
+                    {formatCurrency(
+                      items
+                        .filter(i => i.isAvailable)
+                        .reduce(
+                          (s, i) =>
+                            s +
+                            quoteLineTotal({
+                              price: i.price || 0,
+                              quantityOffered: i.quantityOffered || 1,
+                            }),
+                          0
+                        )
+                    )}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -433,28 +567,73 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             </div>
             
             <div className="divide-y divide-zinc-800/80">
-              {order.quote.items.map(item => (
-                <div key={item.id} className="p-6 flex flex-col md:flex-row gap-5 hover:bg-zinc-800/30 transition-colors">
-                  {item.imageUrl && (
-                    <img src={item.imageUrl} alt={item.partName} className="w-full md:w-24 md:h-20 object-cover rounded-xl border border-zinc-700/50 shadow-sm flex-shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0 flex flex-col">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <h4 className="font-bold text-zinc-100 text-base">{item.partName}</h4>
-                        <p className="text-sm font-medium text-zinc-400">{item.description}</p>
+              {order.quote.items.map(item => {
+                const fromRows = item.images?.map(i => i.url).filter(Boolean) ?? [];
+                const photoUrls =
+                  fromRows.length > 0 ? fromRows : item.imageUrl ? [item.imageUrl] : [];
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col gap-5 p-6 transition-colors hover:bg-zinc-800/30 md:flex-row"
+                  >
+                    {photoUrls.length > 0 && (
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        {photoUrls.map((u, ui) => (
+                          <button
+                            key={ui}
+                            type="button"
+                            className="overflow-hidden rounded-xl border border-zinc-700/50 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                            onClick={() => lightbox.open(photoUrls, ui)}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={u}
+                              alt=""
+                              className="h-20 w-24 object-cover md:h-20 md:w-24"
+                            />
+                          </button>
+                        ))}
                       </div>
-                      <div className="text-left md:text-right flex-shrink-0 space-y-2">
-                        <div className="text-xl font-extrabold text-zinc-100 tracking-tight">{formatCurrency(item.price)}</div>
-                        <QualityBadge quality={item.quality} />
-                        {item.approved === true && <div className="text-xs font-bold text-emerald-400 bg-emerald-500/10 inline-block px-2 py-1 rounded-md border border-emerald-500/20 shadow-sm">✅ Aprobado</div>}
-                        {item.approved === false && <div className="text-xs font-bold text-rose-400 bg-rose-500/10 inline-block px-2 py-1 rounded-md border border-rose-500/20 shadow-sm">❌ Rechazado</div>}
-                        {item.approved === null && order.status === 'cotizado' && <div className="text-xs font-bold text-amber-400 bg-amber-500/10 inline-block px-2 py-1 rounded-md border border-amber-500/20 shadow-sm">⏳ Pendiente</div>}
+                    )}
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                        <div className="space-y-1">
+                          <h4 className="text-base font-bold text-zinc-100">{item.partName}</h4>
+                          <p className="text-sm font-medium text-zinc-400">{item.description}</p>
+                          <p className="text-sm text-zinc-300">
+                            <span className="text-zinc-500">Total ítem: </span>
+                            {item.quantityOffered} × {formatCurrency(item.price)} ={' '}
+                            <span className="font-bold text-white">
+                              {formatCurrency(quoteLineTotal(item))}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col space-y-2 text-left md:text-right">
+                          <div className="text-xs font-medium text-zinc-500">
+                            Unit. {formatCurrency(item.price)}
+                          </div>
+                          <QualityBadge quality={item.quality} />
+                          {item.approved === true && (
+                            <div className="inline-block rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-400 shadow-sm">
+                              ✅ Aprobado
+                            </div>
+                          )}
+                          {item.approved === false && (
+                            <div className="inline-block rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs font-bold text-rose-400 shadow-sm">
+                              ❌ Rechazado
+                            </div>
+                          )}
+                          {item.approved === null && order.status === 'cotizado' && (
+                            <div className="inline-block rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-400 shadow-sm">
+                              ⏳ Pendiente
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -467,6 +646,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           <OrderStatusTracker status={order.status} events={order.events} />
         </div>
       </div>
+      {lightbox.node}
     </>
   );
 }
