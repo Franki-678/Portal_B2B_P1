@@ -126,6 +126,14 @@ export interface QuoteItem {
   approved?: boolean | null; // null = pendiente, true = aprobado, false = rechazado
 }
 
+/** Payload para email: respuesta del taller a la cotización */
+export type EmailQuoteResponseKind = 'aprobado' | 'aprobado_parcial' | 'rechazado';
+
+export interface EmailQuoteResponsePayload {
+  kind: EmailQuoteResponseKind;
+  totalApproved: number;
+}
+
 export interface OrderEvent {
   id: string;
   orderId: string;

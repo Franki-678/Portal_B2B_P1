@@ -9,8 +9,9 @@ import {
   ReactNode,
 } from 'react';
 import { Order, Quote, QuoteItem, OrderEvent, OrderStatus } from '@/lib/types';
-import { generateId } from '@/lib/utils';
+import { calculateQuoteTotal, generateId, quoteLineTotal } from '@/lib/utils';
 import { isSupabaseConfigured, getSupabaseClient } from '@/lib/supabase/client';
+import { postNotify } from '@/lib/email/client-notify';
 import {
   fetchAllOrders,
   createOrderInDB,
@@ -18,6 +19,7 @@ import {
   createQuoteInDB,
   updateQuoteItemsApproval,
   fetchAllWorkshops,
+  fetchOrderById,
 } from '@/lib/supabase/queries';
 
 // ============================================================
@@ -231,6 +233,13 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
 
       if (orderId) {
         await refreshOrders();
+        const full = await fetchOrderById(sb, orderId);
+        if (full?.workshop) {
+          postNotify('vendor_new_order', orderId, {
+            order: full,
+            workshop: full.workshop,
+          });
+        }
         // Evitamos buscar en `orders` (stale closure), devolvemos el objeto mínimo necesario
         // para que el router.push en el UI funcione.
         return { id: orderId } as import("@/lib/types").Order;
@@ -249,6 +258,15 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       await updateQuoteItemsApproval(sb, allIds, []);
       await updateOrderStatus(sb, orderId, 'aprobado', userId, 'cotizacion_aprobada', 'Cotización aprobada en su totalidad.');
       await refreshOrders();
+      const full = await fetchOrderById(sb, orderId);
+      if (full?.workshop && full.quote) {
+        const total = calculateQuoteTotal(full.quote.items);
+        postNotify('vendor_quote_response', orderId, {
+          order: full,
+          workshop: full.workshop,
+          response: { kind: 'aprobado', totalApproved: total },
+        });
+      }
     },
     [orders, refreshOrders]
   );
@@ -258,6 +276,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       const sb = getSupabaseClient();
       await updateOrderStatus(sb, orderId, 'rechazado', userId, 'cotizacion_rechazada', comment);
       await refreshOrders();
+      const full = await fetchOrderById(sb, orderId);
+      if (full?.workshop) {
+        postNotify('vendor_quote_response', orderId, {
+          order: full,
+          workshop: full.workshop,
+          response: { kind: 'rechazado', totalApproved: 0 },
+        });
+      }
     },
     [refreshOrders]
   );
@@ -282,6 +308,17 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         comment || 'Cotización aprobada parcialmente.'
       );
       await refreshOrders();
+      const full = await fetchOrderById(sb, orderId);
+      if (full?.workshop && full.quote) {
+        const total = full.quote.items
+          .filter(i => i.approved === true)
+          .reduce((s, i) => s + quoteLineTotal(i), 0);
+        postNotify('vendor_quote_response', orderId, {
+          order: full,
+          workshop: full.workshop,
+          response: { kind: 'aprobado_parcial', totalApproved: total },
+        });
+      }
     },
     [refreshOrders]
   );
@@ -295,6 +332,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       const sb = getSupabaseClient();
       await updateOrderStatus(sb, orderId, 'en_revision', userId, 'pedido_en_revision', comment);
       await refreshOrders();
+      const full = await fetchOrderById(sb, orderId);
+      const tallerEmail = full?.workshop?.email?.trim();
+      if (full && tallerEmail) {
+        postNotify('taller_order_in_review', orderId, {
+          order: full,
+          tallerEmail,
+        });
+      }
     },
     [refreshOrders]
   );
@@ -318,6 +363,15 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         quoteData.items.map(({ approved, ...rest }) => rest)
       );
       await refreshOrders();
+      const full = await fetchOrderById(sb, orderId);
+      const tallerEmail = full?.workshop?.email?.trim();
+      if (full?.quote && tallerEmail) {
+        postNotify('taller_quote_received', orderId, {
+          order: full,
+          quote: full.quote,
+          tallerEmail,
+        });
+      }
     },
     [refreshOrders]
   );
@@ -327,6 +381,14 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       const sb = getSupabaseClient();
       await updateOrderStatus(sb, orderId, 'cerrado', userId, 'pedido_cerrado', comment);
       await refreshOrders();
+      const full = await fetchOrderById(sb, orderId);
+      const tallerEmail = full?.workshop?.email?.trim();
+      if (full && tallerEmail) {
+        postNotify('taller_order_closed', orderId, {
+          order: full,
+          tallerEmail,
+        });
+      }
     },
     [refreshOrders]
   );
