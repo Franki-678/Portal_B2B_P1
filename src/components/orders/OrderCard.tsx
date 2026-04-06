@@ -5,15 +5,17 @@ import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { formatRelativeTime, formatCurrency, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
 import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { cn } from '@/lib/utils';
+import { type ReactNode } from 'react';
 
 interface OrderCardProps {
   order: Order;
   onClick?: () => void;
   showWorkshop?: boolean;
   role?: 'taller' | 'vendedor';
+  footerActions?: ReactNode;
 }
 
-export function OrderCard({ order, onClick, showWorkshop = false, role }: OrderCardProps) {
+export function OrderCard({ order, onClick, showWorkshop = false, role, footerActions }: OrderCardProps) {
   const firstItem = order.items?.[0];
   const itemsCount = order.items?.length ?? 0;
   const partNameDisplay = itemsCount > 1 
@@ -75,6 +77,11 @@ export function OrderCard({ order, onClick, showWorkshop = false, role }: OrderC
           )}
         </div>
       </div>
+      {footerActions && (
+        <div className="mt-3 relative z-10" onClick={e => e.stopPropagation()}>
+          {footerActions}
+        </div>
+      )}
     </div>
   );
 }

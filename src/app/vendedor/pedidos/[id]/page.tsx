@@ -7,6 +7,7 @@ import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
 import {
@@ -15,8 +16,6 @@ import {
   canVendorQuote,
   quoteLineTotal,
   formatVendorOrderLabel,
-  withOperationTimeout,
-  OPERATION_TIMEOUT_MESSAGE,
 } from '@/lib/utils';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
 import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
@@ -38,7 +37,7 @@ interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved' |
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderById, setOrderInReview, submitQuote, closeOrder } = useDataStore();
+  const { getOrderById, setOrderInReview, submitQuote, closeOrder, deleteOrder } = useDataStore();
   const router = useRouter();
 
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -47,6 +46,9 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showSlowMessage, setShowSlowMessage] = useState(false);
   const lightbox = useImageLightbox();
 
   const order = getOrderById(id);
@@ -102,10 +104,22 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   };
 
   const handleCloseOrder = async () => {
-    if (!confirm('¿Confirmar cierre del pedido?')) return;
     setActionLoading(true);
     await closeOrder(order.id, user!.id, user!.name, 'Pedido cerrado por el vendedor.');
+    setShowCloseModal(false);
     setActionLoading(false);
+  };
+
+  const handleDeleteOrder = async () => {
+    setActionLoading(true);
+    const ok = await deleteOrder(order.id);
+    setActionLoading(false);
+    setShowDeleteModal(false);
+    if (ok) {
+      router.push('/vendedor/pedidos');
+    } else {
+      alert('No se pudo eliminar el pedido.');
+    }
   };
 
   const updateItem = (tempId: string, field: keyof QuoteItemDraft, value: any) => {
@@ -148,7 +162,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const validateQuote = (): boolean => {
     const errs: Record<string, string> = {};
     items.filter(i => i.isAvailable).forEach(item => {
-      if (!item.price || item.price <= 0) errs[`${item.tempId}-price`] = 'Ingresá un precio unitario válido';
+      if (!item.price || item.price <= 0) {
+        errs[`${item.tempId}-price`] =
+          `El ítem "${item.partName}" debe tener un precio mayor a 0 o marcarse como sin stock.`;
+      }
       const q = Math.floor(Number(item.quantityOffered) || 0);
       if (q < 1) errs[`${item.tempId}-qty`] = 'Cantidad ofrecida mínimo 1';
     });
@@ -160,6 +177,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     e.preventDefault();
     if (!validateQuote()) return;
     setLoading(true);
+    setShowSlowMessage(false);
+    const timer = setTimeout(() => setShowSlowMessage(true), 10_000);
 
     try {
       const finalItems = items.filter(i => i.isAvailable).map(
@@ -171,31 +190,20 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         })
       );
         
-      if (finalItems.length === 0) {
-        alert("Debes cotizar al menos un ítem.");
-        setLoading(false);
-        return;
-      }
-
-      await withOperationTimeout(
-        submitQuote(order.id, {
-          notes: quoteNotes,
-          vendorId: user!.id,
-          vendorName: user!.name,
-          items: finalItems,
-        })
-      );
+      await submitQuote(order.id, {
+        notes: quoteNotes,
+        vendorId: user!.id,
+        vendorName: user!.name,
+        items: finalItems,
+      });
 
       setShowQuoteForm(false);
     } catch (err: unknown) {
       console.error(err);
-      if (err instanceof Error && err.message === 'timeout') {
-        alert(OPERATION_TIMEOUT_MESSAGE);
-      } else {
-        const msg = err instanceof Error ? err.message : 'Error desconocido';
-        alert('Hubo un error al enviar la cotización: ' + msg);
-      }
+      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      alert('Hubo un error al enviar la cotización: ' + msg);
     } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   };
@@ -331,10 +339,13 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               </Button>
             )}
             {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
-              <Button size="sm" variant="success" onClick={handleCloseOrder} loading={actionLoading} className="shadow-lg shadow-emerald-500/10">
+              <Button size="sm" variant="success" onClick={() => setShowCloseModal(true)} loading={actionLoading} className="shadow-lg shadow-emerald-500/10">
                 🔒 Cerrar pedido (Finalizado)
               </Button>
             )}
+            <Button size="sm" variant="danger" onClick={() => setShowDeleteModal(true)} loading={actionLoading}>
+              🗑️ Eliminar pedido
+            </Button>
             {hasQuote && canQuote && (
               <div className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-lg">
                 Ya existe una cotización enviada
@@ -554,6 +565,11 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             </div>
 
             <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/50 flex flex-col md:flex-row items-center justify-end gap-4">
+              {loading && showSlowMessage && (
+                <span className="text-xs text-zinc-400 mr-auto">
+                  Procesando... esto puede tardar unos segundos.
+                </span>
+              )}
               <Button type="button" variant="ghost" onClick={() => setShowQuoteForm(false)} className="w-full md:w-auto">
                 Cancelar
               </Button>
@@ -622,6 +638,16 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                               {formatCurrency(quoteLineTotal(item))}
                             </span>
                           </p>
+                          {item.manufacturer && (
+                            <p className="text-xs text-zinc-400">
+                              <span className="text-zinc-500">Fabricante:</span> {item.manufacturer}
+                            </p>
+                          )}
+                          {item.supplier && (
+                            <p className="text-xs text-zinc-400">
+                              <span className="text-zinc-500">Proveedor:</span> {item.supplier}
+                            </p>
+                          )}
                         </div>
                         <div className="flex shrink-0 flex-col space-y-2 text-left md:text-right">
                           <div className="text-xs font-medium text-zinc-500">
@@ -652,6 +678,11 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             </div>
           </div>
         )}
+        {order.quote && order.quote.items.length === 0 && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+            El vendedor no tiene stock disponible para ninguno de los ítems solicitados.
+          </div>
+        )}
 
         {/* Historial */}
         <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
@@ -662,6 +693,27 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         </div>
       </div>
       {lightbox.node}
+      <ConfirmModal
+        open={showCloseModal}
+        title="¿Cerrar este pedido?"
+        description="Esta acción confirma que los repuestos aprobados fueron procesados y entregados. No se puede deshacer."
+        cancelLabel="Cancelar"
+        confirmLabel="Confirmar cierre"
+        onCancel={() => setShowCloseModal(false)}
+        onConfirm={handleCloseOrder}
+        loading={actionLoading}
+      />
+      <ConfirmModal
+        open={showDeleteModal}
+        title="¿Eliminar este pedido?"
+        description="Esta acción eliminará el pedido y su historial asociado. No se puede deshacer."
+        tone="danger"
+        cancelLabel="Cancelar"
+        confirmLabel="Eliminar pedido"
+        onCancel={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteOrder}
+        loading={actionLoading}
+      />
     </>
   );
 }

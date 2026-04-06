@@ -1,7 +1,7 @@
 'use client';
 
 import { OrderEvent, OrderStatus } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
 interface OrderStatusTrackerProps {
@@ -89,10 +89,11 @@ export function OrderStatusTracker({ status, events }: OrderStatusTrackerProps) 
         {STATUS_FLOW.map((step, idx) => {
           const isCompleted = idx < currentIndex || (idx === currentIndex && step.key === 'cerrado');
           const isCurrent = idx === currentIndex && step.key !== 'cerrado';
-          const isFuture = idx > currentIndex;
+          const isRejectedStep = idx === 3 && status === 'rechazado' && (isCompleted || isCurrent);
+          const isFuture = idx > currentIndex || (status === 'rechazado' && idx === 4);
 
           const event = getEventForStep(idx);
-          const timestamp = event?.createdAt ? formatDate(event.createdAt) : null;
+          const timestamp = event?.createdAt ? formatDateTime(event.createdAt) : null;
 
           // Etiqueta dinámica si estamos resolviendo (Aprobado vs Rechazado)
           let displayLabel = step.label;
@@ -116,11 +117,12 @@ export function OrderStatusTracker({ status, events }: OrderStatusTrackerProps) 
               <div className="relative flex-shrink-0 flex items-center justify-center w-12 h-12 md:-ml-6 md:-mr-6 z-10 bg-zinc-950 rounded-full">
                 <div className={cn(
                   "flex items-center justify-center w-10 h-10 rounded-full border-2 text-lg shadow-sm transition-all",
+                  isRejectedStep ? "bg-rose-500/20 border-rose-500 text-rose-400" :
                   isCompleted ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" :
                   isCurrent ? "bg-orange-500/20 border-orange-500 text-orange-400 ring-4 ring-orange-500/10" :
                   "bg-zinc-900 border-zinc-700 text-zinc-600"
                 )}>
-                  {isCompleted ? '✓' : step.icon}
+                  {isRejectedStep ? '✕' : isCompleted ? '✓' : step.icon}
                 </div>
               </div>
 
@@ -128,6 +130,7 @@ export function OrderStatusTracker({ status, events }: OrderStatusTrackerProps) 
               <div className="flex-1 md:w-1/2 pt-2.5">
                 <h4 className={cn(
                   "font-bold text-base tracking-tight",
+                  isRejectedStep ? "text-rose-400" :
                   isCompleted ? "text-emerald-400" :
                   isCurrent ? "text-orange-400" :
                   "text-zinc-500"

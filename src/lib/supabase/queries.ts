@@ -50,7 +50,8 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   const { data: rows, error } = await (sb as any)
     .from('orders')
     .select('*')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   if (error) {
     console.error('[Supabase] Error fetching orders:', error.message);
@@ -278,6 +279,15 @@ export async function updateOrderStatus(
   }
 
   await insertEvent(sb, orderId, userId, action, comment);
+  return true;
+}
+
+export async function deleteOrderInDB(sb: SupabaseClientType, orderId: string): Promise<boolean> {
+  const { error } = await (sb as any).from('orders').delete().eq('id', orderId);
+  if (error) {
+    console.error('[Supabase] Error deleting order:', error.message);
+    return false;
+  }
   return true;
 }
 

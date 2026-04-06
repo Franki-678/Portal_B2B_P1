@@ -22,6 +22,7 @@ import {
   updateQuoteItemsApproval,
   fetchAllWorkshops,
   fetchOrderById,
+  deleteOrderInDB,
 } from '@/lib/supabase/queries';
 
 // ============================================================
@@ -83,8 +84,9 @@ interface DataStoreContextType {
     }
   ) => Promise<void>;
   closeOrder: (orderId: string, userId: string, userName: string, comment?: string) => Promise<void>;
+  deleteOrder: (orderId: string) => Promise<boolean>;
   /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
-  refreshData: (opts?: { forceWorkshops?: boolean }) => Promise<void>;
+  refreshData: (opts?: { forceWorkshops?: boolean; silent?: boolean }) => Promise<void>;
   /** Fuerza recarga de pedidos y talleres (botón Reintentar). */
   refreshOrders: () => Promise<void>;
 }
@@ -138,12 +140,12 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     workshopsRef.current = workshops;
   }, [workshops]);
 
-  const isLoading = isLoadingOrders || isLoadingWorkshops;
+  const isLoading = authLoading || isLoadingOrders || isLoadingWorkshops;
 
   // ─── Carga desde Supabase (tras auth; talleres con caché 5 min) ──
 
   const refreshData = useCallback(
-    async (opts?: { forceWorkshops?: boolean }) => {
+    async (opts?: { forceWorkshops?: boolean; silent?: boolean }) => {
       if (!usingSupabase || !user) return;
       const sb = getSupabaseClient();
       setLoadError(null);
@@ -154,8 +156,10 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         lastWorkshopsFetchRef.current === 0 ||
         now - lastWorkshopsFetchRef.current >= WORKSHOPS_CACHE_MS;
 
-      setIsLoadingOrders(true);
-      if (workshopsStale) setIsLoadingWorkshops(true);
+      if (!opts?.silent) {
+        setIsLoadingOrders(true);
+        if (workshopsStale) setIsLoadingWorkshops(true);
+      }
 
       try {
         const ordersPromise = fetchAllOrders(sb);
@@ -177,8 +181,10 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
           err instanceof Error ? err.message : 'No se pudieron cargar los datos. Intentá de nuevo más tarde.';
         setLoadError(message);
       } finally {
-        setIsLoadingOrders(false);
-        setIsLoadingWorkshops(false);
+        if (!opts?.silent) {
+          setIsLoadingOrders(false);
+          setIsLoadingWorkshops(false);
+        }
       }
     },
     [usingSupabase, user]
@@ -202,8 +208,34 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!usingSupabase) return;
     if (authLoading || !user) return;
+    setIsLoadingOrders(true);
     void refreshData();
   }, [usingSupabase, user, authLoading, refreshData]);
+
+  useEffect(() => {
+    if (authLoading && !user) {
+      setIsLoadingOrders(true);
+    }
+  }, [authLoading, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      void refreshData({ silent: true });
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [user, refreshData]);
+
+  useEffect(() => {
+    if (!user) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshData({ silent: true });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [user, refreshData]);
 
   // ─── Helper para actualizar estado local ──────────────────
 
@@ -443,6 +475,15 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     [refreshData]
   );
 
+  const deleteOrder = useCallback(async (orderId: string): Promise<boolean> => {
+    const sb = getSupabaseClient();
+    const ok = await deleteOrderInDB(sb, orderId);
+    if (ok) {
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+    }
+    return ok;
+  }, []);
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -489,6 +530,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         setOrderInReview,
         submitQuote,
         closeOrder,
+        deleteOrder,
         refreshData,
         refreshOrders,
       }}

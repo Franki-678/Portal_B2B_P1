@@ -24,7 +24,7 @@ export default function TallerLayout({ children }: { children: React.ReactNode }
   const [vendorWa, setVendorWa] = useState<string | null>(null);
 
   useEffect(() => {
-    void refreshData();
+    void refreshData({ silent: true });
   }, [pathname, refreshData]);
 
   useEffect(() => {
@@ -57,8 +57,26 @@ export default function TallerLayout({ children }: { children: React.ReactNode }
   if (!user) {
     if (isLoading) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[#0F1117]">
-          <LoadingSpinner />
+        <div className="flex min-h-screen bg-[#0F1117]">
+          <div className="hidden md:block w-64 border-r border-zinc-800 bg-zinc-900/40 p-4">
+            <div className="h-8 w-36 rounded bg-zinc-800/80 animate-pulse mb-6" />
+            <div className="space-y-3">
+              <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
+              <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
+              <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
+            </div>
+          </div>
+          <div className="flex-1 p-6">
+            <div className="h-10 w-1/3 rounded bg-zinc-800/70 animate-pulse mb-6" />
+            <div className="grid gap-4">
+              <div className="h-28 rounded-2xl bg-zinc-800/60 animate-pulse" />
+              <div className="h-28 rounded-2xl bg-zinc-800/60 animate-pulse" />
+              <div className="h-28 rounded-2xl bg-zinc-800/60 animate-pulse" />
+            </div>
+            <div className="mt-4 text-zinc-500 text-xs flex items-center gap-2">
+              <LoadingSpinner /> Cargando portal...
+            </div>
+          </div>
         </div>
       );
     }

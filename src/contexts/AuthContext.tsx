@@ -16,9 +16,10 @@ import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
 const HYDRATE_QUERY_MS = 5_000;
 const PROFILE_ATTEMPTS = 3;
-const HYDRATE_RETRY_MS = 500;
+const HYDRATE_RETRY_MS = 200;
 const REGISTER_FETCH_MS = 8_000;
 const LOGIN_SIGNIN_MS = 8_000;
+const USER_CACHE_KEY = 'portalb2b_user_cache_v1';
 
 const TIMEOUT_MESSAGE = 'La operación tardó demasiado. Verificá tu conexión.';
 
@@ -126,6 +127,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   }, []);
 
+  const persistUserCache = useCallback((nextUser: User | null) => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (!nextUser) {
+        window.localStorage.removeItem(USER_CACHE_KEY);
+        return;
+      }
+      window.localStorage.setItem(USER_CACHE_KEY, JSON.stringify(nextUser));
+    } catch {
+      // noop
+    }
+  }, []);
+
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       setIsLoading(false);
@@ -136,6 +150,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsubscribed = false;
     const supabase = getSupabaseClient();
 
+    // UX rápida tras F5: mostramos cache local inmediatamente y validamos en background.
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem(USER_CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw) as User;
+          setUser(cached);
+          setIsLoading(false);
+        }
+      } catch {
+        // noop
+      }
+    }
+
     void supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (unsubscribed) return;
       if (error) console.error('[Auth] getSession:', error);
@@ -143,13 +171,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (session?.user) {
           const loaded = await hydrateUser(session.user);
-          if (!unsubscribed) setUser(loaded);
+          if (!unsubscribed) {
+            setUser(loaded);
+            persistUserCache(loaded);
+          }
         } else {
-          if (!unsubscribed) setUser(null);
+          if (!unsubscribed) {
+            setUser(null);
+            persistUserCache(null);
+          }
         }
       } catch (e) {
         console.error('[Auth] init session:', e);
-        if (!unsubscribed) setUser(null);
+        if (!unsubscribed) {
+          setUser(null);
+          persistUserCache(null);
+        }
       } finally {
         if (!unsubscribed) {
           setIsLoading(false);
@@ -169,18 +206,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === 'SIGNED_OUT') {
         setUser(null);
+        persistUserCache(null);
         return;
       }
 
       if (event === 'SIGNED_IN' && session?.user) {
         const loaded = await hydrateUser(session.user);
-        if (loaded) setUser(loaded);
+        if (loaded) {
+          setUser(loaded);
+          persistUserCache(loaded);
+        }
         return;
       }
 
       if (event === 'USER_UPDATED' && session?.user) {
         const loaded = await hydrateUser(session.user);
-        if (loaded) setUser(loaded);
+        if (loaded) {
+          setUser(loaded);
+          persistUserCache(loaded);
+        }
       }
     });
 
@@ -188,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribed = true;
       subscription.unsubscribe();
     };
-  }, [hydrateUser]);
+  }, [hydrateUser, persistUserCache]);
 
   const login = useCallback(
     async (
@@ -231,6 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!loaded) {
           await supabase.auth.signOut().catch(() => undefined);
           setUser(null);
+          persistUserCache(null);
           return {
             success: false,
             error: 'Tu cuenta no tiene perfil asignado. Contactá al administrador.',
@@ -238,6 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         setUser(loaded);
+        persistUserCache(loaded);
         return { success: true, role: loaded.role };
       } catch (e) {
         if (e instanceof Error && e.message === 'timeout') {
@@ -249,20 +295,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
     },
-    [hydrateUser]
+    [hydrateUser, persistUserCache]
   );
 
   const logout = useCallback(async () => {
-    if (isSupabaseConfigured()) {
-      try {
-        await getSupabaseClient().auth.signOut();
-      } catch (e) {
-        console.error('[Auth] logout:', e);
-      }
-    }
     setUser(null);
+    setIsLoading(false);
+    persistUserCache(null);
     router.push('/login');
-  }, [router]);
+    if (isSupabaseConfigured()) {
+      getSupabaseClient().auth.signOut().catch(e => {
+        console.error('[Auth] logout:', e);
+      });
+    }
+  }, [persistUserCache, router]);
 
   const registerTaller = useCallback(async (data: RegisterTallerData) => {
     if (!isSupabaseConfigured()) {
@@ -321,6 +367,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userId = authData.user.id;
       await supabase.auth.signOut().catch(() => undefined);
       setUser(null);
+      persistUserCache(null);
 
       const ac = new AbortController();
       const t = setTimeout(() => ac.abort(), REGISTER_FETCH_MS);
@@ -358,12 +405,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       await supabase.auth.signOut().catch(() => undefined);
       setUser(null);
+      persistUserCache(null);
       return {
         success: false,
         error: e instanceof Error ? e.message : 'Error de red. Verificá tu conexión.',
       };
     }
-  }, []);
+  }, [persistUserCache]);
 
   return (
     <AuthContext.Provider value={{ user, isLoading, login, logout, registerTaller }}>

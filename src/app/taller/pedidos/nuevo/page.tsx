@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { VEHICLE_BRANDS, QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, NewOrderItemForm } from '@/lib/types';
-import { generateId, withOperationTimeout, OPERATION_TIMEOUT_MESSAGE } from '@/lib/utils';
+import { generateId } from '@/lib/utils';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 30 }, (_, i) => ({
@@ -46,6 +46,7 @@ export default function NuevoPedidoPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showSlowMessage, setShowSlowMessage] = useState(false);
 
   const validate = (): boolean => {
     const errs: FormErrors = {};
@@ -68,25 +69,25 @@ export default function NuevoPedidoPage() {
     e.preventDefault();
     if (!validate()) return;
     setLoading(true);
+    setShowSlowMessage(false);
+    const timer = setTimeout(() => setShowSlowMessage(true), 10_000);
 
     try {
-      const newOrder = await withOperationTimeout(
-        createOrder({
-          workshopId: user?.workshopId || '',
-          vehicleBrand,
-          vehicleModel,
-          vehicleVersion,
-          vehicleYear: parseInt(vehicleYear),
-          internalOrderNumber: internalOrderNumber.trim() || undefined,
-          items: items.map(i => ({
-            partName: i.partName,
-            description: i.description,
-            quality: i.quality,
-            quantity: i.quantity,
-            images: i.images,
-          })),
-        })
-      );
+      const newOrder = await createOrder({
+        workshopId: user?.workshopId || '',
+        vehicleBrand,
+        vehicleModel,
+        vehicleVersion,
+        vehicleYear: parseInt(vehicleYear),
+        internalOrderNumber: internalOrderNumber.trim() || undefined,
+        items: items.map(i => ({
+          partName: i.partName,
+          description: i.description,
+          quality: i.quality,
+          quantity: i.quantity,
+          images: i.images,
+        })),
+      });
 
       setSuccess(true);
       setTimeout(() => {
@@ -94,13 +95,11 @@ export default function NuevoPedidoPage() {
       }, 1000);
     } catch (err: unknown) {
       console.error(err);
-      if (err instanceof Error && err.message === 'timeout') {
-        alert(OPERATION_TIMEOUT_MESSAGE);
-      } else {
-        const msg = err instanceof Error ? err.message : 'Error desconocido';
-        alert('Hubo un error al crear el pedido: ' + msg);
-      }
+      const msg = err instanceof Error ? err.message : 'Error desconocido';
+      alert('Hubo un error al crear el pedido: ' + msg);
       setLoading(false);
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -356,6 +355,11 @@ export default function NuevoPedidoPage() {
 
             {/* Submit */}
             <div className="flex items-center gap-3 justify-end pt-6">
+              {loading && showSlowMessage && (
+                <span className="text-xs text-zinc-400 mr-auto">
+                  Procesando... esto puede tardar unos segundos.
+                </span>
+              )}
               <Button type="button" variant="secondary" onClick={() => router.back()}>
                 Cancelar
               </Button>

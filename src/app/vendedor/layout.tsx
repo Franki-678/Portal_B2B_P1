@@ -20,7 +20,7 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
   const { refreshData } = useDataStore();
 
   useEffect(() => {
-    void refreshData();
+    void refreshData({ silent: true });
   }, [pathname, refreshData]);
 
   useEffect(() => {
@@ -36,8 +36,26 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
   if (!user) {
     if (isLoading) {
       return (
-        <div className="min-h-screen bg-[#0F1117] flex items-center justify-center">
-          <LoadingSpinner />
+        <div className="min-h-screen bg-[#0F1117] flex">
+          <div className="hidden md:block w-64 border-r border-zinc-800 bg-zinc-900/40 p-4">
+            <div className="h-8 w-40 rounded bg-zinc-800/80 animate-pulse mb-6" />
+            <div className="space-y-3">
+              <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
+              <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
+              <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
+            </div>
+          </div>
+          <div className="flex-1 p-6">
+            <div className="h-10 w-1/3 rounded bg-zinc-800/70 animate-pulse mb-6" />
+            <div className="grid gap-4">
+              <div className="h-28 rounded-2xl bg-zinc-800/60 animate-pulse" />
+              <div className="h-28 rounded-2xl bg-zinc-800/60 animate-pulse" />
+              <div className="h-28 rounded-2xl bg-zinc-800/60 animate-pulse" />
+            </div>
+            <div className="mt-4 text-zinc-500 text-xs flex items-center gap-2">
+              <LoadingSpinner /> Cargando portal...
+            </div>
+          </div>
         </div>
       );
     }

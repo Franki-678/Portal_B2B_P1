@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
 import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal } from '@/lib/utils';
@@ -18,7 +19,7 @@ interface PageProps {
 export default function TallerPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderById, approveQuote, rejectQuote, approveQuotePartial } = useDataStore();
+  const { getOrderById, approveQuote, rejectQuote, approveQuotePartial, deleteOrder } = useDataStore();
   const router = useRouter();
 
   const [rejecting, setRejecting] = useState(false);
@@ -26,6 +27,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [loading, setLoading] = useState(false);
   const [partialMode, setPartialMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const lightbox = useImageLightbox();
 
   const order = getOrderById(id);
@@ -48,6 +50,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
 
   const quote = order.quote;
   const canRespond = canWorkshopRespond(order.status);
+  const hasInvalidQuoteItems = Boolean(quote?.items.some(i => (i.price ?? 0) <= 0));
 
   const handleApprove = async () => {
     setLoading(true);
@@ -56,11 +59,23 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   };
 
   const handleReject = async () => {
-    if (!rejectComment.trim()) return;
     setLoading(true);
-    await rejectQuote(order.id, user!.id, user!.name, rejectComment);
+    await rejectQuote(order.id, user!.id, user!.name, rejectComment.trim() || 'Sin comentario');
     setLoading(false);
     setRejecting(false);
+    setRejectComment('');
+  };
+
+  const handleDeleteOrder = async () => {
+    setLoading(true);
+    const ok = await deleteOrder(order.id);
+    setLoading(false);
+    setShowDeleteModal(false);
+    if (ok) {
+      router.push('/taller/pedidos');
+    } else {
+      alert('No se pudo eliminar el pedido.');
+    }
   };
 
   const handlePartialApprove = async () => {
@@ -177,7 +192,13 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                     <Button size="sm" variant="danger" onClick={() => setRejecting(true)}>
                       ❌ Rechazar Todo
                     </Button>
-                    <Button size="sm" variant="success" onClick={handleApprove} loading={loading}>
+                    <Button
+                      size="sm"
+                      variant="success"
+                      onClick={handleApprove}
+                      loading={loading}
+                      disabled={hasInvalidQuoteItems}
+                    >
                       ✅ Aprobar Todo
                     </Button>
                   </div>
@@ -192,7 +213,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                       variant="success"
                       onClick={handlePartialApprove}
                       loading={loading}
-                      disabled={selectedItems.size === 0}
+                      disabled={selectedItems.size === 0 || hasInvalidQuoteItems}
                     >
                       ✅ Seleccionar ({selectedItems.size})
                     </Button>
@@ -209,6 +230,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
               {quote.notes && (
                 <div className="mt-4 bg-amber-500/5 rounded-xl p-4 border border-amber-500/20 shadow-inner">
                   <p className="text-sm font-medium text-amber-200/80 tracking-wide">📝 <span className="font-bold text-amber-300">Nota del vendedor:</span> {quote.notes}</p>
+                </div>
+              )}
+              {hasInvalidQuoteItems && (
+                <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs font-medium text-rose-200">
+                  Hay ítems con precio 0 en la cotización. No podés aprobar hasta que el vendedor corrija esos valores.
                 </div>
               )}
             </div>
@@ -310,6 +336,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                             <div className="space-y-3">
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0 flex-1">
+                                  {(quoteItem.price ?? 0) <= 0 && (
+                                    <p className="mb-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-xs font-semibold text-rose-300">
+                                      Ítem inválido: precio 0. Este ítem no puede aprobarse.
+                                    </p>
+                                  )}
                                   <p className="text-sm text-zinc-400">
                                     Precio unitario:{' '}
                                     <span className="font-bold text-white">{formatCurrency(quoteItem.price)}</span>
@@ -556,6 +587,22 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
             </div>
           </div>
         )}
+        {quote && quote.items.length === 0 && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+            El vendedor no tiene stock disponible para ninguno de los ítems solicitados.
+          </div>
+        )}
+
+        {order.status === 'pendiente' && (
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-rose-200">Podés eliminar este pedido porque aún está pendiente.</p>
+              <Button type="button" variant="danger" size="sm" onClick={() => setShowDeleteModal(true)}>
+                🗑️ Eliminar pedido
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Historial */}
         <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
@@ -565,34 +612,42 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
           <OrderStatusTracker status={order.status} events={order.events} />
         </div>
         
-         {/* Reject dialog */}
-         {rejecting && (
-          <div className="bg-zinc-900 border border-rose-500/30 rounded-2xl p-6 shadow-sm mt-4">
-            <h3 className="font-bold text-zinc-100 mb-3 flex items-center gap-2 tracking-tight">
-              ❌ Rechazar cotización completa
-            </h3>
-            <textarea
-              value={rejectComment}
-              onChange={e => setRejectComment(e.target.value)}
-              placeholder="Indicá el motivo del rechazo total..."
-              rows={3}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              className="min-h-[80px] w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-rose-500/40 focus:outline-none focus:ring-2 focus:ring-rose-500/40"
-            />
-            <div className="flex items-center gap-3 mt-4 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setRejecting(false)}>Cancelar</Button>
-              <Button variant="danger" size="sm" onClick={handleReject} loading={loading} disabled={!rejectComment.trim()}>
-                Confirmar rechazo
-              </Button>
-            </div>
-          </div>
-        )}
-
       </div>
       {lightbox.node}
+      <ConfirmModal
+        open={rejecting}
+        title="Rechazar cotización"
+        description="Esta acción rechazará la cotización completa y el pedido quedará en estado rechazado."
+        tone="danger"
+        cancelLabel="Cancelar"
+        confirmLabel="Confirmar rechazo"
+        onCancel={() => setRejecting(false)}
+        onConfirm={handleReject}
+        loading={loading}
+      >
+        <textarea
+          value={rejectComment}
+          onChange={e => setRejectComment(e.target.value)}
+          placeholder="Motivo del rechazo (opcional)"
+          rows={3}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          className="min-h-[80px] w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-rose-500/40 focus:outline-none focus:ring-2 focus:ring-rose-500/40"
+        />
+      </ConfirmModal>
+      <ConfirmModal
+        open={showDeleteModal}
+        title="¿Eliminar este pedido?"
+        description="Esta acción eliminará el pedido y su historial asociado. No se puede deshacer."
+        tone="danger"
+        cancelLabel="Cancelar"
+        confirmLabel="Eliminar pedido"
+        onCancel={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteOrder}
+        loading={loading}
+      />
     </>
   );
 }

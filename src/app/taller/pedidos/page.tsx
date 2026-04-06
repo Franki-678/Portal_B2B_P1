@@ -5,6 +5,7 @@ import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderCard } from '@/components/orders/OrderCard';
 import { Button } from '@/components/ui/Button';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { StatusBadge } from '@/components/ui/Badge';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -22,15 +23,29 @@ const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
 
 export default function TallerPedidosPage() {
   const { user } = useAuth();
-  const { getWorkshopOrders } = useDataStore();
+  const { getWorkshopOrders, deleteOrder } = useDataStore();
   const router = useRouter();
   const [filter, setFilter] = useState<'todos' | OrderStatus>('todos');
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const all = user?.workshopId ? getWorkshopOrders(user.workshopId) : [];
   const filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
   const sorted = [...filtered].sort((a, b) =>
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
+
+  const handleDelete = async () => {
+    if (!deletingOrderId) return;
+    setDeleting(true);
+    const ok = await deleteOrder(deletingOrderId);
+    setDeleting(false);
+    if (!ok) {
+      alert('No se pudo eliminar el pedido.');
+      return;
+    }
+    setDeletingOrderId(null);
+  };
 
   return (
     <>
@@ -93,11 +108,34 @@ export default function TallerPedidosPage() {
                 order={order}
                 role="taller"
                 onClick={() => router.push(`/taller/pedidos/${order.id}`)}
+                footerActions={
+                  order.status === 'pendiente' ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="danger"
+                      onClick={() => setDeletingOrderId(order.id)}
+                    >
+                      🗑️ Eliminar pedido
+                    </Button>
+                  ) : undefined
+                }
               />
             ))}
           </div>
         )}
       </div>
+      <ConfirmModal
+        open={Boolean(deletingOrderId)}
+        title="¿Eliminar este pedido?"
+        description="Solo podés eliminar pedidos en estado pendiente. Esta acción no se puede deshacer."
+        tone="danger"
+        cancelLabel="Cancelar"
+        confirmLabel="Eliminar pedido"
+        onCancel={() => setDeletingOrderId(null)}
+        onConfirm={handleDelete}
+        loading={deleting}
+      />
     </>
   );
 }
