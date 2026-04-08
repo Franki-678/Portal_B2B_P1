@@ -178,6 +178,7 @@ export async function createOrderInDB(
     internalOrderNumber?: string;
     items: {
       partName: string;
+      codigoCatalogo?: string | null;
       description: string;
       quality: 'alta' | 'media' | 'baja';
       quantity: number;
@@ -214,6 +215,7 @@ export async function createOrderInDB(
       description: item.description,
       quality: item.quality,
       quantity: item.quantity,
+      codigo_catalogo: item.codigoCatalogo ?? null,
     }).select('id').single();
 
     if (itemError) {

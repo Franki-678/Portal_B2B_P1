@@ -106,6 +106,7 @@ export type Database = {
           description: string | null;
           quality: 'alta' | 'media' | 'baja';
           quantity: number;
+          codigo_catalogo: string | null;
           created_at: string;
         };
         Insert: {
@@ -115,9 +116,39 @@ export type Database = {
           description?: string | null;
           quality?: 'alta' | 'media' | 'baja';
           quantity?: number;
+          codigo_catalogo?: string | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>;
+      };
+      catalogo_repuestos: {
+        Row: {
+          id: string;
+          codigo: string;
+          descripcion: string;
+          marca: string | null;
+          anios: string | null;
+          tipo_pieza: string | null;
+          origen: string | null;
+          precio: number | null;
+          stock_cba: boolean;
+          imagen_url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          codigo: string;
+          descripcion: string;
+          marca?: string | null;
+          anios?: string | null;
+          tipo_pieza?: string | null;
+          origen?: string | null;
+          precio?: number | null;
+          stock_cba?: boolean;
+          imagen_url?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['catalogo_repuestos']['Insert']>;
       };
       order_images: {
         Row: {
@@ -251,3 +282,4 @@ export type DbQuoteItemImage = Database['public']['Tables']['quote_item_images']
 export type DbOrderEvent = Database['public']['Tables']['order_events']['Row'];
 export type DbWorkshop = Database['public']['Tables']['workshops']['Row'];
 export type DbProfile = Database['public']['Tables']['profiles']['Row'];
+export type DbCatalogoRepuesto = Database['public']['Tables']['catalogo_repuestos']['Row'];

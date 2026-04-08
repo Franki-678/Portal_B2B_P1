@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -53,7 +53,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
   const order = getOrderById(id);
 
-  // Inicializar los ítems cuando se abre o detecta el pedido
+  // Inicializar los Ã­tems cuando se abre o detecta el pedido
   useEffect(() => {
     if (order && items.length === 0) {
       setItems(
@@ -84,10 +84,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         <TopBar title="Pedido no encontrado" />
         <div className="p-6">
           <EmptyState
-            icon="🔍"
+            icon="ðŸ”"
             title="Pedido no encontrado"
-            description="El pedido que buscás no existe."
-            action={<Button onClick={() => router.push('/vendedor/pedidos')}>← Volver a pedidos</Button>}
+            description="El pedido que buscÃ¡s no existe."
+            action={<Button onClick={() => router.push('/vendedor/pedidos')}>â† Volver a pedidos</Button>}
           />
         </div>
       </>
@@ -99,7 +99,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
   const handleSetInReview = async () => {
     setActionLoading(true);
-    await setOrderInReview(order.id, user!.id, user!.name, 'Pedido tomado para revisión.');
+    await setOrderInReview(order.id, user!.id, user!.name, 'Pedido tomado para revisiÃ³n.');
     setActionLoading(false);
   };
 
@@ -164,10 +164,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     items.filter(i => i.isAvailable).forEach(item => {
       if (!item.price || item.price <= 0) {
         errs[`${item.tempId}-price`] =
-          `El ítem "${item.partName}" debe tener un precio mayor a 0 o marcarse como sin stock.`;
+          `El Ã­tem "${item.partName}" debe tener un precio mayor a 0 o marcarse como sin stock.`;
       }
       const q = Math.floor(Number(item.quantityOffered) || 0);
-      if (q < 1) errs[`${item.tempId}-qty`] = 'Cantidad ofrecida mínimo 1';
+      if (q < 1) errs[`${item.tempId}-qty`] = 'Cantidad ofrecida mÃ­nimo 1';
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -201,7 +201,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     } catch (err: unknown) {
       console.error(err);
       const msg = err instanceof Error ? err.message : 'Error desconocido';
-      alert('Hubo un error al enviar la cotización: ' + msg);
+      alert('Hubo un error al enviar la cotizaciÃ³n: ' + msg);
     } finally {
       clearTimeout(timer);
       setLoading(false);
@@ -215,10 +215,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           ? `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
           : order.id.split('-')[0].toUpperCase()
         }`}
-        subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear} · ${order.workshop?.name}`}
+        subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear} Â· ${order.workshop?.name}`}
         action={
           <Button variant="ghost" onClick={() => router.push('/vendedor/pedidos')}>
-            ← Pedidos
+            â† Pedidos
           </Button>
         }
       />
@@ -239,10 +239,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               </div>
               <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Pedido del Taller</h2>
               <p className="text-sm font-medium text-zinc-400 mt-1">
-                🚗 {order.vehicleBrand} {order.vehicleModel} <span className="text-sky-400 font-bold">{order.vehicleVersion}</span> — {order.vehicleYear}
+                ðŸš— {order.vehicleBrand} {order.vehicleModel} <span className="text-sky-400 font-bold">{order.vehicleVersion}</span> â€” {order.vehicleYear}
               </p>
               <p className="text-sm font-semibold text-orange-500 mt-2 bg-orange-500/10 inline-flex items-center gap-2 flex-wrap px-2 py-1 rounded-md border border-orange-500/20">
-                🏭 {order.workshop?.name}
+                ðŸ­ {order.workshop?.name}
                 {order.workshop?.phone && (
                   <WhatsAppLink
                     phone={order.workshop.phone}
@@ -261,7 +261,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           {/* Datos del Taller */}
           <div className="mt-6 p-4 bg-zinc-950/40 rounded-2xl border border-zinc-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-lg shadow-inner border border-orange-500/20">🏭</div>
+              <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-lg shadow-inner border border-orange-500/20">ðŸ­</div>
               <div className="flex flex-wrap items-center gap-2">
                 <div>
                   <div className="text-sm font-bold text-zinc-100 tracking-tight">{order.workshop?.name}</div>
@@ -276,16 +276,16 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-              <div className="text-[11px] font-medium text-zinc-400">👤 {order.workshop?.contactName || 'Sin contacto'}</div>
-              <div className="text-[11px] font-medium text-zinc-400">📧 {order.workshop?.email || 'Sin email'}</div>
-              <div className="text-[11px] font-medium text-zinc-400">📞 {order.workshop?.phone || 'Sin teléfono'}</div>
-              <div className="text-[11px] font-medium text-zinc-400">📍 {order.workshop?.address || 'Sin dirección'}</div>
+              <div className="text-[11px] font-medium text-zinc-400">ðŸ‘¤ {order.workshop?.contactName || 'Sin contacto'}</div>
+              <div className="text-[11px] font-medium text-zinc-400">ðŸ“§ {order.workshop?.email || 'Sin email'}</div>
+              <div className="text-[11px] font-medium text-zinc-400">ðŸ“ž {order.workshop?.phone || 'Sin telÃ©fono'}</div>
+              <div className="text-[11px] font-medium text-zinc-400">ðŸ“ {order.workshop?.address || 'Sin direcciÃ³n'}</div>
             </div>
           </div>
 
-          {/* Listado de ítems pedidos por el taller */}
+          {/* Listado de Ã­tems pedidos por el taller */}
           <div className="mt-8 space-y-4">
-            <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">Ítems Solicitados</h3>
+            <h3 className="text-sm font-bold tracking-widest text-zinc-500 uppercase">Ãtems Solicitados</h3>
             <div className="divide-y divide-zinc-800 border border-zinc-800/80 rounded-2xl bg-zinc-950/30 overflow-hidden">
               {order.items.map((it, idx) => (
                  <div key={it.id} className="p-5 flex flex-col md:flex-row gap-5">
@@ -294,6 +294,11 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                        <span className="text-xs font-bold bg-sky-500/10 text-sky-400 px-2 rounded">#{idx+1}</span>
                        <h4 className="font-bold text-zinc-100 text-lg">{it.partName}</h4>
                      </div>
+                     {it.codigoCatalogo && (
+                       <p className="text-xs text-zinc-500 mt-0.5 font-medium">
+                          Ref. catálogo: <span className="font-mono text-zinc-400">{it.codigoCatalogo}</span>
+                       </p>
+                     )}
                      <div className="flex items-center gap-2 mt-2">
                        <QualityBadge quality={it.quality} />
                        <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold">Cant: {it.quantity}</span>
@@ -330,31 +335,31 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           <div className="mt-6 pt-5 flex items-center gap-3 flex-wrap">
             {order.status === 'pendiente' && (
               <Button size="sm" variant="secondary" onClick={handleSetInReview} loading={actionLoading}>
-                🔍 Marcar en revisión
+                ðŸ” Marcar en revisiÃ³n
               </Button>
             )}
             {canQuote && !hasQuote && (
               <Button size="sm" onClick={() => setShowQuoteForm(!showQuoteForm)}>
-                💰 {showQuoteForm ? 'Cerrar formulario' : 'Armar cotización'}
+                ðŸ’° {showQuoteForm ? 'Cerrar formulario' : 'Armar cotizaciÃ³n'}
               </Button>
             )}
             {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
               <Button size="sm" variant="success" onClick={() => setShowCloseModal(true)} loading={actionLoading} className="shadow-lg shadow-emerald-500/10">
-                🔒 Cerrar pedido (Finalizado)
+                ðŸ”’ Cerrar pedido (Finalizado)
               </Button>
             )}
             <Button size="sm" variant="danger" onClick={() => setShowDeleteModal(true)} loading={actionLoading}>
-              🗑️ Eliminar pedido
+              ðŸ—‘ï¸ Eliminar pedido
             </Button>
             {hasQuote && canQuote && (
               <div className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-lg">
-                Ya existe una cotización enviada
+                Ya existe una cotizaciÃ³n enviada
               </div>
             )}
           </div>
         </div>
 
-        {/* FORMULARIO DE COTIZACIÓN */}
+        {/* FORMULARIO DE COTIZACIÃ“N */}
         {showQuoteForm && (
           <form
             onSubmit={handleSubmitQuote}
@@ -364,10 +369,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-500 opacity-50" />
             <div className="p-6 border-b border-zinc-800/80 bg-orange-500/5">
               <h3 className="text-lg font-bold text-orange-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl">💰</span> Nueva cotización
+                <span className="text-xl">ðŸ’°</span> Nueva cotizaciÃ³n
               </h3>
               <p className="text-sm font-medium text-orange-400/80 mt-1">
-                Completá los datos de los ítems para cotizarle al taller
+                CompletÃ¡ los datos de los Ã­tems para cotizarle al taller
               </p>
             </div>
 
@@ -376,7 +381,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 label="Observaciones generales"
                 value={quoteNotes}
                 onChange={e => setQuoteNotes(e.target.value)}
-                placeholder="Notas generales, tiempo estimado de preparación, etc."
+                placeholder="Notas generales, tiempo estimado de preparaciÃ³n, etc."
                 rows={2}
               />
 
@@ -386,7 +391,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                     <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3 mb-4">
                       <div>
                         <span className="text-sm font-bold text-orange-500 bg-orange-500/10 px-3 py-1 rounded-md uppercase tracking-widest">
-                          Ítem {idx + 1}
+                          Ãtem {idx + 1}
                         </span>
                         <span className="text-zinc-300 font-bold ml-3">{item.partName}</span>
                       </div>
@@ -442,7 +447,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                           />
                         </div>
                         <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3 text-sm">
-                          <span className="font-medium text-orange-200/90">Total ítem: </span>
+                          <span className="font-medium text-orange-200/90">Total Ã­tem: </span>
                           <span className="text-lg font-black text-white">
                             {formatCurrency(
                               quoteLineTotal({
@@ -452,12 +457,12 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                             )}
                           </span>
                           <span className="ml-2 text-xs text-zinc-500">
-                            ({item.quantityOffered || 1} × {formatCurrency(item.price || 0)})
+                            ({item.quantityOffered || 1} Ã— {formatCurrency(item.price || 0)})
                           </span>
                         </div>
 
                         <Textarea
-                          label="Descripción adicional (tu repuesto)"
+                          label="DescripciÃ³n adicional (tu repuesto)"
                           value={item.description}
                           onChange={e => updateItem(item.tempId, 'description', e.target.value)}
                           placeholder="Compatibilidades, estado..."
@@ -481,7 +486,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                         
                         <div>
                           <p className="mb-2 block text-sm font-semibold text-zinc-300">
-                            Fotos del repuesto (máx. 5)
+                            Fotos del repuesto (mÃ¡x. 5)
                           </p>
                           <div className="flex flex-wrap items-start gap-3">
                             {item.imagePreviews.map((preview, pi) => (
@@ -497,13 +502,13 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                                   onClick={() => removeImageAt(item.tempId, pi)}
                                   className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white shadow-lg"
                                 >
-                                  ✕
+                                  âœ•
                                 </button>
                               </div>
                             ))}
                             {item.imageFiles.length < 5 && (
                               <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-700/50 bg-zinc-950/30 transition-all hover:border-orange-500/30 hover:bg-zinc-900/50">
-                                <span className="mb-1 text-xl">📷</span>
+                                <span className="mb-1 text-xl">ðŸ“·</span>
                                 <span className="text-[9px] font-bold uppercase text-zinc-500">Agregar</span>
                                 <input
                                   type="file"
@@ -532,7 +537,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                       <li key={i.tempId} className="flex justify-between gap-2">
                         <span className="truncate font-medium">{i.partName}</span>
                         <span className="shrink-0 text-zinc-100">
-                          {i.quantityOffered || 1} × {formatCurrency(i.price || 0)} ={' '}
+                          {i.quantityOffered || 1} Ã— {formatCurrency(i.price || 0)} ={' '}
                           {formatCurrency(
                             quoteLineTotal({
                               price: i.price || 0,
@@ -574,25 +579,25 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 Cancelar
               </Button>
               <Button type="submit" loading={loading} size="lg" className="w-full md:w-auto">
-                📤 Enviar cotización
+                ðŸ“¤ Enviar cotizaciÃ³n
               </Button>
             </div>
           </form>
         )}
 
-        {/* COTIZACIÓN ENVÍADA EXISTENTE */}
+        {/* COTIZACIÃ“N ENVÃADA EXISTENTE */}
         {order.quote && (
           <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-lg shadow-black/20">
             <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/50">
               <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl drop-shadow-sm">💰</span> Cotización enviada
+                <span className="text-xl drop-shadow-sm">ðŸ’°</span> CotizaciÃ³n enviada
               </h3>
               {order.quote.sentAt && (
                 <p className="text-xs font-medium text-zinc-500 mt-1">Enviada el {formatDate(order.quote.sentAt)}</p>
               )}
               {order.quote.notes && (
                 <div className="mt-4 bg-zinc-950/40 rounded-xl p-4 border border-zinc-800/80 shadow-inner">
-                  <p className="text-sm font-medium text-zinc-400">📝 {order.quote.notes}</p>
+                  <p className="text-sm font-medium text-zinc-400">ðŸ“ {order.quote.notes}</p>
                 </div>
               )}
             </div>
@@ -632,8 +637,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                           <h4 className="text-base font-bold text-zinc-100">{item.partName}</h4>
                           <p className="text-sm font-medium text-zinc-400">{item.description}</p>
                           <p className="text-sm text-zinc-300">
-                            <span className="text-zinc-500">Total ítem: </span>
-                            {item.quantityOffered} × {formatCurrency(item.price)} ={' '}
+                            <span className="text-zinc-500">Total Ã­tem: </span>
+                            {item.quantityOffered} Ã— {formatCurrency(item.price)} ={' '}
                             <span className="font-bold text-white">
                               {formatCurrency(quoteLineTotal(item))}
                             </span>
@@ -656,17 +661,17 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                           <QualityBadge quality={item.quality} />
                           {item.approved === true && (
                             <div className="inline-block rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-400 shadow-sm">
-                              ✅ Aprobado
+                              âœ… Aprobado
                             </div>
                           )}
                           {item.approved === false && (
                             <div className="inline-block rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs font-bold text-rose-400 shadow-sm">
-                              ❌ Rechazado
+                              âŒ Rechazado
                             </div>
                           )}
                           {item.approved === null && order.status === 'cotizado' && (
                             <div className="inline-block rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-400 shadow-sm">
-                              ⏳ Pendiente
+                              â³ Pendiente
                             </div>
                           )}
                         </div>
@@ -680,14 +685,14 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         )}
         {order.quote && order.quote.items.length === 0 && (
           <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-            El vendedor no tiene stock disponible para ninguno de los ítems solicitados.
+            El vendedor no tiene stock disponible para ninguno de los Ã­tems solicitados.
           </div>
         )}
 
         {/* Historial */}
         <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
-            📜 Estado del pedido
+            ðŸ“œ Estado del pedido
           </h3>
           <OrderStatusTracker status={order.status} events={order.events} />
         </div>
@@ -695,8 +700,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
       {lightbox.node}
       <ConfirmModal
         open={showCloseModal}
-        title="¿Cerrar este pedido?"
-        description="Esta acción confirma que los repuestos aprobados fueron procesados y entregados. No se puede deshacer."
+        title="Â¿Cerrar este pedido?"
+        description="Esta acciÃ³n confirma que los repuestos aprobados fueron procesados y entregados. No se puede deshacer."
         cancelLabel="Cancelar"
         confirmLabel="Confirmar cierre"
         onCancel={() => setShowCloseModal(false)}
@@ -705,8 +710,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
       />
       <ConfirmModal
         open={showDeleteModal}
-        title="¿Eliminar este pedido?"
-        description="Esta acción eliminará el pedido y su historial asociado. No se puede deshacer."
+        title="Â¿Eliminar este pedido?"
+        description="Esta acciÃ³n eliminarÃ¡ el pedido y su historial asociado. No se puede deshacer."
         tone="danger"
         cancelLabel="Cancelar"
         confirmLabel="Eliminar pedido"

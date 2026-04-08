@@ -7,6 +7,7 @@ import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
+import { PartsAutocomplete } from '@/components/ui/PartsAutocomplete';
 import { VEHICLE_BRANDS, QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, NewOrderItemForm } from '@/lib/types';
 import { generateId } from '@/lib/utils';
@@ -24,6 +25,7 @@ type FormErrors = Partial<Record<string, string>>;
 const emptyItem = (): NewOrderItemForm => ({
   tempId: generateId(),
   partName: '',
+  codigoCatalogo: null,
   description: '',
   quality: 'media',
   quantity: 1,
@@ -82,6 +84,7 @@ export default function NuevoPedidoPage() {
         internalOrderNumber: internalOrderNumber.trim() || undefined,
         items: items.map(i => ({
           partName: i.partName,
+          codigoCatalogo: i.codigoCatalogo ?? null,
           description: i.description,
           quality: i.quality,
           quantity: i.quantity,
@@ -255,12 +258,13 @@ export default function NuevoPedidoPage() {
                   <div className="space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="md:col-span-3">
-                        <Input
+                        <PartsAutocomplete
                           label="Pieza / Repuesto solicitado"
                           required
                           value={item.partName}
-                          onChange={(e) => updateItem(item.tempId, 'partName', e.target.value)}
-                          placeholder="Ej: Paragolpe delantero, Capot, Óptica..."
+                          onChange={(val) => updateItem(item.tempId, 'partName', val)}
+                          onSelect={(codigo) => updateItem(item.tempId, 'codigoCatalogo', codigo)}
+                          vehicleModel={vehicleModel}
                           error={errors[`item_${item.tempId}_partName`]}
                         />
                       </div>

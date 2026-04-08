@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { TopBar } from '@/components/ui/Layout';
 import { Input, Textarea } from '@/components/ui/FormFields';
 import { Button } from '@/components/ui/Button';
+import { CatalogoImporter } from '@/components/ui/CatalogoImporter';
 
 export default function VendedorConfiguracionPage() {
   const { user } = useAuth();
@@ -65,46 +66,71 @@ export default function VendedorConfiguracionPage() {
   return (
     <>
       <TopBar title="Configuración" subtitle="Datos de contacto que ven los talleres" />
-      <div className="mx-auto max-w-lg p-6">
-        {loading ? (
-          <p className="text-sm text-zinc-500">Cargando…</p>
-        ) : (
-          <form onSubmit={handleSave} className="space-y-4" autoComplete="off">
-            <Input
-              label="Nombre completo"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
-            />
-            <Input label="Email" type="email" value={user?.email ?? ''} disabled readOnly />
-            <Input
-              label="Teléfono (WhatsApp para talleres)"
-              type="tel"
-              inputMode="tel"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              hint="Con código de área"
-            />
-            <Input
-              label="Nombre de la empresa"
-              value={companyName}
-              onChange={e => setCompanyName(e.target.value)}
-            />
-            <Textarea
-              label="Dirección de la empresa"
-              value={companyAddress}
-              onChange={e => setCompanyAddress(e.target.value)}
-              rows={2}
-            />
-            {msg?.type === 'ok' && (
-              <p className="text-sm font-medium text-emerald-400">{msg.text}</p>
-            )}
-            {msg?.type === 'err' && <p className="text-sm font-medium text-rose-400">{msg.text}</p>}
-            <Button type="submit" loading={saving}>
-              Guardar cambios
-            </Button>
-          </form>
-        )}
+      <div className="mx-auto max-w-2xl p-6 space-y-10">
+
+        {/* ── Perfil ────────────────────────────────────── */}
+        <section>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-4">
+            Datos de perfil
+          </h2>
+          {loading ? (
+            <p className="text-sm text-zinc-500">Cargando…</p>
+          ) : (
+            <form onSubmit={handleSave} className="space-y-4" autoComplete="off">
+              <Input
+                label="Nombre completo"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+              />
+              <Input label="Email" type="email" value={user?.email ?? ''} disabled readOnly />
+              <Input
+                label="Teléfono (WhatsApp para talleres)"
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                hint="Con código de área"
+              />
+              <Input
+                label="Nombre de la empresa"
+                value={companyName}
+                onChange={e => setCompanyName(e.target.value)}
+              />
+              <Textarea
+                label="Dirección de la empresa"
+                value={companyAddress}
+                onChange={e => setCompanyAddress(e.target.value)}
+                rows={2}
+              />
+              {msg?.type === 'ok' && (
+                <p className="text-sm font-medium text-emerald-400">{msg.text}</p>
+              )}
+              {msg?.type === 'err' && <p className="text-sm font-medium text-rose-400">{msg.text}</p>}
+              <Button type="submit" loading={saving}>
+                Guardar cambios
+              </Button>
+            </form>
+          )}
+        </section>
+
+        {/* ── Catálogo de Repuestos ─────────────────────── */}
+        <section className="border-t border-zinc-800/60 pt-8">
+          <div className="mb-5">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 mb-1">
+              Catálogo de repuestos
+            </h2>
+            <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+              Importá tu catálogo desde un archivo CSV o Excel. Los talleres lo verán como
+              sugerencias al escribir el nombre de un repuesto en el formulario de pedido.
+            </p>
+          </div>
+
+          <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-5 shadow-sm">
+            <CatalogoImporter />
+          </div>
+        </section>
+
       </div>
     </>
   );

@@ -54,6 +54,7 @@ interface DataStoreContextType {
     internalOrderNumber?: string;
     items: {
       partName: string;
+      codigoCatalogo?: string | null;
       description: string;
       quality: import("@/lib/types").OrderQuality;
       quantity: number;
@@ -280,6 +281,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         internalOrderNumber?: string;
         items: {
           partName: string;
+          codigoCatalogo?: string | null;
           description: string;
           quality: import("@/lib/types").OrderQuality;
           quantity: number;
@@ -304,6 +306,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
           internalOrderNumber: data.internalOrderNumber,
           items: data.items.map(i => ({
             partName: i.partName,
+            codigoCatalogo: i.codigoCatalogo ?? null,
             description: i.description,
             quality: i.quality,
             quantity: i.quantity,
