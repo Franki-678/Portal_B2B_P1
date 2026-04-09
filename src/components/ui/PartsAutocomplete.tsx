@@ -15,7 +15,7 @@ interface PartsAutocompleteProps {
   required?: boolean;
   value: string;
   onChange: (value: string) => void;
-  /** Llamado cuando el usuario selecciona del dropdown: (codigo, descripcion) */
+  /** Llamado cuando el usuario selecciona del dropdown o limpia: (codigo | null, descripcion) */
   onSelect: (codigo: string | null, descripcion: string) => void;
   /** Modelo del vehículo para pre-filtrar por marca */
   vehicleModel?: string;
@@ -49,10 +49,24 @@ export function PartsAutocomplete({
   const [results, setResults] = useState<CatalogoItem[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [showNoResults, setShowNoResults] = useState(false);
+  // Track si el valor actual fue confirmado desde el dropdown
+  const [isValidSelection, setIsValidSelection] = useState(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedValue = useDebounce(value, 300);
+
+  // Limpiar estado cuando el padre limpia el campo
+  useEffect(() => {
+    if (!value) {
+      setIsValidSelection(false);
+      setResults([]);
+      setOpen(false);
+      setShowNoResults(false);
+    }
+  }, [value]);
 
   // ── Búsqueda en Supabase ──────────────────────────────────
 
@@ -60,6 +74,7 @@ export function PartsAutocomplete({
     if (text.length < 3) {
       setResults([]);
       setOpen(false);
+      setShowNoResults(false);
       return;
     }
 
@@ -69,7 +84,7 @@ export function PartsAutocomplete({
       const sb = getSupabaseClient();
       const pattern = `%${text}%`;
 
-      // Búsqueda con filtro de marca si hay modelo
+      // Búsqueda con filtro de marca si hay modelo seleccionado
       if (model.trim()) {
         const { data, error: err } = await (sb as any)
           .from('catalogo_repuestos')
@@ -80,6 +95,7 @@ export function PartsAutocomplete({
 
         if (!err && data && data.length > 0) {
           setResults(data as CatalogoItem[]);
+          setShowNoResults(false);
           setOpen(true);
           return;
         }
@@ -94,13 +110,17 @@ export function PartsAutocomplete({
 
       if (!err2 && data) {
         setResults(data as CatalogoItem[]);
-        setOpen(data.length > 0);
+        const hasResults = data.length > 0;
+        setShowNoResults(!hasResults);
+        setOpen(true);
       } else {
         setResults([]);
-        setOpen(false);
+        setShowNoResults(true);
+        setOpen(true);
       }
     } catch {
       setResults([]);
+      setShowNoResults(false);
       setOpen(false);
     } finally {
       setSearching(false);
@@ -108,8 +128,11 @@ export function PartsAutocomplete({
   }, []);
 
   useEffect(() => {
-    search(debouncedValue, vehicleModel);
-  }, [debouncedValue, vehicleModel, search]);
+    // Solo buscar si el usuario está escribiendo (no es una selección ya válida)
+    if (!isValidSelection) {
+      search(debouncedValue, vehicleModel);
+    }
+  }, [debouncedValue, vehicleModel, isValidSelection, search]);
 
   // ── Cerrar al click fuera ────────────────────────────────
 
@@ -128,23 +151,36 @@ export function PartsAutocomplete({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.value;
     onChange(newVal);
-    // Si el usuario borra todo, limpiar selección
+    setIsValidSelection(false); // el usuario está editando → selección previa ya no vale
     if (!newVal) {
       onSelect(null, '');
+      setResults([]);
+      setOpen(false);
+      setShowNoResults(false);
     }
   };
 
   const handleSelect = (item: CatalogoItem) => {
     onChange(item.descripcion);
     onSelect(item.codigo, item.descripcion);
+    setIsValidSelection(true);
     setOpen(false);
     setResults([]);
+    setShowNoResults(false);
     inputRef.current?.focus();
   };
 
   const handleBlur = () => {
-    // Pequeño delay para que el click en el item se registre antes de cerrar
-    setTimeout(() => setOpen(false), 150);
+    setTimeout(() => {
+      setOpen(false);
+      // Si hay texto pero no se eligió una opción válida → limpiar
+      if (value && !isValidSelection) {
+        onChange('');
+        onSelect(null, '');
+        setResults([]);
+        setShowNoResults(false);
+      }
+    }, 160);
   };
 
   // ── Render ───────────────────────────────────────────────
@@ -167,7 +203,7 @@ export function PartsAutocomplete({
           value={value}
           onChange={handleChange}
           onBlur={handleBlur}
-          onFocus={() => results.length > 0 && setOpen(true)}
+          onFocus={() => (results.length > 0 || showNoResults) && setOpen(true)}
           placeholder={placeholder}
           autoComplete="off"
           autoCorrect="off"
@@ -182,10 +218,17 @@ export function PartsAutocomplete({
           ].join(' ')}
         />
 
-        {/* Indicador de búsqueda */}
+        {/* Spinner de búsqueda */}
         {searching && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
             <span className="inline-block w-3.5 h-3.5 border-2 border-orange-500/40 border-t-orange-500 rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Check de selección válida */}
+        {isValidSelection && !searching && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 text-sm font-bold select-none">
+            ✓
           </div>
         )}
       </div>
@@ -193,32 +236,41 @@ export function PartsAutocomplete({
       {error && <p className="text-xs font-medium text-rose-500">{error}</p>}
 
       {/* Dropdown */}
-      {open && results.length > 0 && (
+      {open && (results.length > 0 || showNoResults) && (
         <div className="absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-700/80 rounded-xl shadow-2xl shadow-black/50 overflow-hidden">
-          <ul className="max-h-64 overflow-y-auto divide-y divide-zinc-800/60">
-            {results.map((item) => (
-              <li key={item.codigo}>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()} // evita onBlur antes del click
-                  onClick={() => handleSelect(item)}
-                  className="w-full text-left px-4 py-3 hover:bg-zinc-800/80 transition-colors group"
-                >
-                  <span className="block text-[10px] font-mono text-orange-400 group-hover:text-orange-300 mb-0.5">
-                    {item.codigo}
-                  </span>
-                  <span className="block text-sm text-zinc-200 group-hover:text-white font-medium leading-tight">
-                    {item.descripcion}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="px-4 py-2 border-t border-zinc-800/60 bg-zinc-950/60">
-            <p className="text-[10px] text-zinc-600 font-medium">
-              {results.length} resultado{results.length !== 1 ? 's' : ''} · Podés editar la descripción libremente
-            </p>
-          </div>
+          {results.length > 0 ? (
+            <>
+              <ul className="max-h-64 overflow-y-auto divide-y divide-zinc-800/60">
+                {results.map((item) => (
+                  <li key={item.codigo}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleSelect(item)}
+                      className="w-full text-left px-4 py-3 hover:bg-zinc-800/80 transition-colors group"
+                    >
+                      {/* Solo descripción, sin código ni precio */}
+                      <span className="block text-sm text-zinc-200 group-hover:text-white font-medium leading-tight">
+                        {item.descripcion}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="px-4 py-2 border-t border-zinc-800/60 bg-zinc-950/60">
+                <p className="text-[10px] text-zinc-600 font-medium">
+                  {results.length} resultado{results.length !== 1 ? 's' : ''} en catálogo
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="px-4 py-3.5">
+              <p className="text-xs text-zinc-400 leading-snug">
+                No encontramos este repuesto en el catálogo.{' '}
+                <span className="text-zinc-300 font-medium">Describilo en el campo de notas.</span>
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
