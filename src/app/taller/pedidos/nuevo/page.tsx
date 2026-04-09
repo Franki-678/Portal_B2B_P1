@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
-import { Select, Textarea } from '@/components/ui/FormFields';
-import { ModelAutocomplete } from '@/components/ui/ModelAutocomplete';
+import { Input, Select, Textarea } from '@/components/ui/FormFields';
 import { PartsAutocomplete } from '@/components/ui/PartsAutocomplete';
-import { VEHICLE_BRANDS, QUALITY_OPTIONS } from '@/lib/constants';
+import { QUALITY_OPTIONS } from '@/lib/constants';
 import { NewOrderItemForm } from '@/lib/types';
 import { generateId } from '@/lib/utils';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -19,8 +18,6 @@ const YEARS = Array.from({ length: 30 }, (_, i) => ({
   value: String(CURRENT_YEAR - i),
   label: String(CURRENT_YEAR - i),
 }));
-
-const BRAND_OPTIONS = VEHICLE_BRANDS.map(b => ({ value: b, label: b }));
 
 type FormErrors = Partial<Record<string, string>>;
 
@@ -40,13 +37,42 @@ export default function NuevoPedidoPage() {
   const { createOrder } = useDataStore();
   const router = useRouter();
 
+  // ── Marcas dinámicas desde Supabase ───────────────────────
+  const [brandOptions, setBrandOptions] = useState<{ value: string; label: string }[]>([]);
+  const [brandsLoading, setBrandsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadBrands = async () => {
+      setBrandsLoading(true);
+      try {
+        const sb = getSupabaseClient();
+        const { data, error } = await (sb as any)
+          .from('catalogo_repuestos')
+          .select('marca')
+          .not('marca', 'is', null)
+          .neq('marca', '')
+          .order('marca', { ascending: true })
+          .limit(500);
+
+        if (!error && data) {
+          const unique = [
+            ...new Set((data as { marca: string }[]).map(r => r.marca).filter(Boolean)),
+          ].sort();
+          setBrandOptions(unique.map(m => ({ value: m, label: m })));
+        }
+      } catch {
+        setBrandOptions([]);
+      } finally {
+        setBrandsLoading(false);
+      }
+    };
+    loadBrands();
+  }, []);
+
   // ── Estado del vehículo ───────────────────────────────────
   const [vehicleBrand, setVehicleBrand] = useState('');
-  // Modelo: sólo el valor confirmado desde el dropdown (ModelAutocomplete gestiona el texto internamente)
-  const [vehicleModelSelected, setVehicleModelSelected] = useState('');
-  // Versión: opcional, sólo el valor confirmado desde el dropdown
-  const [vehicleVersionSelected, setVehicleVersionSelected] = useState('');
-
+  const [vehicleModel, setVehicleModel] = useState('');    // texto libre
+  const [vehicleVersion, setVehicleVersion] = useState(''); // texto libre, opcional
   const [vehicleYear, setVehicleYear] = useState(String(CURRENT_YEAR));
   const [internalOrderNumber, setInternalOrderNumber] = useState('');
   const [items, setItems] = useState<NewOrderItemForm[]>([emptyItem()]);
@@ -56,73 +82,21 @@ export default function NuevoPedidoPage() {
   const [success, setSuccess] = useState(false);
   const [showSlowMessage, setShowSlowMessage] = useState(false);
 
-  // ── Consultas Supabase para autocompletados ───────────────
-
-  const fetchModels = useCallback(async (text: string): Promise<string[]> => {
-    try {
-      const sb = getSupabaseClient();
-      const { data, error } = await (sb as any)
-        .from('catalogo_repuestos')
-        .select('marca')
-        .ilike('marca', `%${text}%`)
-        .limit(50); // traemos más para deduplicar
-      if (error || !data) return [];
-      const unique = [...new Set((data as { marca: string }[]).map(r => r.marca).filter(Boolean))];
-      return unique.slice(0, 10);
-    } catch {
-      return [];
-    }
-  }, []);
-
-  const fetchVersions = useCallback(
-    async (text: string): Promise<string[]> => {
-      if (!vehicleModelSelected) return [];
-      try {
-        const sb = getSupabaseClient();
-        const { data, error } = await (sb as any)
-          .from('catalogo_repuestos')
-          .select('anios')
-          .eq('marca', vehicleModelSelected)
-          .ilike('anios', `%${text}%`)
-          .limit(50);
-        if (error || !data) return [];
-        const unique = [...new Set((data as { anios: string }[]).map(r => r.anios).filter(Boolean))];
-        return unique.slice(0, 10);
-      } catch {
-        return [];
-      }
-    },
-    [vehicleModelSelected]
-  );
-
   // ── Validación ────────────────────────────────────────────
 
   const validate = (): boolean => {
     const errs: FormErrors = {};
 
+    // Solo Marca es obligatoria
     if (!vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
 
-    // Modelo: requiere selección válida del dropdown
-    if (!vehicleModelSelected) {
-      errs.vehicleModel = 'Ingresá y elegí el modelo de la lista';
-    }
-
-    if (!vehicleYear) errs.vehicleYear = 'Seleccioná el año';
-
+    // Al menos un repuesto con algún texto
     items.forEach((item) => {
       const hasPartName = !!item.partName.trim();
-      const hasCode = !!item.codigoCatalogo;
       const hasNote = !!item.description.trim();
 
-      // Texto libre sin selección del catálogo
-      if (hasPartName && !hasCode) {
-        errs[`item_${item.tempId}_partName`] =
-          'Elegí un repuesto del catálogo o dejá el campo vacío y describilo en la nota';
-      }
-      // Sin repuesto Y sin nota
       if (!hasPartName && !hasNote) {
-        errs[`item_${item.tempId}_partName`] =
-          'Describí el repuesto o agregá una nota';
+        errs[`item_${item.tempId}_partName`] = 'Ingresá el repuesto o describilo en la nota';
       }
       if (item.quantity < 1) errs[`item_${item.tempId}_quantity`] = 'Mínimo 1';
     });
@@ -144,8 +118,8 @@ export default function NuevoPedidoPage() {
       const newOrder = await createOrder({
         workshopId: user?.workshopId || '',
         vehicleBrand,
-        vehicleModel: vehicleModelSelected,
-        vehicleVersion: vehicleVersionSelected,
+        vehicleModel,
+        vehicleVersion,
         vehicleYear: parseInt(vehicleYear),
         internalOrderNumber: internalOrderNumber.trim() || undefined,
         items: items.map(i => ({
@@ -222,8 +196,8 @@ export default function NuevoPedidoPage() {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="text-center">
-          <div className="text-5xl mb-4">✅</div>
-          <h2 className="text-xl font-bold text-white mb-2">¡Pedido enviado!</h2>
+          <div className="text-5xl mb-4">&#x2705;</div>
+          <h2 className="text-xl font-bold text-white mb-2">&#x00a1;Pedido enviado!</h2>
           <p className="text-sm text-slate-400">Redirigiendo al detalle...</p>
         </div>
       </div>
@@ -237,7 +211,7 @@ export default function NuevoPedidoPage() {
         subtitle="Completá los datos del repuesto que necesitás"
         action={
           <Button variant="ghost" type="button" onClick={() => router.back()}>
-            ← Volver
+            &#x2190; Volver
           </Button>
         }
       />
@@ -249,59 +223,41 @@ export default function NuevoPedidoPage() {
             {/* ── Sección 1: Datos del vehículo ── */}
             <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
               <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl">🚗</span> Datos del vehículo
+                <span className="text-xl">&#x1F697;</span> Datos del vehículo
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-                {/* Marca — lista desplegable, sin cambios */}
+                {/* Marca — lista desplegable dinámica desde Supabase */}
                 <Select
                   label="Marca"
                   required
                   value={vehicleBrand}
-                  onChange={(e) => setVehicleBrand(e.target.value)}
-                  options={BRAND_OPTIONS}
-                  placeholder="Seleccioná marca..."
+                  onChange={(e) => {
+                    setVehicleBrand(e.target.value);
+                    setErrors(prev => ({ ...prev, vehicleBrand: undefined }));
+                  }}
+                  options={brandOptions}
+                  placeholder={brandsLoading ? 'Cargando marcas...' : 'Seleccioná marca...'}
                   error={errors.vehicleBrand}
                 />
 
-                {/* Modelo — autocompletado obligatorio desde catalogo_repuestos.marca */}
-                <ModelAutocomplete
+                {/* Modelo — texto libre */}
+                <Input
                   label="Modelo"
-                  required
-                  value={vehicleModelSelected}
-                  onSelect={(val) => {
-                    setVehicleModelSelected(val);
-                    // Al cambiar modelo, limpiar la versión elegida
-                    setVehicleVersionSelected('');
-                    setErrors(prev => ({ ...prev, vehicleModel: undefined }));
-                  }}
-                  onClear={() => {
-                    setVehicleModelSelected('');
-                    setVehicleVersionSelected('');
-                  }}
-                  fetchOptions={fetchModels}
-                  placeholder="Ej: FIESTA, RANGER, CORSA..."
-                  noResultsMessage="No encontrado. Podés describirlo en el campo de notas del repuesto."
-                  error={errors.vehicleModel}
+                  value={vehicleModel}
+                  onChange={(e) => setVehicleModel(e.target.value)}
+                  placeholder="Ej: Ranger, Fiesta, Corsa..."
                 />
 
-                {/* Versión — autocompletado opcional, habilitado solo tras elegir modelo */}
-                <ModelAutocomplete
+                {/* Versión — texto libre, opcional */}
+                <Input
                   label="Versión (opcional)"
-                  value={vehicleVersionSelected}
-                  onSelect={(val) => {
-                    setVehicleVersionSelected(val);
-                  }}
-                  onClear={() => {
-                    setVehicleVersionSelected('');
-                  }}
-                  disabled={!vehicleModelSelected}
-                  fetchOptions={fetchVersions}
-                  placeholder="Ej: 02/07, XL, Sport..."
-                  noResultsMessage="No encontrado. Podés dejarlo vacío."
+                  value={vehicleVersion}
+                  onChange={(e) => setVehicleVersion(e.target.value)}
+                  placeholder="Ej: XL 4x4, Sport, TDI..."
                 />
 
-                {/* Año — lista desplegable, sin cambios */}
+                {/* Año — lista desplegable */}
                 <Select
                   label="Año"
                   required
@@ -311,20 +267,14 @@ export default function NuevoPedidoPage() {
                   error={errors.vehicleYear}
                 />
 
-                {/* Número de orden interno — texto libre, sin cambios */}
-                <div className="space-y-1.5 w-full">
-                  <label className="block text-xs font-semibold text-zinc-300 tracking-wide">
-                    N° Orden Interna (Opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={internalOrderNumber}
-                    onChange={(e) => setInternalOrderNumber(e.target.value)}
-                    placeholder="Secreto, interno para tu taller"
-                    autoComplete="off"
-                    className="w-full px-4 py-2.5 bg-zinc-950/50 border border-zinc-800 hover:border-zinc-700 rounded-xl text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-200 shadow-sm"
-                  />
-                </div>
+                {/* Número de orden interno */}
+                <Input
+                  label="N° Orden Interna (Opcional)"
+                  value={internalOrderNumber}
+                  onChange={(e) => setInternalOrderNumber(e.target.value)}
+                  placeholder="Secreto, interno para tu taller"
+                />
+
               </div>
             </div>
 
@@ -345,7 +295,7 @@ export default function NuevoPedidoPage() {
                         onClick={() => removeItem(item.tempId)}
                         className="text-xs font-semibold text-rose-500 hover:text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-lg hover:bg-rose-500/20 transition-colors"
                       >
-                        🗑️ Eliminar
+                        Eliminar
                       </button>
                     )}
                   </div>
@@ -353,17 +303,22 @@ export default function NuevoPedidoPage() {
                   <div className="space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="md:col-span-3">
-                        {/* Repuesto — autocompletado con selección obligatoria del catálogo */}
+                        {/* Repuesto — autocompletado flexible desde el catálogo */}
                         <PartsAutocomplete
                           label="Pieza / Repuesto solicitado"
                           required
                           value={item.partName}
-                          onChange={(val) => updateItem(item.tempId, 'partName', val)}
+                          onChange={(val) => {
+                            updateItem(item.tempId, 'partName', val);
+                            // Si se limpia el texto, limpiar también el código
+                            if (!val) updateItem(item.tempId, 'codigoCatalogo', null);
+                          }}
                           onSelect={(codigo, descripcion) => {
                             updateItem(item.tempId, 'partName', descripcion);
                             updateItem(item.tempId, 'codigoCatalogo', codigo);
                           }}
-                          vehicleModel={vehicleModelSelected}
+                          vehicleBrand={vehicleBrand}
+                          vehicleModel={vehicleModel}
                           error={errors[`item_${item.tempId}_partName`]}
                         />
                       </div>
@@ -396,13 +351,13 @@ export default function NuevoPedidoPage() {
                       </div>
                     </div>
 
-                    {/* Nota / descripción — opcional, pero usada como fallback cuando no hay repuesto del catálogo */}
+                    {/* Notas — fallback cuando no se encuentra en catálogo */}
                     <Textarea
                       label="Notas (opcional)"
                       value={item.description}
                       onChange={(e) => {
                         updateItem(item.tempId, 'description', e.target.value);
-                        // Si el usuario agrega una nota, limpiar error de partName vacío
+                        // Si agrega nota, limpiar error de campo vacío
                         if (e.target.value.trim()) {
                           setErrors(prev => {
                             const next = { ...prev };
@@ -411,7 +366,7 @@ export default function NuevoPedidoPage() {
                           });
                         }
                       }}
-                      placeholder="Si no encontrás el repuesto en el catálogo, describilo aquí. También podés agregar especificaciones de calidad, estado, etc."
+                      placeholder="Si no encontrás el repuesto en el catálogo, describilo aquí. También podés agregar especificaciones, estado, compatibilidades, etc."
                       rows={2}
                     />
 
@@ -457,13 +412,13 @@ export default function NuevoPedidoPage() {
                               onClick={() => removeImage(item.tempId, i)}
                               className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold opacity-0 group-hover/img:opacity-100 transition-opacity shadow-lg"
                             >
-                              ✕
+                              &#x2715;
                             </button>
                           </div>
                         ))}
                         {item.images.length < 2 && (
                           <label className="w-24 h-24 flex flex-col items-center justify-center border-2 border-dashed border-zinc-700/50 rounded-xl bg-zinc-950/30 hover:bg-zinc-900/50 hover:border-sky-500/30 transition-all cursor-pointer">
-                            <span className="text-2xl text-zinc-500 mb-1">📷</span>
+                            <span className="text-2xl text-zinc-500 mb-1">&#x1F4F7;</span>
                             <span className="text-[10px] uppercase font-bold text-zinc-500">Subir foto</span>
                             <input
                               type="file"
@@ -484,7 +439,7 @@ export default function NuevoPedidoPage() {
 
             <div className="flex justify-center border-t border-zinc-800/80 pt-6">
               <Button type="button" variant="secondary" onClick={addItem}>
-                ➕ Agregar otro repuesto
+                + Agregar otro repuesto
               </Button>
             </div>
 
@@ -499,7 +454,7 @@ export default function NuevoPedidoPage() {
                 Cancelar
               </Button>
               <Button type="submit" loading={loading} size="lg">
-                🚀 Enviar pedido
+                Enviar pedido
               </Button>
             </div>
           </form>

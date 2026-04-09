@@ -15,9 +15,11 @@ interface PartsAutocompleteProps {
   required?: boolean;
   value: string;
   onChange: (value: string) => void;
-  /** Llamado cuando el usuario selecciona del dropdown o limpia: (codigo | null, descripcion) */
+  /** Llamado cuando el usuario selecciona del dropdown: (codigo | null, descripcion) */
   onSelect: (codigo: string | null, descripcion: string) => void;
-  /** Modelo del vehículo para pre-filtrar por marca */
+  /** Marca seleccionada (del dropdown de marca) */
+  vehicleBrand?: string;
+  /** Modelo escrito por el taller (texto libre) */
   vehicleModel?: string;
   error?: string;
   placeholder?: string;
@@ -42,6 +44,7 @@ export function PartsAutocomplete({
   value,
   onChange,
   onSelect,
+  vehicleBrand = '',
   vehicleModel = '',
   error,
   placeholder = 'Ej: Paragolpe delantero, Capot, Óptica…',
@@ -50,27 +53,15 @@ export function PartsAutocomplete({
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
   const [showNoResults, setShowNoResults] = useState(false);
-  // Track si el valor actual fue confirmado desde el dropdown
-  const [isValidSelection, setIsValidSelection] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const debouncedValue = useDebounce(value, 300);
+  const debouncedValue = useDebounce(value, 350);
 
-  // Limpiar estado cuando el padre limpia el campo
-  useEffect(() => {
-    if (!value) {
-      setIsValidSelection(false);
-      setResults([]);
-      setOpen(false);
-      setShowNoResults(false);
-    }
-  }, [value]);
+  // ── Búsqueda en cascada ──────────────────────────────────
 
-  // ── Búsqueda en Supabase ──────────────────────────────────
-
-  const search = useCallback(async (text: string, model: string) => {
+  const search = useCallback(async (text: string, brand: string, model: string) => {
     if (text.length < 3) {
       setResults([]);
       setOpen(false);
@@ -84,13 +75,14 @@ export function PartsAutocomplete({
       const sb = getSupabaseClient();
       const pattern = `%${text}%`;
 
-      // Búsqueda con filtro de marca si hay modelo seleccionado
-      if (model.trim()) {
+      // Intento 1: filtro por marca Y modelo
+      if (brand.trim() && model.trim()) {
         const { data, error: err } = await (sb as any)
           .from('catalogo_repuestos')
           .select('codigo, descripcion')
+          .eq('marca', brand.trim())
+          .ilike('descripcion', `%${model.trim()}%`)
           .ilike('descripcion', pattern)
-          .ilike('marca', `%${model.trim()}%`)
           .limit(8);
 
         if (!err && data && data.length > 0) {
@@ -101,14 +93,31 @@ export function PartsAutocomplete({
         }
       }
 
-      // Fallback: catálogo completo
-      const { data, error: err2 } = await (sb as any)
+      // Intento 2: filtro solo por marca
+      if (brand.trim()) {
+        const { data, error: err } = await (sb as any)
+          .from('catalogo_repuestos')
+          .select('codigo, descripcion')
+          .eq('marca', brand.trim())
+          .ilike('descripcion', pattern)
+          .limit(8);
+
+        if (!err && data && data.length > 0) {
+          setResults(data as CatalogoItem[]);
+          setShowNoResults(false);
+          setOpen(true);
+          return;
+        }
+      }
+
+      // Intento 3: catálogo completo
+      const { data, error: err3 } = await (sb as any)
         .from('catalogo_repuestos')
         .select('codigo, descripcion')
         .ilike('descripcion', pattern)
         .limit(8);
 
-      if (!err2 && data) {
+      if (!err3 && data) {
         setResults(data as CatalogoItem[]);
         const hasResults = data.length > 0;
         setShowNoResults(!hasResults);
@@ -128,11 +137,8 @@ export function PartsAutocomplete({
   }, []);
 
   useEffect(() => {
-    // Solo buscar si el usuario está escribiendo (no es una selección ya válida)
-    if (!isValidSelection) {
-      search(debouncedValue, vehicleModel);
-    }
-  }, [debouncedValue, vehicleModel, isValidSelection, search]);
+    search(debouncedValue, vehicleBrand, vehicleModel);
+  }, [debouncedValue, vehicleBrand, vehicleModel, search]);
 
   // ── Cerrar al click fuera ────────────────────────────────
 
@@ -151,19 +157,15 @@ export function PartsAutocomplete({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVal = e.target.value;
     onChange(newVal);
-    setIsValidSelection(false); // el usuario está editando → selección previa ya no vale
+    // Al editar texto libre, limpiar el código asociado
     if (!newVal) {
       onSelect(null, '');
-      setResults([]);
-      setOpen(false);
-      setShowNoResults(false);
     }
   };
 
   const handleSelect = (item: CatalogoItem) => {
     onChange(item.descripcion);
     onSelect(item.codigo, item.descripcion);
-    setIsValidSelection(true);
     setOpen(false);
     setResults([]);
     setShowNoResults(false);
@@ -171,16 +173,8 @@ export function PartsAutocomplete({
   };
 
   const handleBlur = () => {
-    setTimeout(() => {
-      setOpen(false);
-      // Si hay texto pero no se eligió una opción válida → limpiar
-      if (value && !isValidSelection) {
-        onChange('');
-        onSelect(null, '');
-        setResults([]);
-        setShowNoResults(false);
-      }
-    }, 160);
+    // Pequeño delay para que el click en el item se registre antes de cerrar
+    setTimeout(() => setOpen(false), 160);
   };
 
   // ── Render ───────────────────────────────────────────────
@@ -224,13 +218,6 @@ export function PartsAutocomplete({
             <span className="inline-block w-3.5 h-3.5 border-2 border-orange-500/40 border-t-orange-500 rounded-full animate-spin" />
           </div>
         )}
-
-        {/* Check de selección válida */}
-        {isValidSelection && !searching && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400 text-sm font-bold select-none">
-            ✓
-          </div>
-        )}
       </div>
 
       {error && <p className="text-xs font-medium text-rose-500">{error}</p>}
@@ -249,7 +236,7 @@ export function PartsAutocomplete({
                       onClick={() => handleSelect(item)}
                       className="w-full text-left px-4 py-3 hover:bg-zinc-800/80 transition-colors group"
                     >
-                      {/* Solo descripción, sin código ni precio */}
+                      {/* Solo descripción, sin código */}
                       <span className="block text-sm text-zinc-200 group-hover:text-white font-medium leading-tight">
                         {item.descripcion}
                       </span>
@@ -267,7 +254,9 @@ export function PartsAutocomplete({
             <div className="px-4 py-3.5">
               <p className="text-xs text-zinc-400 leading-snug">
                 No encontramos este repuesto en el catálogo.{' '}
-                <span className="text-zinc-300 font-medium">Describilo en el campo de notas.</span>
+                <span className="text-zinc-300 font-medium">
+                  Podés describirlo igual y el vendedor lo buscará.
+                </span>
               </p>
             </div>
           )}
