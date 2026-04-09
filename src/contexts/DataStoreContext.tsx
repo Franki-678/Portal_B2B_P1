@@ -221,9 +221,10 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
+    // 5 minutos entre polls — reduce egress de Supabase
     const interval = setInterval(() => {
       void refreshData({ silent: true });
-    }, 30_000);
+    }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [user, refreshData]);
 

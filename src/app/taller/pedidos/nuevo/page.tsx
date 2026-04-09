@@ -46,13 +46,15 @@ export default function NuevoPedidoPage() {
       setBrandsLoading(true);
       try {
         const sb = getSupabaseClient();
-        // Sin .limit() para traer todas las filas y deduplicar correctamente.
-        // Solo se selecciona la columna "marca" (liviano), luego se deduplicaa client-side.
+        // Traemos solo la columna 'marca' (muy liviana) con un límite de seguridad.
+        // El ORDER BY en Supabase es más eficiente que sort client-side en datasets grandes.
         const { data, error } = await (sb as any)
           .from('catalogo_repuestos')
           .select('marca')
           .not('marca', 'is', null)
-          .neq('marca', '');
+          .neq('marca', '')
+          .order('marca', { ascending: true })
+          .limit(5000);
 
         if (!error && data) {
           const unique = [

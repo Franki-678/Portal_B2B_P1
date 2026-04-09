@@ -37,7 +37,10 @@ async function fileToBase64(file: File): Promise<string> {
 // ============================================================
 
 export async function fetchAllWorkshops(sb: SupabaseClientType): Promise<any[]> {
-  const { data, error } = await (sb as any).from('workshops').select('*').order('name', { ascending: true });
+  const { data, error } = await (sb as any)
+    .from('workshops')
+    .select('id, name, address, phone, contact_name, email, taller_number, created_at')
+    .order('name', { ascending: true });
   if (error) {
     console.error('[Supabase] Error fetching workshops:', error.message);
     throw new Error(error.message);
@@ -49,7 +52,7 @@ export async function fetchAllWorkshops(sb: SupabaseClientType): Promise<any[]> 
 export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   const { data: rows, error } = await (sb as any)
     .from('orders')
-    .select('*')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, status, created_at, updated_at')
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -64,11 +67,11 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
 
   const [workshopsRes, itemsRes, quotesRes, eventsRes] = await Promise.all([
     workshopIds.length > 0
-      ? (sb as any).from('workshops').select('*').in('id', workshopIds)
+      ? (sb as any).from('workshops').select('id, name, address, phone, contact_name, email, taller_number, created_at').in('id', workshopIds)
       : Promise.resolve({ data: [] }),
-    (sb as any).from('order_items').select('*').in('order_id', orderIds),
-    (sb as any).from('quotes').select('*').in('order_id', orderIds),
-    (sb as any).from('order_events').select('*').in('order_id', orderIds).order('created_at', { ascending: true }),
+    (sb as any).from('order_items').select('id, order_id, part_name, description, quality, quantity, codigo_catalogo, created_at').in('order_id', orderIds),
+    (sb as any).from('quotes').select('id, order_id, vendor_id, notes, status, sent_at, created_at').in('order_id', orderIds),
+    (sb as any).from('order_events').select('id, order_id, user_id, action, comment, created_at').in('order_id', orderIds).order('created_at', { ascending: true }),
   ]);
 
   const workshops: any[] = workshopsRes.data ?? [];
@@ -79,7 +82,7 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   if (itemIds.length > 0) {
     const { data: imgRows, error: imgErr } = await (sb as any)
       .from('order_images')
-      .select('*')
+      .select('id, order_item_id, url, storage_path, created_at')
       .in('order_item_id', itemIds);
     if (imgErr) {
       console.error('[Supabase] Error fetching order_images:', imgErr.message);
@@ -95,7 +98,7 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   if (quoteIds.length > 0) {
     const { data: qiRows, error: qiErr } = await (sb as any)
       .from('quote_items')
-      .select('*')
+      .select('id, quote_id, order_item_id, part_name, description, quality, manufacturer, supplier, price, quantity_offered, image_url, notes, approved, created_at')
       .in('quote_id', quoteIds);
     if (qiErr) {
       console.error('[Supabase] Error fetching quote_items:', qiErr.message);
@@ -109,7 +112,7 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   if (quoteItemIds.length > 0) {
     const { data: qiiRows, error: qiiErr } = await (sb as any)
       .from('quote_item_images')
-      .select('*')
+      .select('id, quote_item_id, url, storage_path, created_at')
       .in('quote_item_id', quoteItemIds);
     if (qiiErr) {
       console.warn('[Supabase] quote_item_images (¿migración pendiente?):', qiiErr.message);
