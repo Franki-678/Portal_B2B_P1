@@ -46,13 +46,13 @@ export default function NuevoPedidoPage() {
       setBrandsLoading(true);
       try {
         const sb = getSupabaseClient();
+        // Sin .limit() para traer todas las filas y deduplicar correctamente.
+        // Solo se selecciona la columna "marca" (liviano), luego se deduplicaa client-side.
         const { data, error } = await (sb as any)
           .from('catalogo_repuestos')
           .select('marca')
           .not('marca', 'is', null)
-          .neq('marca', '')
-          .order('marca', { ascending: true })
-          .limit(500);
+          .neq('marca', '');
 
         if (!error && data) {
           const unique = [
