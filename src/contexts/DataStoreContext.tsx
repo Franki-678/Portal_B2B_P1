@@ -210,7 +210,10 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     if (!usingSupabase) return;
     if (authLoading || !user) return;
     setIsLoadingOrders(true);
-    void refreshData();
+    // Primer carga al autenticarse. Si falla, reintenta una sola vez tras 3 segundos.
+    void refreshData().catch(() => {
+      setTimeout(() => void refreshData({ silent: true }), 3_000);
+    });
   }, [usingSupabase, user, authLoading, refreshData]);
 
   useEffect(() => {

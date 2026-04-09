@@ -46,8 +46,21 @@ export default function NuevoPedidoPage() {
       setBrandsLoading(true);
       try {
         const sb = getSupabaseClient();
-        // Traemos solo la columna 'marca' (muy liviana) con un límite de seguridad.
-        // El ORDER BY en Supabase es más eficiente que sort client-side en datasets grandes.
+
+        // Intento 1: RPC get_distinct_marcas() — hace DISTINCT en el servidor, ~30 filas.
+        // Ejecutar primero el SQL en Supabase para crear esta función.
+        const { data: rpcData, error: rpcError } = await (sb as any).rpc('get_distinct_marcas');
+
+        if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+          const brands = (rpcData as { marca: string }[])
+            .map(r => r.marca)
+            .filter(Boolean);
+          setBrandOptions(brands.map(m => ({ value: m, label: m })));
+          return;
+        }
+
+        // Fallback: query directa sobre la columna marca (si la función RPC no existe aún).
+        // El ORDER se hace en Supabase y el LIMIT 5000 evita queries sin límite.
         const { data, error } = await (sb as any)
           .from('catalogo_repuestos')
           .select('marca')

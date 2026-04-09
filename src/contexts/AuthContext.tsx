@@ -14,14 +14,15 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { User, UserRole } from '@/lib/types';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 
-const HYDRATE_QUERY_MS = 5_000;
-const PROFILE_ATTEMPTS = 3;
-const HYDRATE_RETRY_MS = 200;
-const REGISTER_FETCH_MS = 8_000;
-const LOGIN_SIGNIN_MS = 8_000;
+const HYDRATE_QUERY_MS = 10_000;   // subido de 5s → 10s (latencia AR→US-East-2)
+const PROFILE_ATTEMPTS = 2;         // reducido de 3 → 2 (fallar rápido y reintentar login)
+const HYDRATE_RETRY_MS = 300;
+const REGISTER_FETCH_MS = 20_000;   // registrar taller: más tiempo
+const LOGIN_SIGNIN_MS = 20_000;     // subido de 8s → 20s
 const USER_CACHE_KEY = 'portalb2b_user_cache_v1';
 
-const TIMEOUT_MESSAGE = 'La operación tardó demasiado. Verificá tu conexión.';
+const TIMEOUT_MESSAGE =
+  'No se pudo conectar. La base de datos puede estar tardando. Intentá de nuevo en unos segundos.';
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
