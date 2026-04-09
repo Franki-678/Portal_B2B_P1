@@ -56,12 +56,15 @@ export function PartsAutocomplete({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isSelectingRef = useRef(false);
 
   const debouncedValue = useDebounce(value, 350);
 
   // ── Búsqueda en cascada ──────────────────────────────────
 
   const search = useCallback(async (text: string, brand: string, model: string) => {
+    if (isSelectingRef.current) return;
+
     if (text.length < 3) {
       setResults([]);
       setOpen(false);
@@ -155,6 +158,7 @@ export function PartsAutocomplete({
   // ── Handlers ─────────────────────────────────────────────
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isSelectingRef.current) return;
     const newVal = e.target.value;
     onChange(newVal);
     // Al editar texto libre, limpiar el código asociado
@@ -164,12 +168,18 @@ export function PartsAutocomplete({
   };
 
   const handleSelect = (item: CatalogoItem) => {
+    isSelectingRef.current = true;
     onChange(item.descripcion);
     onSelect(item.codigo, item.descripcion);
     setOpen(false);
     setResults([]);
     setShowNoResults(false);
     inputRef.current?.focus();
+
+    // Bloquear búsquedas subsecuentes por más tiempo que el debounce (350ms)
+    setTimeout(() => {
+      isSelectingRef.current = false;
+    }, 500);
   };
 
   const handleBlur = () => {
