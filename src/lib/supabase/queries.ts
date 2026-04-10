@@ -60,18 +60,26 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
     console.error('[Supabase] Error fetching orders:', error.message);
     throw new Error(error.message);
   }
-  if (!rows || rows.length === 0) return [];
+  if (!rows || rows.length === 0) {
+    return [];
+  }
 
   const orderIds = rows.map((r: any) => r.id);
   const workshopIds = [...new Set(rows.map((r: any) => r.workshop_id).filter(Boolean))];
 
   const [workshopsRes, itemsRes, quotesRes, eventsRes] = await Promise.all([
-    workshopIds.length > 0
-      ? (sb as any).from('workshops').select('id, name, address, phone, contact_name, email, taller_number, created_at').in('id', workshopIds)
-      : Promise.resolve({ data: [] }),
-    (sb as any).from('order_items').select('id, order_id, part_name, description, quality, quantity, codigo_catalogo, created_at').in('order_id', orderIds),
-    (sb as any).from('quotes').select('id, order_id, vendor_id, notes, status, sent_at, created_at').in('order_id', orderIds),
-    (sb as any).from('order_events').select('id, order_id, user_id, action, comment, created_at').in('order_id', orderIds).order('created_at', { ascending: true }),
+    !workshopIds || workshopIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : (sb as any).from('workshops').select('id, name, address, phone, contact_name, email, taller_number, created_at').in('id', workshopIds),
+    !orderIds || orderIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : (sb as any).from('order_items').select('id, order_id, part_name, description, quality, quantity, codigo_catalogo, created_at').in('order_id', orderIds),
+    !orderIds || orderIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : (sb as any).from('quotes').select('id, order_id, vendor_id, notes, status, sent_at, created_at').in('order_id', orderIds),
+    !orderIds || orderIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : (sb as any).from('order_events').select('id, order_id, user_id, action, comment, created_at').in('order_id', orderIds).order('created_at', { ascending: true }),
   ]);
 
   const workshops: any[] = workshopsRes.data ?? [];
@@ -79,7 +87,9 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   const itemIds = orderItems.map((i: any) => i.id);
 
   let orderImages: any[] = [];
-  if (itemIds.length > 0) {
+  if (!itemIds || itemIds.length === 0) {
+    // skip query
+  } else {
     const { data: imgRows, error: imgErr } = await (sb as any)
       .from('order_images')
       .select('id, order_item_id, url, storage_path, created_at')
@@ -95,7 +105,9 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
 
   const quoteIds = quotes.map((q: any) => q.id);
   let allItems: any[] = [];
-  if (quoteIds.length > 0) {
+  if (!quoteIds || quoteIds.length === 0) {
+    // skip query
+  } else {
     const { data: qiRows, error: qiErr } = await (sb as any)
       .from('quote_items')
       .select('id, quote_id, order_item_id, part_name, description, quality, manufacturer, supplier, price, quantity_offered, image_url, notes, approved, created_at')
@@ -109,7 +121,9 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
 
   const quoteItemIds = allItems.map((i: any) => i.id);
   let quoteItemImages: any[] = [];
-  if (quoteItemIds.length > 0) {
+  if (!quoteItemIds || quoteItemIds.length === 0) {
+    // skip query
+  } else {
     const { data: qiiRows, error: qiiErr } = await (sb as any)
       .from('quote_item_images')
       .select('id, quote_item_id, url, storage_path, created_at')
@@ -129,13 +143,15 @@ export async function fetchAllOrders(sb: SupabaseClientType): Promise<Order[]> {
   }
 
   // Resolver nombres de usuario
-  const uniqueUserIds = [...new Set(allEvents.map((e: any) => e.user_id))] as string[];
+  const uniqueUserIds = [...new Set(allEvents.map((e: any) => e.user_id).filter(Boolean))] as string[];
   const userNames: Record<string, string> = {};
-  await Promise.all(
-    uniqueUserIds.map(async (uid) => {
-      userNames[uid] = await resolveUserName(sb, uid);
-    })
-  );
+  if (uniqueUserIds && uniqueUserIds.length > 0) {
+    await Promise.all(
+      uniqueUserIds.map(async (uid) => {
+        userNames[uid] = await resolveUserName(sb, uid);
+      })
+    );
+  }
 
   return rows.map((row: any) => {
     const workshop = workshops.find((w: any) => w.id === row.workshop_id);
@@ -428,12 +444,12 @@ export async function updateQuoteItemsApproval(
   rejectedIds: string[]
 ): Promise<boolean> {
   const results = await Promise.all([
-    approvedIds.length > 0
-      ? (sb as any).from('quote_items').update({ approved: true }).in('id', approvedIds)
-      : Promise.resolve({ error: null }),
-    rejectedIds.length > 0
-      ? (sb as any).from('quote_items').update({ approved: false }).in('id', rejectedIds)
-      : Promise.resolve({ error: null }),
+    !approvedIds || approvedIds.length === 0
+      ? Promise.resolve({ error: null })
+      : (sb as any).from('quote_items').update({ approved: true }).in('id', approvedIds),
+    !rejectedIds || rejectedIds.length === 0
+      ? Promise.resolve({ error: null })
+      : (sb as any).from('quote_items').update({ approved: false }).in('id', rejectedIds),
   ]);
   return results.every((r: any) => !r.error);
 }

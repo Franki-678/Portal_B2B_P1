@@ -163,15 +163,19 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const ordersPromise = fetchAllOrders(sb);
-        const workshopsPromise = workshopsStale
-          ? fetchAllWorkshops(sb).then(data => {
+        const ordersData = await fetchAllOrders(sb);
+        if (!ordersData || ordersData.length === 0) {
+          setOrders([]);
+          return; // No hacer más queries
+        }
+
+        const workshopsData = workshopsStale
+          ? await fetchAllWorkshops(sb).then(data => {
               lastWorkshopsFetchRef.current = Date.now();
               return data;
             })
-          : Promise.resolve(workshopsRef.current);
+          : workshopsRef.current;
 
-        const [ordersData, workshopsData] = await Promise.all([ordersPromise, workshopsPromise]);
         setOrders(ordersData);
         if (workshopsStale) {
           setWorkshops(workshopsData);
