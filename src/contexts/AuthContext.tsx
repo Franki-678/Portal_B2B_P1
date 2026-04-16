@@ -90,7 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     for (let i = 0; i < PROFILE_ATTEMPTS; i++) {
       try {
         const result = (await withHydrateTimeout(
-          supabase.from('profiles').select('name, role, workshop_id').eq('id', userId).maybeSingle()
+          supabase
+            .from('profiles')
+            .select('name, role, workshop_id, assigned_workshops')
+            .eq('id', userId)
+            .maybeSingle()
         )) as { data: unknown; error: unknown };
 
         const { data, error } = result;
@@ -103,7 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return null;
         }
 
-        const row = data as { name: string; role: UserRole; workshop_id: string | null };
+        const row = data as {
+          name: string;
+          role: UserRole;
+          workshop_id: string | null;
+          assigned_workshops: string[] | null;
+        };
         let workshopName: string | undefined;
         if (row.workshop_id) {
           const wsRes = (await withHydrateTimeout(
@@ -119,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: row.role,
           workshopId: row.workshop_id ?? undefined,
           workshopName,
+          assignedWorkshops: row.assigned_workshops ?? undefined,
         };
       } catch (e) {
         console.error('[Auth] hydrateUser intento', i + 1, e);

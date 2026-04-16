@@ -43,7 +43,11 @@ function LoginForm() {
     try {
       const result = await withTimeout(login(email.trim(), password), FORM_TIMEOUT_MS);
       if (result.success && result.role) {
-        router.replace(result.role === 'vendedor' ? '/vendedor' : '/taller');
+        const target =
+          result.role === 'admin' ? '/admin'
+            : result.role === 'vendedor' ? '/vendedor'
+            : '/taller';
+        router.replace(target);
         return;
       }
       setError(result.error ?? 'Error al iniciar sesión.');

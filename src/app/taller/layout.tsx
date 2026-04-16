@@ -91,9 +91,11 @@ export default function TallerLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
-      <div className="flex min-h-screen">
+      <div className="min-h-screen bg-slate-950 text-slate-100">
         <Sidebar navItems={tallerNav} portalLabel="Portal Taller" portalIcon="🏭" accentColor="orange" />
-        <div className="flex min-w-0 flex-1 flex-col overflow-auto">{children}</div>
+        <div className="min-h-screen min-w-0 md:pl-[88px] xl:pl-[250px]">
+          <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden">{children}</div>
+        </div>
       </div>
       {waHref && (
         <a

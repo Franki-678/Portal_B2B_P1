@@ -2,7 +2,7 @@
 // TIPOS GLOBALES — Portal B2B Autopartes
 // ============================================================
 
-export type UserRole = 'taller' | 'vendedor';
+export type UserRole = 'taller' | 'vendedor' | 'admin';
 
 export type OrderQuality = 'alta' | 'media' | 'baja';
 
@@ -38,6 +38,7 @@ export interface User {
   role: UserRole;
   workshopId?: string; // solo para talleres
   workshopName?: string; // solo para talleres
+  assignedWorkshops?: string[]; // solo para vendedores/admin
 }
 
 export interface Workshop {
@@ -62,6 +63,9 @@ export interface Order {
   internalOrderNumber?: string;
   orderNumber?: string;
   workshopOrderNumber?: number;
+  /** Vendedor asignado al pedido (opcional, admin puede reasignar) */
+  assignedVendorId?: string;
+  assignedVendorName?: string;
   items: OrderItem[];
   status: OrderStatus;
   quote?: Quote;
@@ -205,4 +209,73 @@ export interface VendorMetrics {
   aprobados: number;
   rechazados: number;
   totalPedidos: number;
+}
+
+/** Métricas agregadas por vendedor para el panel ADMIN. */
+export interface VendorPerformance {
+  vendorId: string;
+  vendorName: string;
+  totalPedidos: number;
+  pendientes: number;
+  enRevision: number;
+  cotizados: number;
+  aprobados: number;
+  aprobadosParcial: number;
+  rechazados: number;
+  cerrados: number;
+  /** Monto total (ARS) de los ítems aprobados en cotizaciones atribuidas al vendedor. */
+  montoAprobado: number;
+}
+
+/** Snapshot global para el dashboard del admin. */
+export interface AdminDashboardMetrics {
+  totalPedidos: number;
+  pendientes: number;
+  enRevision: number;
+  cotizados: number;
+  aprobados: number;
+  aprobadosParcial: number;
+  rechazados: number;
+  cerrados: number;
+  montoAprobado: number;
+  totalTalleres: number;
+  totalVendedores: number;
+}
+
+export interface MonthlyStatusMetric {
+  status: OrderStatus;
+  label: string;
+  total: number;
+}
+
+export interface MonthlyVendorMetrics {
+  vendorId: string;
+  vendorName: string;
+  pedidosAtendidos: number;
+  pedidosCotizados: number;
+  pedidosAprobados: number;
+  totalFacturado: number;
+}
+
+export interface AdminMonthlyMetricsReport {
+  monthLabel: string;
+  totalPedidosMes: number;
+  totalFacturadoMes: number;
+  ticketPromedioMes: number;
+  pedidosPorEstado: MonthlyStatusMetric[];
+  vendedores: MonthlyVendorMetrics[];
+  topMarca: string;
+  topModelo: string;
+  topProducto: string;
+}
+
+export interface ProfileDirectoryEntry {
+  id: string;
+  name: string;
+  role: UserRole;
+  phone?: string | null;
+  email?: string | null;
+  workshopId?: string | null;
+  workshopName?: string | null;
+  assignedWorkshops: string[];
 }

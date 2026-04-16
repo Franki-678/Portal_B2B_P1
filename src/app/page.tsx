@@ -11,7 +11,11 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!isLoading && user) {
-      router.replace(user.role === 'taller' ? '/taller' : '/vendedor');
+      const target =
+        user.role === 'taller' ? '/taller'
+          : user.role === 'admin' ? '/admin'
+          : '/vendedor';
+      router.replace(target);
     }
   }, [user, isLoading, router]);
 

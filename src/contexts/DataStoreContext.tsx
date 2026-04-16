@@ -163,20 +163,22 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const ordersData = await fetchAllOrders(sb);
-        if (!ordersData || ordersData.length === 0) {
-          setOrders([]);
-          return; // No hacer más queries
-        }
+        const ordersData = await fetchAllOrders(sb, user.id);
 
         const workshopsData = workshopsStale
-          ? await fetchAllWorkshops(sb).then(data => {
+          ? await fetchAllWorkshops(sb, user.id).then(data => {
               lastWorkshopsFetchRef.current = Date.now();
               return data;
             })
           : workshopsRef.current;
 
         setOrders(ordersData);
+        if (!ordersData || ordersData.length === 0) {
+          if (workshopsStale) {
+            setWorkshops(workshopsData);
+          }
+          return;
+        }
         if (workshopsStale) {
           setWorkshops(workshopsData);
         }

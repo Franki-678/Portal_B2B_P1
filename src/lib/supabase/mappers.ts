@@ -98,7 +98,8 @@ export function mapOrder(
   images: DbOrderImage[],
   workshop: Workshop | undefined,
   quote: Quote | undefined,
-  events: OrderEvent[]
+  events: OrderEvent[],
+  assignedVendorName?: string
 ): Order {
   return {
     id: row.id,
@@ -111,6 +112,8 @@ export function mapOrder(
     internalOrderNumber: row.internal_order_number ?? undefined,
     orderNumber: row.order_number ?? undefined,
     workshopOrderNumber: row.workshop_order_number ?? undefined,
+    assignedVendorId: row.assigned_vendor_id ?? undefined,
+    assignedVendorName: assignedVendorName ?? undefined,
     items: items.map((i) => ({
       id: i.id,
       orderId: i.order_id,

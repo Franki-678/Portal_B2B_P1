@@ -41,8 +41,9 @@ export type Database = {
         Row: {
           id: string;
           name: string;
-          role: 'taller' | 'vendedor';
+          role: 'taller' | 'vendedor' | 'admin';
           workshop_id: string | null;
+          assigned_workshops: string[] | null;
           phone: string | null;
           company_name: string | null;
           company_address: string | null;
@@ -51,8 +52,9 @@ export type Database = {
         Insert: {
           id: string;
           name: string;
-          role?: 'taller' | 'vendedor';
+          role?: 'taller' | 'vendedor' | 'admin';
           workshop_id?: string | null;
+          assigned_workshops?: string[] | null;
           phone?: string | null;
           company_name?: string | null;
           company_address?: string | null;
@@ -71,6 +73,7 @@ export type Database = {
           internal_order_number: string | null;
           order_number: string | null;
           workshop_order_number: number | null;
+          assigned_vendor_id: string | null;
           status:
             | 'pendiente'
             | 'en_revision'
@@ -92,6 +95,7 @@ export type Database = {
           internal_order_number?: string | null;
           order_number?: string | null;
           workshop_order_number?: number | null;
+          assigned_vendor_id?: string | null;
           status?: Database['public']['Tables']['orders']['Row']['status'];
           created_at?: string;
           updated_at?: string;
@@ -283,3 +287,19 @@ export type DbOrderEvent = Database['public']['Tables']['order_events']['Row'];
 export type DbWorkshop = Database['public']['Tables']['workshops']['Row'];
 export type DbProfile = Database['public']['Tables']['profiles']['Row'];
 export type DbCatalogoRepuesto = Database['public']['Tables']['catalogo_repuestos']['Row'];
+
+// ─── Vistas ───────────────────────────────────────────────────
+// Reflejo de public.v_vendor_metrics (creada en migration_admin_role.sql).
+export interface DbVendorMetrics {
+  vendor_id: string;
+  vendor_name: string;
+  total_pedidos: number;
+  pendientes: number;
+  en_revision: number;
+  cotizados: number;
+  aprobados: number;
+  aprobados_parcial: number;
+  rechazados: number;
+  cerrados: number;
+  monto_aprobado: number;
+}

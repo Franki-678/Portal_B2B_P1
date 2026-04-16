@@ -6,16 +6,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { Sidebar, LoadingSpinner } from '@/components/ui/Layout';
 
-const vendedorNav = [
-  { href: '/vendedor', label: 'Dashboard', icon: '📊' },
-  { href: '/vendedor/pedidos', label: 'Pedidos', icon: '📋' },
-  { href: '/vendedor/clientes', label: 'Clientes', icon: '🏭' },
-  { href: '/vendedor/configuracion', label: 'Configuración', icon: '⚙️' },
+const adminNav = [
+  { href: '/admin', label: 'Dashboard', icon: '📊' },
+  { href: '/admin/pedidos', label: 'Pedidos', icon: '📋' },
+  { href: '/admin/clientes', label: 'Clientes', icon: '🏭' },
+  { href: '/admin/metricas', label: 'Métricas', icon: '📈' },
+  { href: '/admin/configuracion', label: 'Configuración', icon: '⚙️' },
+  { href: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
+  { href: '/vendedor', label: 'Vista Vendedor', icon: '📦' },
 ];
 
-const adminExtraNav = [{ href: '/admin', label: 'Panel Admin', icon: '🛠️' }];
-
-export default function VendedorLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -29,10 +30,9 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
     if (!isLoading) {
       if (!user) {
         router.replace('/login');
-      } else if (user.role === 'taller') {
-        router.replace('/taller');
+      } else if (user.role !== 'admin') {
+        router.replace(user.role === 'vendedor' ? '/vendedor' : '/taller');
       }
-      // vendedor y admin pueden usar este layout (admin opera como vendedor).
     }
   }, [user, isLoading, router]);
 
@@ -56,7 +56,7 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
               <div className="h-28 rounded-2xl bg-zinc-800/60 animate-pulse" />
             </div>
             <div className="mt-4 text-zinc-500 text-xs flex items-center gap-2">
-              <LoadingSpinner /> Cargando portal...
+              <LoadingSpinner /> Cargando panel admin...
             </div>
           </div>
         </div>
@@ -65,16 +65,13 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
     return null;
   }
 
-  if (user.role !== 'vendedor' && user.role !== 'admin') {
+  if (user.role !== 'admin') {
     return null;
   }
 
-  const navItems = user.role === 'admin' ? [...vendedorNav, ...adminExtraNav] : vendedorNav;
-  const portalLabel = user.role === 'admin' ? 'Vista Vendedor (Admin)' : 'Portal Vendedor';
-
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <Sidebar navItems={navItems} portalLabel={portalLabel} portalIcon="📦" accentColor="blue" />
+      <Sidebar navItems={adminNav} portalLabel="Panel Admin" portalIcon="🛠️" accentColor="purple" />
       <div className="min-h-screen min-w-0 md:pl-[88px] xl:pl-[250px]">
         <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden">
         {children}
