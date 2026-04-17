@@ -64,7 +64,7 @@ export default function VendedorClientesPage() {
 
         {!isLoadingWorkshops && !isLoadingOrders && !loadError && workshops.length === 0 && (
           <div className="flex flex-col items-center justify-center p-12 bg-[#1A1D27] border border-white/8 rounded-xl text-center">
-            <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 text-2xl">🏭</div>
+            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mb-4 text-2xl">🏭</div>
             <h3 className="text-lg font-bold text-white mb-2">No hay talleres registrados todavía</h3>
             <p className="text-zinc-500 max-w-sm mb-6">Aún no hay clientes vinculados a este portal.</p>
           </div>
@@ -89,23 +89,23 @@ export default function VendedorClientesPage() {
                           />
                         )}
                       </div>
-                      <p className="text-xs text-slate-500">{ws.contactName}</p>
+                      <p className="text-xs text-zinc-500">{ws.contactName}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-slate-500">Desde</div>
-                    <div className="text-xs text-slate-400">{formatDate(ws.createdAt)}</div>
+                    <div className="text-xs text-zinc-500">Desde</div>
+                    <div className="text-xs text-zinc-400">{formatDate(ws.createdAt)}</div>
                   </div>
                 </div>
 
                 <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
                     <span>📍</span> {ws.address}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
                     <span>📞</span> {ws.phone || 'Sin teléfono'}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
                     <span>📧</span> {ws.email}
                   </div>
                 </div>
@@ -113,21 +113,21 @@ export default function VendedorClientesPage() {
                 <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/8">
                   <div className="text-center">
                     <div className="text-lg font-bold text-white">{ws.totalOrders}</div>
-                    <div className="text-xs text-slate-500">Total</div>
+                    <div className="text-xs text-zinc-500">Total</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-yellow-400">{ws.pendingOrders}</div>
-                    <div className="text-xs text-slate-500">Activos</div>
+                    <div className="text-xs text-zinc-500">Activos</div>
                   </div>
                   <div className="text-center">
                     <div className="text-lg font-bold text-green-400">{ws.approvedOrders}</div>
-                    <div className="text-xs text-slate-500">Aprobados</div>
+                    <div className="text-xs text-zinc-500">Aprobados</div>
                   </div>
                 </div>
 
                 {ws.lastOrder && (
-                  <div className="mt-3 pt-3 border-t border-white/5 text-xs text-slate-500">
-                    Último pedido: <span className="text-slate-400">{ws.lastOrder.items?.[0]?.partName || 'Sin repuestos'}</span> · {formatDate(ws.lastOrder.createdAt)}
+                  <div className="mt-3 pt-3 border-t border-white/5 text-xs text-zinc-500">
+                    Último pedido: <span className="text-zinc-400">{ws.lastOrder.items?.[0]?.partName || 'Sin repuestos'}</span> · {formatDate(ws.lastOrder.createdAt)}
                   </div>
                 )}
               </div>

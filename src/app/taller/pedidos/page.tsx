@@ -71,12 +71,12 @@ export default function TallerPedidosPage() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                 filter === f.value
                   ? 'bg-orange-500/15 text-orange-400 border-orange-500/30'
-                  : 'bg-[#1A1D27] text-slate-400 border-white/8 hover:border-white/20 hover:text-white'
+                  : 'bg-[#1A1D27] text-zinc-400 border-white/8 hover:border-white/20 hover:text-white'
               }`}
             >
               {f.label}
               {f.value !== 'todos' && (
-                <span className="ml-1.5 text-slate-500">
+                <span className="ml-1.5 text-zinc-500">
                   ({all.filter(o => o.status === f.value).length})
                 </span>
               )}

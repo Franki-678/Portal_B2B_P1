@@ -62,51 +62,51 @@ export default function AdminMetricasPage() {
           <MetricCard label="Estados medidos" value={report?.pedidosPorEstado.length ?? 0} icon="📊" color="blue" />
         </div>
 
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-100">Pedidos por estado</h2>
-              <p className="text-sm text-slate-400">Grafico simple de barras para seguimiento mensual.</p>
+              <h2 className="text-base font-bold text-zinc-100">Pedidos por estado</h2>
+              <p className="text-sm text-zinc-400">Grafico simple de barras para seguimiento mensual.</p>
             </div>
           </div>
 
           <div className="space-y-4">
             {(report?.pedidosPorEstado ?? []).map(item => (
               <div key={item.status} className="grid gap-2 md:grid-cols-[140px_1fr_60px] md:items-center">
-                <div className="text-sm font-medium text-slate-300">{item.label}</div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-950">
+                <div className="text-sm font-medium text-zinc-300">{item.label}</div>
+                <div className="h-3 overflow-hidden rounded-full bg-zinc-950">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-sky-500"
+                    className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400"
                     style={{ width: `${Math.max((item.total / maxStatusValue) * 100, item.total > 0 ? 6 : 0)}%` }}
                   />
                 </div>
-                <div className="text-right text-sm font-semibold text-slate-200">{item.total}</div>
+                <div className="text-right text-sm font-semibold text-zinc-200">{item.total}</div>
               </div>
             ))}
           </div>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-            <h2 className="text-base font-bold text-slate-100">Por vendedor</h2>
-            <div className="mt-5 overflow-hidden rounded-2xl border border-slate-800">
+          <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
+            <h2 className="text-base font-bold text-zinc-100">Por vendedor</h2>
+            <div className="mt-5 overflow-hidden rounded-2xl border border-zinc-800">
               <table className="w-full text-sm">
-                <thead className="bg-slate-950/70">
-                  <tr className="border-b border-slate-800 text-left">
-                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">Vendedor</th>
-                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500 text-right">Atendidos</th>
-                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500 text-right">Cotizados</th>
-                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500 text-right">Aprobados</th>
-                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500 text-right">Facturado</th>
+                <thead className="bg-zinc-950/70">
+                  <tr className="border-b border-zinc-800 text-left">
+                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">Vendedor</th>
+                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500 text-right">Atendidos</th>
+                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500 text-right">Cotizados</th>
+                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500 text-right">Aprobados</th>
+                    <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500 text-right">Facturado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(report?.vendedores ?? []).map(vendor => (
-                    <tr key={vendor.vendorId} className="border-b border-slate-800/70">
-                      <td className="px-4 py-3 font-medium text-slate-100">{vendor.vendorName}</td>
-                      <td className="px-4 py-3 text-right text-slate-300">{vendor.pedidosAtendidos}</td>
-                      <td className="px-4 py-3 text-right text-slate-300">{vendor.pedidosCotizados}</td>
-                      <td className="px-4 py-3 text-right text-slate-300">{vendor.pedidosAprobados}</td>
+                    <tr key={vendor.vendorId} className="border-b border-zinc-800/70">
+                      <td className="px-4 py-3 font-medium text-zinc-100">{vendor.vendorName}</td>
+                      <td className="px-4 py-3 text-right text-zinc-300">{vendor.pedidosAtendidos}</td>
+                      <td className="px-4 py-3 text-right text-zinc-300">{vendor.pedidosCotizados}</td>
+                      <td className="px-4 py-3 text-right text-zinc-300">{vendor.pedidosAprobados}</td>
                       <td className="px-4 py-3 text-right font-semibold text-emerald-300">
                         {formatCurrency(vendor.totalFacturado)}
                       </td>
@@ -130,9 +130,9 @@ export default function AdminMetricasPage() {
 
 function TopItem({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-      <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</div>
-      <div className="mt-3 text-xl font-bold tracking-tight text-slate-100">{value}</div>
+    <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
+      <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">{title}</div>
+      <div className="mt-3 text-xl font-bold tracking-tight text-zinc-100">{value}</div>
     </div>
   );
 }

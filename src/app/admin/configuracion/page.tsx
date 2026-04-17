@@ -19,13 +19,13 @@ export default function AdminConfiguracionPage() {
       />
 
       <div className="grid gap-6 p-6 xl:grid-cols-[1.2fr_1fr]">
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-          <h2 className="text-base font-bold text-slate-100">Checklist de despliegue</h2>
+        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
+          <h2 className="text-base font-bold text-zinc-100">Checklist de despliegue</h2>
           <div className="mt-4 space-y-3">
             {sqlChecklist.map(item => (
               <div
                 key={item}
-                className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300"
+                className="rounded-2xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-300"
               >
                 {item}
               </div>
@@ -33,9 +33,9 @@ export default function AdminConfiguracionPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
-          <h2 className="text-base font-bold text-slate-100">Notas del entorno</h2>
-          <div className="mt-4 space-y-4 text-sm text-slate-400">
+        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
+          <h2 className="text-base font-bold text-zinc-100">Notas del entorno</h2>
+          <div className="mt-4 space-y-4 text-sm text-zinc-400">
             <p>
               El portal ya soporta `admin`, `vendedor` y `taller` en cliente y consultas.
             </p>

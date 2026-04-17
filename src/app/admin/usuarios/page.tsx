@@ -48,38 +48,38 @@ export default function AdminUsuariosPage() {
           </div>
         )}
 
-        <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70">
+        <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70">
           <table className="w-full text-sm">
-            <thead className="bg-slate-950/70">
-              <tr className="border-b border-slate-800 text-left">
-                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">Nombre</th>
-                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">Rol</th>
-                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">Taller propio</th>
-                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">Asignaciones</th>
-                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">Contacto</th>
+            <thead className="bg-zinc-950/70">
+              <tr className="border-b border-zinc-800 text-left">
+                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">Nombre</th>
+                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">Rol</th>
+                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">Taller propio</th>
+                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">Asignaciones</th>
+                <th className="px-4 py-3 text-xs uppercase tracking-[0.18em] text-zinc-500">Contacto</th>
               </tr>
             </thead>
             <tbody>
               {loading && users.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
                     Cargando usuarios...
                   </td>
                 </tr>
               ) : users.map(user => (
-                <tr key={user.id} className="border-b border-slate-800/70">
+                <tr key={user.id} className="border-b border-zinc-800/70">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-100">{user.name}</div>
-                    <div className="text-xs text-slate-500">{user.id}</div>
+                    <div className="font-medium text-zinc-100">{user.name}</div>
+                    <div className="text-xs text-zinc-500">{user.id}</div>
                   </td>
                   <td className="px-4 py-3">
                     <RoleBadge role={user.role} />
                   </td>
-                  <td className="px-4 py-3 text-slate-300">{user.workshopName ?? 'N/A'}</td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-zinc-300">{user.workshopName ?? 'N/A'}</td>
+                  <td className="px-4 py-3 text-zinc-300">
                     {user.assignedWorkshops.length > 0 ? user.assignedWorkshops.join(', ') : 'Sin asignaciones'}
                   </td>
-                  <td className="px-4 py-3 text-slate-400">
+                  <td className="px-4 py-3 text-zinc-400">
                     <div>{user.email ?? 'Sin email'}</div>
                     <div>{user.phone ?? 'Sin telefono'}</div>
                   </td>
@@ -95,10 +95,10 @@ export default function AdminUsuariosPage() {
 
 function RoleBadge({ role }: { role: string }) {
   const className = {
-    admin: 'border-violet-500/30 bg-violet-500/10 text-violet-200',
-    vendedor: 'border-sky-500/30 bg-sky-500/10 text-sky-200',
+    admin: 'border-orange-500/20 bg-orange-500/10 text-orange-300',
+    vendedor: 'border-orange-500/20 bg-orange-500/10 text-orange-300',
     taller: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-  }[role] ?? 'border-slate-700 bg-slate-800 text-slate-200';
+  }[role] ?? 'border-zinc-700 bg-zinc-800 text-zinc-200';
 
   return <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${className}`}>{role}</span>;
 }

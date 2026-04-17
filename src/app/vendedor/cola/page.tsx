@@ -69,56 +69,56 @@ export default function VendedorColaPage() {
         </div>
 
         {queue.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 rounded-2xl border border-slate-800 bg-slate-900/30">
+          <div className="flex flex-col items-center justify-center py-20 rounded-2xl border border-zinc-800 bg-zinc-900/30">
             <div className="text-5xl mb-4 opacity-50">🎉</div>
-            <h3 className="text-base font-bold text-slate-300">Cola vacía</h3>
-            <p className="text-sm text-slate-500 mt-1">No hay pedidos sin asignar en este momento.</p>
+            <h3 className="text-base font-bold text-zinc-300">Cola vacía</h3>
+            <p className="text-sm text-zinc-500 mt-1">No hay pedidos sin asignar en este momento.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/40">
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">Pedido</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest hidden sm:table-cell">Vehículo</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest hidden md:table-cell">Taller</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-widest hidden lg:table-cell">Ingresó</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-widest">Acción</th>
+                <tr className="border-b border-zinc-800 bg-zinc-950/40">
+                  <th className="px-4 py-3 text-left text-xs font-bold text-zinc-500 uppercase tracking-widest">Pedido</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-zinc-500 uppercase tracking-widest hidden sm:table-cell">Vehículo</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-zinc-500 uppercase tracking-widest hidden md:table-cell">Taller</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-zinc-500 uppercase tracking-widest">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-zinc-500 uppercase tracking-widest hidden lg:table-cell">Ingresó</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-zinc-500 uppercase tracking-widest">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-zinc-800/60">
                 {queue.map(order => (
                   <tr
                     key={order.id}
                     onClick={() => openDrawer(order)}
-                    className="cursor-pointer transition-colors hover:bg-slate-800/40 group"
+                    className="cursor-pointer transition-colors hover:bg-zinc-800/40 group"
                   >
                     <td className="px-4 py-3.5">
-                      <span className="font-mono text-xs font-bold text-slate-200 group-hover:text-white transition-colors uppercase">
+                      <span className="font-mono text-xs font-bold text-zinc-200 group-hover:text-white transition-colors uppercase">
                         {formatVendorOrderLabel(order)}
                       </span>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
+                      <div className="text-[11px] text-zinc-500 mt-0.5">
                         {order.items[0]?.partName || 'Sin repuesto'}
                         {order.items.length > 1 && (
-                          <span className="ml-1 text-slate-600">+{order.items.length - 1}</span>
+                          <span className="ml-1 text-zinc-600">+{order.items.length - 1}</span>
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-3.5 hidden sm:table-cell">
-                      <span className="text-sm text-slate-300 font-medium">
+                      <span className="text-sm text-zinc-300 font-medium">
                         {order.vehicleBrand} {order.vehicleModel}
                       </span>
-                      <div className="text-[11px] text-slate-500">{order.vehicleYear}</div>
+                      <div className="text-[11px] text-zinc-500">{order.vehicleYear}</div>
                     </td>
                     <td className="px-4 py-3.5 hidden md:table-cell">
-                      <span className="text-sm text-slate-400">{order.workshop?.name ?? '—'}</span>
+                      <span className="text-sm text-zinc-400">{order.workshop?.name ?? '—'}</span>
                     </td>
                     <td className="px-4 py-3.5">
                       <StatusBadge status={order.status} />
                     </td>
                     <td className="px-4 py-3.5 hidden lg:table-cell">
-                      <span className="text-xs text-slate-500">{formatRelativeTime(order.createdAt)}</span>
+                      <span className="text-xs text-zinc-500">{formatRelativeTime(order.createdAt)}</span>
                     </td>
                     <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
                       <Button
@@ -143,34 +143,34 @@ export default function VendedorColaPage() {
         {/* Mis pedidos asignados */}
         {myOrders.length > 0 && (
           <div className="mt-6">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
               Mis pedidos activos ({myOrders.length})
             </h2>
-            <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden">
               <table className="w-full text-sm">
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-zinc-800/60">
                   {myOrders.map(order => (
                     <tr
                       key={order.id}
                       onClick={() => openDrawer(order)}
-                      className="cursor-pointer transition-colors hover:bg-slate-800/40 group"
+                      className="cursor-pointer transition-colors hover:bg-zinc-800/40 group"
                     >
                       <td className="px-4 py-3">
-                        <span className="font-mono text-xs font-bold text-slate-200 uppercase">
+                        <span className="font-mono text-xs font-bold text-zinc-200 uppercase">
                           {formatVendorOrderLabel(order)}
                         </span>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
+                        <div className="text-[11px] text-zinc-500 mt-0.5">
                           {order.items[0]?.partName || 'Sin repuesto'}
                         </div>
                       </td>
                       <td className="px-4 py-3 hidden sm:table-cell">
-                        <span className="text-sm text-slate-300">{order.vehicleBrand} {order.vehicleModel}</span>
+                        <span className="text-sm text-zinc-300">{order.vehicleBrand} {order.vehicleModel}</span>
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={order.status} />
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-xs text-slate-500">{formatRelativeTime(order.updatedAt)}</span>
+                        <span className="text-xs text-zinc-500">{formatRelativeTime(order.updatedAt)}</span>
                       </td>
                     </tr>
                   ))}

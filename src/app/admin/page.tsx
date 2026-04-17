@@ -128,8 +128,8 @@ export default function AdminDashboardPage() {
               onClick={() => setDateRange(range)}
               className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
                 dateRange === range
-                  ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
-                  : 'bg-slate-900/70 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+                  ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                  : 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
               }`}
             >
               {label}
@@ -166,7 +166,7 @@ export default function AdminDashboardPage() {
         {loading ? (
           <div className="grid gap-4 md:grid-cols-3">
             {[0, 1, 2].map(i => (
-              <div key={i} className="h-36 rounded-3xl border border-slate-800 bg-slate-900/70 animate-pulse" />
+              <div key={i} className="h-36 rounded-3xl border border-zinc-800 bg-zinc-900/70 animate-pulse" />
             ))}
           </div>
         ) : kpis ? (
@@ -190,7 +190,7 @@ export default function AdminDashboardPage() {
               value={kpis.totalCompletados}
               icon="✅"
               note="Con pago confirmado por admin"
-              color="violet"
+              color="orange"
             />
           </div>
         ) : null}
@@ -198,38 +198,38 @@ export default function AdminDashboardPage() {
         {/* ── Rankings ── */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Top Vendedores */}
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-800">
-              <h2 className="text-base font-bold tracking-tight text-slate-100">🏆 Top Vendedores</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Por monto facturado en pedidos pagados</p>
+          <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+            <div className="px-6 py-4 border-b border-zinc-800">
+              <h2 className="text-base font-bold tracking-tight text-zinc-100">🏆 Top Vendedores</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">Por monto facturado en pedidos pagados</p>
             </div>
             {loading ? (
               <div className="p-6 space-y-3">
-                {[0, 1, 2].map(i => <div key={i} className="h-8 rounded-xl bg-slate-800 animate-pulse" />)}
+                {[0, 1, 2].map(i => <div key={i} className="h-8 rounded-xl bg-zinc-800 animate-pulse" />)}
               </div>
             ) : vendorRanking.length === 0 ? (
               <div className="px-6 py-10 text-center">
-                <p className="text-sm text-slate-500">Sin datos para el período seleccionado.</p>
-                <p className="text-xs text-slate-600 mt-1">Los datos aparecen cuando Admin confirma pagos.</p>
+                <p className="text-sm text-zinc-500">Sin datos para el período seleccionado.</p>
+                <p className="text-xs text-zinc-600 mt-1">Los datos aparecen cuando Admin confirma pagos.</p>
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-800">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">#</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Vendedor</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Cerrados</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Facturado</th>
+                  <tr className="border-b border-zinc-800">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Vendedor</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">Cerrados</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">Facturado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {vendorRanking.map((v, i) => (
-                    <tr key={v.vendorId} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors">
+                    <tr key={v.vendorId} className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-800/30 transition-colors">
                       <td className="px-4 py-3">
                         <RankBadge pos={i} />
                       </td>
-                      <td className="px-4 py-3 font-semibold text-slate-100">{v.vendorName}</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-300">{v.pedidosCerrados}</td>
+                      <td className="px-4 py-3 font-semibold text-zinc-100">{v.vendorName}</td>
+                      <td className="px-4 py-3 text-right font-bold text-zinc-300">{v.pedidosCerrados}</td>
                       <td className="px-4 py-3 text-right font-bold text-emerald-400">{formatCurrency(v.montoFacturado)}</td>
                     </tr>
                   ))}
@@ -239,38 +239,38 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Top Talleres */}
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-800">
-              <h2 className="text-base font-bold tracking-tight text-slate-100">🏭 Top Talleres</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Por volumen de compra en pedidos pagados</p>
+          <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 overflow-hidden">
+            <div className="px-6 py-4 border-b border-zinc-800">
+              <h2 className="text-base font-bold tracking-tight text-zinc-100">🏭 Top Talleres</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">Por volumen de compra en pedidos pagados</p>
             </div>
             {loading ? (
               <div className="p-6 space-y-3">
-                {[0, 1, 2].map(i => <div key={i} className="h-8 rounded-xl bg-slate-800 animate-pulse" />)}
+                {[0, 1, 2].map(i => <div key={i} className="h-8 rounded-xl bg-zinc-800 animate-pulse" />)}
               </div>
             ) : workshopRanking.length === 0 ? (
               <div className="px-6 py-10 text-center">
-                <p className="text-sm text-slate-500">Sin datos para el período seleccionado.</p>
-                <p className="text-xs text-slate-600 mt-1">Los datos aparecen cuando Admin confirma pagos.</p>
+                <p className="text-sm text-zinc-500">Sin datos para el período seleccionado.</p>
+                <p className="text-xs text-zinc-600 mt-1">Los datos aparecen cuando Admin confirma pagos.</p>
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-800">
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">#</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Taller</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Pedidos</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Comprado</th>
+                  <tr className="border-b border-zinc-800">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">Taller</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">Pedidos</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500">Comprado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {workshopRanking.map((w, i) => (
-                    <tr key={w.workshopId} className="border-b border-slate-800/50 last:border-0 hover:bg-slate-800/30 transition-colors">
+                    <tr key={w.workshopId} className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-800/30 transition-colors">
                       <td className="px-4 py-3">
                         <RankBadge pos={i} />
                       </td>
-                      <td className="px-4 py-3 font-semibold text-slate-100">{w.workshopName}</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-300">{w.totalPedidos}</td>
+                      <td className="px-4 py-3 font-semibold text-zinc-100">{w.workshopName}</td>
+                      <td className="px-4 py-3 text-right font-bold text-zinc-300">{w.totalPedidos}</td>
                       <td className="px-4 py-3 text-right font-bold text-orange-400">{formatCurrency(w.montoComprado)}</td>
                     </tr>
                   ))}
@@ -286,13 +286,13 @@ export default function AdminDashboardPage() {
             <Link
               key={link.href}
               href={link.href}
-              className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm transition hover:border-slate-700 hover:bg-slate-900"
+              className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 shadow-sm transition hover:border-zinc-700 hover:bg-zinc-900"
             >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950 text-2xl">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-2xl">
                 {link.icon}
               </div>
-              <h2 className="text-lg font-bold tracking-tight text-slate-100">{link.title}</h2>
-              <p className="mt-2 text-sm text-slate-400">{link.description}</p>
+              <h2 className="text-lg font-bold tracking-tight text-zinc-100">{link.title}</h2>
+              <p className="mt-2 text-sm text-zinc-400">{link.description}</p>
             </Link>
           ))}
         </section>
@@ -316,36 +316,36 @@ function KPICard({
   value: string | number;
   icon: string;
   note: string;
-  color: 'emerald' | 'sky' | 'violet';
+  color: 'emerald' | 'sky' | 'orange';
 }) {
   const border = {
     emerald: 'border-emerald-500/20 bg-emerald-500/5',
     sky:     'border-sky-500/20     bg-sky-500/5',
-    violet:  'border-violet-500/20  bg-violet-500/5',
+    orange:  'border-orange-500/20  bg-orange-500/5',
   }[color];
 
   const iconBg = {
     emerald: 'bg-emerald-500/10 border-emerald-500/20',
     sky:     'bg-sky-500/10     border-sky-500/20',
-    violet:  'bg-violet-500/10  border-violet-500/20',
+    orange:  'bg-orange-500/10  border-orange-500/20',
   }[color];
 
   const textColor = {
     emerald: 'text-emerald-400',
     sky:     'text-sky-400',
-    violet:  'text-violet-400',
+    orange:  'text-orange-400',
   }[color];
 
   return (
     <div className={`rounded-3xl border p-6 ${border}`}>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{label}</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">{label}</p>
         <div className={`flex h-9 w-9 items-center justify-center rounded-xl border text-lg ${iconBg}`}>
           {icon}
         </div>
       </div>
       <p className={`text-3xl font-black tracking-tight ${textColor}`}>{value}</p>
-      <p className="mt-1.5 text-xs font-medium text-slate-500">{note}</p>
+      <p className="mt-1.5 text-xs font-medium text-zinc-500">{note}</p>
     </div>
   );
 }
@@ -353,9 +353,9 @@ function KPICard({
 function RankBadge({ pos }: { pos: number }) {
   const cls =
     pos === 0 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-    pos === 1 ? 'bg-slate-500/20 text-slate-300 border-slate-500/30' :
+    pos === 1 ? 'bg-zinc-500/20 text-zinc-300 border-zinc-500/30' :
     pos === 2 ? 'bg-orange-700/20 text-orange-500 border-orange-700/30' :
-                'bg-slate-800 text-slate-500 border-slate-700/30';
+                'bg-zinc-800 text-zinc-500 border-zinc-700/30';
 
   return (
     <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold border ${cls}`}>

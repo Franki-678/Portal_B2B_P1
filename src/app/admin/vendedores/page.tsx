@@ -180,7 +180,7 @@ export default function AdminVendedoresPage() {
   const Th = ({ label, k, align = 'left' }: { label: string; k: SortKey; align?: 'left' | 'right' }) => (
     <th
       className={cn(
-        'px-4 py-3 text-xs font-bold uppercase tracking-widest cursor-pointer select-none text-slate-500 hover:text-slate-300 transition-colors',
+        'px-4 py-3 text-xs font-bold uppercase tracking-widest cursor-pointer select-none text-zinc-500 hover:text-zinc-300 transition-colors',
         align === 'right' ? 'text-right' : 'text-left'
       )}
       onClick={() => toggleSort(k)}
@@ -210,7 +210,7 @@ export default function AdminVendedoresPage() {
 
         {/* ── Panel izquierdo: tabla ── */}
         <div className={cn(
-          'flex flex-col overflow-hidden border-r border-slate-800 transition-all duration-200',
+          'flex flex-col overflow-hidden border-r border-zinc-800 transition-all duration-200',
           selectedVendorId ? 'w-full lg:w-[55%] xl:w-[60%]' : 'w-full'
         )}>
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -222,10 +222,10 @@ export default function AdminVendedoresPage() {
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden shadow-sm">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900 overflow-hidden shadow-sm">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-800 bg-slate-950/40">
+                  <tr className="border-b border-zinc-800 bg-zinc-950/40">
                     <Th label="Vendedor" k="vendorName" />
                     <Th label="Pedidos" k="totalPedidos" align="right" />
                     <Th label="Cotizados" k="cotizados" align="right" />
@@ -234,12 +234,12 @@ export default function AdminVendedoresPage() {
                     <Th label="Monto" k="montoAprobado" align="right" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/50">
+                <tbody className="divide-y divide-zinc-800/50">
                   {loading && metrics.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500 text-sm">Cargando…</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500 text-sm">Cargando…</td></tr>
                   )}
                   {!loading && sortedMetrics.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500 text-sm">No hay vendedores con actividad.</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500 text-sm">No hay vendedores con actividad.</td></tr>
                   )}
                   {sortedMetrics.map(v => {
                     const profile = profiles.find(p => p.id === v.vendorId);
@@ -252,7 +252,7 @@ export default function AdminVendedoresPage() {
                           'cursor-pointer transition-colors group',
                           isSelected
                             ? 'bg-purple-500/10 border-l-2 border-l-purple-500'
-                            : 'hover:bg-slate-800/40'
+                            : 'hover:bg-zinc-800/40'
                         )}
                       >
                         <td className="px-4 py-3.5">
@@ -260,26 +260,26 @@ export default function AdminVendedoresPage() {
                             <div className={cn(
                               'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-xs font-bold',
                               profiles.find(p => p.id === v.vendorId)?.role === 'admin'
-                                ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                                : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                                : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
                             )}>
                               {(v.vendorName[0] || 'V').toUpperCase()}
                             </div>
                             <div>
-                              <div className="text-sm font-bold text-slate-100 group-hover:text-white transition-colors">
+                              <div className="text-sm font-bold text-zinc-100 group-hover:text-white transition-colors">
                                 {v.vendorName}
                               </div>
                               {profile?.phone && (
-                                <div className="text-[11px] text-slate-500">{profile.phone}</div>
+                                <div className="text-[11px] text-zinc-500">{profile.phone}</div>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-right font-mono text-slate-300 font-semibold">{v.totalPedidos}</td>
+                        <td className="px-4 py-3.5 text-right font-mono text-zinc-300 font-semibold">{v.totalPedidos}</td>
                         <td className="px-4 py-3.5 text-right font-mono text-yellow-400">{v.cotizados}</td>
                         <td className="px-4 py-3.5 text-right font-mono text-emerald-400">{v.aprobados + v.aprobadosParcial}</td>
                         <td className="px-4 py-3.5 text-right font-mono text-red-400">{v.rechazados}</td>
-                        <td className="px-4 py-3.5 text-right font-bold text-slate-100">{formatCurrency(v.montoAprobado)}</td>
+                        <td className="px-4 py-3.5 text-right font-bold text-zinc-100">{formatCurrency(v.montoAprobado)}</td>
                       </tr>
                     );
                   })}
@@ -289,8 +289,8 @@ export default function AdminVendedoresPage() {
 
             {/* Vendedores en perfiles sin métricas aún */}
             {profiles.filter(p => !metrics.find(m => m.vendorId === p.id)).length > 0 && (
-              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Sin actividad registrada</p>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">Sin actividad registrada</p>
                 <div className="space-y-2">
                   {profiles
                     .filter(p => !metrics.find(m => m.vendorId === p.id))
@@ -302,17 +302,17 @@ export default function AdminVendedoresPage() {
                           'flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors',
                           selectedVendorId === p.id
                             ? 'border-purple-500/30 bg-purple-500/10'
-                            : 'border-slate-800 hover:border-slate-700 hover:bg-slate-800/40'
+                            : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/40'
                         )}
                       >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs font-bold text-slate-400">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-xs font-bold text-zinc-400">
                           {(p.name[0] || 'V').toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-300">{p.name || 'Sin nombre'}</p>
-                          <p className="text-[11px] text-slate-600">{p.role}</p>
+                          <p className="text-sm font-semibold text-zinc-300">{p.name || 'Sin nombre'}</p>
+                          <p className="text-[11px] text-zinc-600">{p.role}</p>
                         </div>
-                        <span className="ml-auto text-[11px] text-slate-600 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+                        <span className="ml-auto text-[11px] text-zinc-600 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700">
                           0 pedidos
                         </span>
                       </div>
@@ -326,7 +326,7 @@ export default function AdminVendedoresPage() {
 
         {/* ── Panel derecho: detalle ── */}
         {selectedVendorId && (
-          <div className="hidden lg:flex flex-col w-[45%] xl:w-[40%] overflow-hidden bg-slate-950/40">
+          <div className="hidden lg:flex flex-col w-[45%] xl:w-[40%] overflow-hidden bg-zinc-950/40">
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
               {/* Header del vendedor */}
@@ -341,14 +341,14 @@ export default function AdminVendedoresPage() {
                         autoFocus
                         value={editName}
                         onChange={e => setEditName(e.target.value)}
-                        className="text-lg font-bold text-white bg-slate-800 border border-slate-700 rounded-lg px-2 py-0.5 w-48 focus:outline-none focus:border-purple-500"
+                        className="text-lg font-bold text-white bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-0.5 w-48 focus:outline-none focus:border-orange-500"
                       />
                     ) : (
                       <p className="text-lg font-bold text-white">
                         {selectedProfile?.name || selectedMetric?.vendorName || 'Vendedor'}
                       </p>
                     )}
-                    <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                    <span className="text-xs font-semibold text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20">
                       {selectedProfile?.role ?? 'vendedor'}
                     </span>
                   </div>
@@ -385,7 +385,7 @@ export default function AdminVendedoresPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedVendorId(null)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:text-white transition"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-white transition"
                   >
                     ✕
                   </button>
@@ -393,18 +393,18 @@ export default function AdminVendedoresPage() {
               </div>
 
               {/* Teléfono editable */}
-              <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Teléfono</p>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Teléfono</p>
                 {editingId === selectedVendorId ? (
                   <input
                     value={editPhone}
                     onChange={e => setEditPhone(e.target.value)}
                     placeholder="Ej: 1155551234"
-                    className="text-sm text-white bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 w-full focus:outline-none focus:border-purple-500"
+                    className="text-sm text-white bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 w-full focus:outline-none focus:border-purple-500"
                   />
                 ) : (
-                  <p className="text-sm font-semibold text-slate-200">
-                    {selectedProfile?.phone || <span className="text-slate-600 italic">Sin teléfono registrado</span>}
+                  <p className="text-sm font-semibold text-zinc-200">
+                    {selectedProfile?.phone || <span className="text-zinc-600 italic">Sin teléfono registrado</span>}
                   </p>
                 )}
               </div>
@@ -412,10 +412,10 @@ export default function AdminVendedoresPage() {
               {/* Métricas de performance */}
               {selectedMetric && (
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Rendimiento total</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Rendimiento total</p>
                   <div className="grid grid-cols-3 gap-2">
                     <MetricPill label="Total" value={selectedMetric.totalPedidos}
-                      color="border-slate-700 text-slate-200 bg-slate-800/60" />
+                      color="border-zinc-700 text-zinc-200 bg-zinc-800/60" />
                     <MetricPill label="Cotizados" value={selectedMetric.cotizados}
                       color="border-yellow-500/20 text-yellow-400 bg-yellow-500/5" />
                     <MetricPill label="Aprobados" value={selectedMetric.aprobados + selectedMetric.aprobadosParcial}
@@ -436,13 +436,13 @@ export default function AdminVendedoresPage() {
 
               {/* Últimos pedidos del vendedor */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">
                   Últimos pedidos asignados
                 </p>
                 {ordersLoading ? (
-                  <div className="text-sm text-slate-500 text-center py-4">Cargando pedidos…</div>
+                  <div className="text-sm text-zinc-500 text-center py-4">Cargando pedidos…</div>
                 ) : vendorOrders.length === 0 ? (
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-6 text-center text-sm text-slate-600">
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-6 text-center text-sm text-zinc-600">
                     Sin pedidos asignados
                   </div>
                 ) : (
@@ -450,15 +450,15 @@ export default function AdminVendedoresPage() {
                     {vendorOrders.map(order => (
                       <div
                         key={order.id}
-                        className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2.5 hover:bg-slate-800/40 transition-colors"
+                        className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 hover:bg-zinc-800/40 transition-colors"
                       >
                         <StatusBadge status={order.status} />
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-200 truncate">
+                          <p className="text-xs font-bold text-zinc-200 truncate">
                             {order.vehicleBrand} {order.vehicleModel} {order.vehicleYear}
                           </p>
                         </div>
-                        <span className="text-[11px] text-slate-500 shrink-0">
+                        <span className="text-[11px] text-zinc-500 shrink-0">
                           {formatRelativeTime(order.updatedAt)}
                         </span>
                       </div>

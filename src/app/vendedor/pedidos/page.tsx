@@ -63,7 +63,7 @@ function PedidosContent() {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            className="w-full max-w-md rounded-xl border border-white/10 bg-[#1A1D27] px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-orange-500/40 focus:outline-none"
+            className="w-full max-w-md rounded-xl border border-white/10 bg-[#1A1D27] px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-orange-500/40 focus:outline-none"
           />
           <div className="flex items-center gap-2 flex-wrap">
             {STATUS_FILTERS.map(f => (
@@ -72,12 +72,12 @@ function PedidosContent() {
                 onClick={() => setFilter(f.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
                   filter === f.value
-                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30'
-                    : 'bg-[#1A1D27] text-slate-400 border-white/8 hover:text-white hover:border-white/20'
+                    ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                    : 'bg-[#1A1D27] text-zinc-400 border-white/8 hover:text-white hover:border-white/20'
                 }`}
               >
                 {f.label}
-                <span className="ml-1.5 text-slate-500">
+                <span className="ml-1.5 text-zinc-500">
                   ({f.value === 'todos' ? all.length : all.filter(o => o.status === f.value).length})
                 </span>
               </button>
@@ -102,12 +102,12 @@ function PedidosContent() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-b border-white/8">
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">ID</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Repuesto / Vehículo</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Taller</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Estado</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Calidad</th>
-                  <th className="px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Actualizado</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">ID</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Repuesto / Vehículo</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Taller</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Estado</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Calidad</th>
+                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Actualizado</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,7 +139,7 @@ function PedidosContent() {
 
 export default function VendedorPedidosPage() {
   return (
-    <Suspense fallback={<div className="p-6 text-slate-400">Cargando...</div>}>
+    <Suspense fallback={<div className="p-6 text-zinc-400">Cargando...</div>}>
       <PedidosContent />
     </Suspense>
   );

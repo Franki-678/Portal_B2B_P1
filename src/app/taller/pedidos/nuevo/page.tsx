@@ -213,7 +213,7 @@ export default function NuevoPedidoPage() {
         <div className="text-center">
           <div className="text-5xl mb-4">&#x2705;</div>
           <h2 className="text-xl font-bold text-white mb-2">&#x00a1;Pedido enviado!</h2>
-          <p className="text-sm text-slate-400">Redirigiendo al detalle...</p>
+          <p className="text-sm text-zinc-400">Redirigiendo al detalle...</p>
         </div>
       </div>
     );

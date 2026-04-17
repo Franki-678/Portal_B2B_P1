@@ -44,14 +44,14 @@ export default function AdminPedidosPage() {
       <TopBar title="Pedidos globales" subtitle={`${all.length} pedidos visibles para el admin`} />
 
       <div className="space-y-6 p-6">
-        <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-4">
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <input
               type="text"
               value={search}
               onChange={event => setSearch(event.target.value)}
               placeholder="Buscar por repuesto, vehiculo o taller..."
-              className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-slate-700 focus:outline-none lg:max-w-md"
+              className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-700 focus:outline-none lg:max-w-md"
             />
             <div className="flex flex-wrap gap-2">
               {STATUS_FILTERS.map(item => (
@@ -61,8 +61,8 @@ export default function AdminPedidosPage() {
                   onClick={() => setFilter(item.value)}
                   className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                     filter === item.value
-                      ? 'border-violet-500/30 bg-violet-500/15 text-violet-200'
-                      : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                      ? 'border-orange-500/20 bg-orange-500/10 text-orange-400'
+                      : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
                   }`}
                 >
                   {item.label}
@@ -84,16 +84,16 @@ export default function AdminPedidosPage() {
             }
           />
         ) : (
-          <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70">
+          <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70">
             <table className="w-full text-sm">
-              <thead className="bg-slate-950/70">
-                <tr className="border-b border-slate-800 text-left">
-                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-slate-500">ID</th>
-                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-slate-500">Pedido</th>
-                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-slate-500">Taller</th>
-                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-slate-500">Estado</th>
-                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-slate-500">Detalle</th>
-                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-slate-500">Actualizado</th>
+              <thead className="bg-zinc-950/70">
+                <tr className="border-b border-zinc-800 text-left">
+                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">ID</th>
+                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Pedido</th>
+                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Taller</th>
+                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Estado</th>
+                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Detalle</th>
+                  <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Actualizado</th>
                 </tr>
               </thead>
               <tbody>

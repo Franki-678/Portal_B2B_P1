@@ -102,23 +102,23 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
       <aside
         ref={panelRef}
         className={cn(
-          'fixed inset-y-0 right-0 z-50 flex h-screen w-full flex-col border-l border-slate-800 bg-slate-950 shadow-2xl shadow-black/60 transition-transform duration-300 sm:max-w-[640px]',
+          'fixed inset-y-0 right-0 z-50 flex h-screen w-full flex-col border-l border-zinc-800 bg-zinc-950 shadow-2xl shadow-black/60 transition-transform duration-300 sm:max-w-[640px]',
           open ? 'translate-x-0' : 'translate-x-full'
         )}
         aria-label="Detalle del pedido"
       >
         {/* ── Header del drawer ── */}
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-5 py-4">
           <div className="flex items-center gap-3 min-w-0">
             <StatusBadge status={order.status} />
-            <span className="font-mono text-xs font-bold text-slate-300 bg-slate-800 px-2 py-1 rounded border border-slate-700 uppercase tracking-widest truncate">
+            <span className="font-mono text-xs font-bold text-zinc-300 bg-zinc-800 px-2 py-1 rounded border border-zinc-700 uppercase tracking-widest truncate">
               {orderLabel}
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400 transition hover:border-slate-600 hover:text-white"
+            className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 transition hover:border-zinc-600 hover:text-white"
             aria-label="Cerrar detalle"
           >
             ✕
@@ -148,28 +148,28 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
           )}
 
           {/* Vehículo */}
-          <div className="border-b border-slate-800/60 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">Vehículo</p>
+          <div className="border-b border-zinc-800/60 px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-1">Vehículo</p>
             <p className="text-base font-bold text-white">
               {order.vehicleBrand} {order.vehicleModel}
               {order.vehicleVersion && (
                 <span className="ml-2 text-sky-400 font-medium">{order.vehicleVersion}</span>
               )}
             </p>
-            <p className="text-sm text-slate-400 mt-0.5">{order.vehicleYear}</p>
+            <p className="text-sm text-zinc-400 mt-0.5">{order.vehicleYear}</p>
           </div>
 
           {/* Taller — visible para vendedor/admin; ocultado para taller mismo */}
           {role !== 'taller' && order.workshop && (
-            <div className="border-b border-slate-800/60 px-5 py-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">Taller</p>
+            <div className="border-b border-zinc-800/60 px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">Taller</p>
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-orange-500/20 bg-orange-500/10 text-base">
                   🏭
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-100">{order.workshop.name}</p>
-                  <p className="text-xs text-slate-500">{order.workshop.address || 'Sin dirección'}</p>
+                  <p className="text-sm font-bold text-zinc-100">{order.workshop.name}</p>
+                  <p className="text-xs text-zinc-500">{order.workshop.address || 'Sin dirección'}</p>
                 </div>
                 {order.workshop.phone && (
                   <WhatsAppLink
@@ -183,31 +183,31 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
           )}
 
           {/* Ítems pedidos */}
-          <div className="border-b border-slate-800/60 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">
+          <div className="border-b border-zinc-800/60 px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-3">
               Repuestos solicitados ({order.items.length})
             </p>
             <div className="space-y-2">
               {order.items.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3"
+                  className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3"
                 >
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-[10px] font-bold text-sky-400">
                     {idx + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-slate-100">{item.partName}</p>
+                    <p className="text-sm font-bold text-zinc-100">{item.partName}</p>
                     {item.description && (
-                      <p className="text-xs text-slate-400 mt-0.5">{item.description}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">{item.description}</p>
                     )}
                     <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                       <QualityBadge quality={item.quality} />
-                      <span className="text-[11px] font-medium text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">
+                      <span className="text-[11px] font-medium text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
                         Cant: {item.quantity}
                       </span>
                       {item.codigoCatalogo && (
-                        <span className="text-[10px] font-mono text-slate-500">
+                        <span className="text-[10px] font-mono text-zinc-500">
                           Ref: {item.codigoCatalogo}
                         </span>
                       )}
@@ -220,19 +220,19 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
 
           {/* Cotización (si existe) */}
           {order.quote && (
-            <div className="border-b border-slate-800/60 px-5 py-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">
+            <div className="border-b border-zinc-800/60 px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-3">
                 Cotización enviada
               </p>
               {order.quote.notes && (
-                <p className="mb-3 text-xs text-slate-400 italic">"{order.quote.notes}"</p>
+                <p className="mb-3 text-xs text-zinc-400 italic">"{order.quote.notes}"</p>
               )}
               <div className="space-y-1.5">
                 {order.quote.items.map(qi => (
-                  <div key={qi.id} className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2">
+                  <div key={qi.id} className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-200 truncate">{qi.partName}</p>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="text-xs font-semibold text-zinc-200 truncate">{qi.partName}</p>
+                      <p className="text-[11px] text-zinc-500">
                         {qi.quantityOffered} u × {formatCurrency(qi.price)}
                       </p>
                     </div>
@@ -257,17 +257,17 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
           )}
 
           {/* Metadata */}
-          <div className="px-5 py-4 text-xs text-slate-500 space-y-1">
+          <div className="px-5 py-4 text-xs text-zinc-500 space-y-1">
             <p>Creado: {formatDate(order.createdAt)}</p>
             <p>Actualizado: {formatDate(order.updatedAt)}</p>
             {order.internalOrderNumber && (
-              <p>Ref. interna: <span className="text-slate-400 font-medium">{order.internalOrderNumber}</span></p>
+              <p>Ref. interna: <span className="text-zinc-400 font-medium">{order.internalOrderNumber}</span></p>
             )}
           </div>
         </div>
 
         {/* ── Barra de acciones fija en el footer ── */}
-        <div className="border-t border-slate-800 bg-slate-900 px-5 py-4 space-y-2">
+        <div className="border-t border-zinc-800 bg-zinc-900 px-5 py-4 space-y-2">
 
           {/* Acciones para VENDEDOR */}
           {role === 'vendedor' && (
@@ -313,7 +313,7 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
 
               {/* Ir al detalle completo */}
               <Link href={`/vendedor/pedidos/${order.id}`} className="block w-full">
-                <Button fullWidth size="sm" variant="ghost" className="text-slate-300 hover:text-white">
+                <Button fullWidth size="sm" variant="ghost" className="text-zinc-300 hover:text-white">
                   Ver detalle completo →
                 </Button>
               </Link>
@@ -356,7 +356,7 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
                 </Button>
               )}
               <Link href={`/vendedor/pedidos/${order.id}`} className="block w-full">
-                <Button fullWidth size="sm" variant="ghost" className="text-slate-300 hover:text-white">
+                <Button fullWidth size="sm" variant="ghost" className="text-zinc-300 hover:text-white">
                   Gestionar pedido →
                 </Button>
               </Link>

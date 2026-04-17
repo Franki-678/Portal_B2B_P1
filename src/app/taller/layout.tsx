@@ -57,8 +57,8 @@ export default function TallerLayout({ children }: { children: React.ReactNode }
   if (!user) {
     if (isLoading) {
       return (
-        <div className="flex h-screen overflow-hidden bg-slate-950">
-          <div className="hidden md:block w-64 shrink-0 border-r border-slate-800 bg-slate-900 p-4">
+        <div className="flex h-screen overflow-hidden bg-zinc-950">
+          <div className="hidden md:block w-64 shrink-0 border-r border-zinc-800 bg-zinc-900 p-4">
             <div className="h-8 w-36 rounded bg-zinc-800/80 animate-pulse mb-6" />
             <div className="space-y-3">
               <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
@@ -91,7 +91,7 @@ export default function TallerLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
-      <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
+      <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100">
         <Sidebar navItems={tallerNav} portalLabel="Portal Taller" portalIcon="🏭" accentColor="orange" />
         {/* Área de contenido: ocupa el resto del viewport, scrollea internamente */}
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden md:pl-64">

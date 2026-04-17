@@ -17,20 +17,9 @@ interface SidebarProps {
   navItems: NavItem[];
   portalLabel: string;
   portalIcon: string;
+  /** Mantenemos la prop por compatibilidad, pero todo usa orange ahora */
   accentColor?: 'orange' | 'blue' | 'purple';
 }
-
-const ACCENT_CLASS: Record<NonNullable<SidebarProps['accentColor']>, string> = {
-  orange: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
-  blue:   'bg-blue-500/15 text-blue-400 border-blue-500/30',
-  purple: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-};
-
-const AVATAR_CLASS: Record<NonNullable<SidebarProps['accentColor']>, string> = {
-  orange: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  blue:   'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-};
 
 const SIDEBAR_TOGGLE_EVENT = 'portal-sidebar-toggle';
 
@@ -54,16 +43,11 @@ function SidebarContent({
   navItems,
   portalLabel,
   portalIcon,
-  accentColor = 'orange',
   onClose,
 }: SidebarProps & { onClose?: () => void }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const tallerLabel = user?.role === 'taller' ? getTallerDisplayName(user) : '';
-
-  const accent      = ACCENT_CLASS[accentColor];
-  const activeClass = ACCENT_CLASS[accentColor];
-  const avatarClass = AVATAR_CLASS[accentColor];
 
   const displayName =
     user?.role === 'taller'
@@ -80,28 +64,24 @@ function SidebarContent({
         : 'V';
 
   return (
-    <div className="flex h-full w-full flex-col bg-slate-900 text-slate-100">
+    <div className="flex h-full w-full flex-col bg-zinc-900 text-zinc-100">
+
       {/* ── Header ── */}
-      <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+      <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div
-            className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-base shadow-sm',
-              accent
-            )}
-          >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-orange-500/30 bg-orange-500/10 text-base shadow-sm">
             {portalIcon}
           </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-bold tracking-tight text-white">Portal B2B</div>
-            <div className="truncate text-[11px] font-medium text-slate-400">{portalLabel}</div>
+            <div className="truncate text-[11px] font-medium text-zinc-400">{portalLabel}</div>
           </div>
         </div>
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-400 hover:text-white transition"
+            className="rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-400 hover:text-white transition"
             aria-label="Cerrar menú"
           >
             ✕
@@ -126,8 +106,8 @@ function SidebarContent({
               className={cn(
                 'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? cn(activeClass, 'shadow-sm')
-                  : 'border-transparent text-slate-400 hover:border-slate-700 hover:bg-slate-800 hover:text-white'
+                  ? 'border-orange-500/30 bg-orange-500/10 text-orange-400 shadow-sm'
+                  : 'border-transparent text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100'
               )}
             >
               <span className="text-base leading-none">{item.icon}</span>
@@ -138,19 +118,14 @@ function SidebarContent({
       </nav>
 
       {/* ── Footer / User ── */}
-      <div className="border-t border-slate-800 p-4 space-y-3">
-        <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2.5">
-          <div
-            className={cn(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-bold',
-              avatarClass
-            )}
-          >
+      <div className="border-t border-zinc-800 p-4 space-y-3">
+        <div className="flex items-center gap-3 rounded-xl border border-zinc-700 bg-zinc-800/60 px-3 py-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 text-xs font-bold text-orange-400">
             {avatarLetter}
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-bold text-white">{displayName}</div>
-            <div className="truncate text-[10px] text-slate-500">{user?.email}</div>
+            <div className="truncate text-[10px] text-zinc-500">{user?.email}</div>
           </div>
         </div>
         <Button
@@ -158,7 +133,7 @@ function SidebarContent({
           size="sm"
           fullWidth
           onClick={logout}
-          className="text-slate-400 hover:bg-rose-500/10 hover:text-rose-400"
+          className="text-zinc-400 hover:bg-rose-500/10 hover:text-rose-400"
         >
           <span>🚪</span>
           <span>Cerrar sesión</span>
@@ -187,21 +162,21 @@ export function Sidebar(props: SidebarProps) {
       {/* Overlay móvil */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity md:hidden',
+          'fixed inset-0 z-40 bg-black/70 backdrop-blur-sm transition-opacity md:hidden',
           mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={() => setMobileOpen(false)}
       />
 
-      {/* Sidebar desktop — siempre visible, w-64, h-screen */}
-      <aside className="fixed inset-y-0 left-0 z-50 hidden h-screen w-64 border-r border-slate-800 shadow-xl shadow-black/40 md:block">
+      {/* Sidebar desktop */}
+      <aside className="fixed inset-y-0 left-0 z-50 hidden h-screen w-64 border-r border-zinc-800 shadow-xl shadow-black/50 md:block">
         <SidebarContent {...props} />
       </aside>
 
-      {/* Sidebar móvil — desliza desde la izquierda */}
+      {/* Sidebar móvil */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 h-screen w-72 border-r border-slate-800 shadow-2xl shadow-black/50 transition-transform duration-300 md:hidden',
+          'fixed inset-y-0 left-0 z-50 h-screen w-72 border-r border-zinc-800 shadow-2xl shadow-black/60 transition-transform duration-300 md:hidden',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -225,14 +200,14 @@ export function TopBar({ title, subtitle, action }: TopBarProps) {
   const breadcrumbs = useMemo(() => buildBreadcrumbs(pathname), [pathname]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur-xl shadow-sm shadow-black/10">
+    <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur-xl shadow-sm shadow-black/20">
       <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-6">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-zinc-500">
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event(SIDEBAR_TOGGLE_EVENT))}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 md:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 transition hover:border-orange-500/30 hover:text-orange-400 md:hidden"
               aria-label="Abrir sidebar"
             >
               ☰
@@ -240,31 +215,31 @@ export function TopBar({ title, subtitle, action }: TopBarProps) {
             <nav className="flex flex-wrap items-center gap-2">
               {breadcrumbs.map((crumb, index) => (
                 <span key={crumb.href} className="flex items-center gap-2">
-                  {index > 0 && <span className="text-slate-700">/</span>}
-                  <Link href={crumb.href} className="transition hover:text-slate-300">
+                  {index > 0 && <span className="text-zinc-700">/</span>}
+                  <Link href={crumb.href} className="transition hover:text-zinc-300">
                     {crumb.label}
                   </Link>
                 </span>
               ))}
             </nav>
           </div>
-          <h1 className="truncate text-lg font-bold tracking-tight text-slate-100">{title}</h1>
-          {subtitle && <p className="mt-0.5 text-sm font-medium text-slate-400">{subtitle}</p>}
+          <h1 className="truncate text-lg font-bold tracking-tight text-zinc-100">{title}</h1>
+          {subtitle && <p className="mt-0.5 text-sm font-medium text-zinc-400">{subtitle}</p>}
         </div>
 
         <div className="flex items-center gap-3">
           {action && <div className="hidden sm:block">{action}</div>}
-          <div className="hidden rounded-2xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-right md:block">
-            <div className="max-w-44 truncate text-sm font-semibold text-slate-100">{user?.name ?? 'Usuario'}</div>
-            <div className="max-w-44 truncate text-xs text-slate-500">{user?.email}</div>
+          <div className="hidden rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 text-right md:block">
+            <div className="max-w-44 truncate text-sm font-semibold text-zinc-100">{user?.name ?? 'Usuario'}</div>
+            <div className="max-w-44 truncate text-xs text-zinc-500">{user?.email}</div>
           </div>
-          <Button variant="ghost" size="sm" onClick={logout} className="text-slate-400 hover:text-rose-400">
+          <Button variant="ghost" size="sm" onClick={logout} className="text-zinc-400 hover:text-rose-400">
             Cerrar sesión
           </Button>
         </div>
       </div>
 
-      {action && <div className="border-t border-slate-800 px-4 py-3 sm:hidden">{action}</div>}
+      {action && <div className="border-t border-zinc-800 px-4 py-3 sm:hidden">{action}</div>}
     </header>
   );
 }
