@@ -15,13 +15,13 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  pendiente: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  en_revision: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-  cotizado: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  pendiente:        'bg-green-500/10 text-green-400 border-green-500/20',
+  en_revision:      'bg-sky-500/10 text-sky-400 border-sky-500/20',
+  cotizado:         'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
   aprobado_parcial: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  aprobado: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  rechazado: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-  cerrado: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
+  aprobado:         'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  rechazado:        'bg-red-500/10 text-red-400 border-red-500/20',
+  cerrado:          'bg-blue-500/10 text-blue-400 border-blue-500/20',
 };
 
 export const QUALITY_LABELS: Record<OrderQuality, string> = {

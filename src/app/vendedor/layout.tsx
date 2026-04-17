@@ -39,8 +39,8 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
   if (!user) {
     if (isLoading) {
       return (
-        <div className="min-h-screen bg-[#0F1117] flex">
-          <div className="hidden md:block w-64 border-r border-zinc-800 bg-zinc-900/40 p-4">
+        <div className="min-h-screen bg-slate-950 flex">
+          <div className="hidden md:block w-64 shrink-0 border-r border-slate-800 bg-slate-900 p-4">
             <div className="h-8 w-40 rounded bg-zinc-800/80 animate-pulse mb-6" />
             <div className="space-y-3">
               <div className="h-9 rounded bg-zinc-800/70 animate-pulse" />
@@ -75,9 +75,9 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <Sidebar navItems={navItems} portalLabel={portalLabel} portalIcon="📦" accentColor="blue" />
-      <div className="min-h-screen min-w-0 md:pl-[88px] xl:pl-[250px]">
+      <div className="min-h-screen min-w-0 md:pl-64">
         <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden">
-        {children}
+          {children}
         </div>
       </div>
     </div>
