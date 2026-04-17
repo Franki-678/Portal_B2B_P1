@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/FormFields';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { fetchVendorMetrics } from '@/lib/supabase/queries';
 import { VendorPerformance, Order } from '@/lib/types';
@@ -54,6 +55,14 @@ export default function AdminVendedoresPage() {
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Modal: Nuevo Vendedor
+  const [showNewVendor, setShowNewVendor] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // ── Carga inicial ─────────────────────────────────────────
 
@@ -139,6 +148,37 @@ export default function AdminVendedoresPage() {
     void loadVendorOrders(vendorId);
   };
 
+  // ── Crear nuevo vendedor ──────────────────────────────────
+
+  const handleCreateVendor = async () => {
+    if (!newName.trim() || !newEmail.trim()) return;
+    setCreating(true);
+    setCreateResult(null);
+    try {
+      const res = await fetch('/api/create-vendor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim(), email: newEmail.trim(), phone: newPhone.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCreateResult({ ok: false, msg: data.error ?? 'Error al crear el vendedor.' });
+      } else {
+        setCreateResult({ ok: true, msg: data.message ?? 'Vendedor creado exitosamente.' });
+        setNewName(''); setNewEmail(''); setNewPhone('');
+        setTimeout(() => {
+          setShowNewVendor(false);
+          setCreateResult(null);
+          void load();
+        }, 2000);
+      }
+    } catch (e) {
+      setCreateResult({ ok: false, msg: e instanceof Error ? e.message : 'Error desconocido.' });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   // ── Guardar edición de perfil ─────────────────────────────
 
   const handleSaveProfile = async (vendorId: string) => {
@@ -198,13 +238,89 @@ export default function AdminVendedoresPage() {
     <>
       <TopBar
         title="Gestión de vendedores"
-        subtitle="Rendimiento, perfiles y asignación de pedidos"
+        subtitle="Rendimiento, perfiles y creación de cuentas"
         action={
-          <Button variant="secondary" size="sm" onClick={() => void load()}>
-            ↻ Actualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => { setShowNewVendor(true); setCreateResult(null); }}
+              className="bg-orange-600 hover:bg-orange-500 text-white border-0 shadow-md shadow-orange-500/20"
+            >
+              + Nuevo vendedor
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => void load()}>
+              ↻ Actualizar
+            </Button>
+          </div>
         }
       />
+
+      {/* ── Modal: Nuevo Vendedor ── */}
+      {showNewVendor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-black/60 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-zinc-100">Nuevo vendedor</h2>
+              <button
+                type="button"
+                onClick={() => { setShowNewVendor(false); setCreateResult(null); }}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-white transition"
+              >✕</button>
+            </div>
+            <p className="text-xs text-zinc-500">
+              Se creará una cuenta en el sistema. El vendedor recibirá un email para ingresar.
+            </p>
+            <div className="space-y-4">
+              <Input
+                label="Nombre completo"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="Ej: Juan Pérez"
+              />
+              <Input
+                label="Email"
+                type="email"
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                placeholder="vendedor@empresa.com"
+              />
+              <Input
+                label="Teléfono (opcional)"
+                value={newPhone}
+                onChange={e => setNewPhone(e.target.value)}
+                placeholder="Ej: 1155551234"
+              />
+            </div>
+            {createResult && (
+              <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+                createResult.ok
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                  : 'border-red-500/30 bg-red-500/10 text-red-300'
+              }`}>
+                {createResult.ok ? '✅ ' : '❌ '}{createResult.msg}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowNewVendor(false); setCreateResult(null); }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void handleCreateVendor()}
+                loading={creating}
+                disabled={!newName.trim() || !newEmail.trim()}
+                className="bg-orange-600 hover:bg-orange-500 text-white border-0"
+              >
+                Crear vendedor
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
 
@@ -251,7 +367,7 @@ export default function AdminVendedoresPage() {
                         className={cn(
                           'cursor-pointer transition-colors group',
                           isSelected
-                            ? 'bg-purple-500/10 border-l-2 border-l-purple-500'
+                            ? 'bg-orange-500/10 border-l-2 border-l-orange-500'
                             : 'hover:bg-zinc-800/40'
                         )}
                       >
@@ -301,7 +417,7 @@ export default function AdminVendedoresPage() {
                         className={cn(
                           'flex items-center gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition-colors',
                           selectedVendorId === p.id
-                            ? 'border-purple-500/30 bg-purple-500/10'
+                            ? 'border-orange-500/20 bg-orange-500/10'
                             : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/40'
                         )}
                       >
@@ -332,7 +448,7 @@ export default function AdminVendedoresPage() {
               {/* Header del vendedor */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-purple-500/30 bg-purple-500/10 text-xl font-black text-purple-400">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-500/20 bg-orange-500/10 text-xl font-black text-orange-400">
                     {((selectedProfile?.name || selectedMetric?.vendorName || 'V')[0]).toUpperCase()}
                   </div>
                   <div>
@@ -400,7 +516,7 @@ export default function AdminVendedoresPage() {
                     value={editPhone}
                     onChange={e => setEditPhone(e.target.value)}
                     placeholder="Ej: 1155551234"
-                    className="text-sm text-white bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 w-full focus:outline-none focus:border-purple-500"
+                    className="text-sm text-white bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 w-full focus:outline-none focus:border-orange-500"
                   />
                 ) : (
                   <p className="text-sm font-semibold text-zinc-200">

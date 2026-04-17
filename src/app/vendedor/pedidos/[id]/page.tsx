@@ -96,6 +96,9 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
   const canQuote = canVendorQuote(order.status);
   const hasQuote = !!order.quote;
+  // Sistema colaborativo: el vendedor solo puede actuar sobre sus propios pedidos
+  const isMyOrder = order.assignedVendorId === user?.id || user?.role === 'admin';
+  const isUnassigned = !order.assignedVendorId;
 
   const handleSetInReview = async () => {
     setActionLoading(true);
@@ -360,47 +363,69 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
           {/* Actions */}
           <div className="mt-6 pt-5 flex items-center gap-3 flex-wrap">
-            {/* Tomar pedido si está en cola (sin asignar) */}
-            {!order.assignedVendorId && order.status === 'pendiente' && (
+
+            {/* ── Tomar pedido (solo si está libre) ── */}
+            {isUnassigned && order.status === 'pendiente' && (
               <Button
                 size="sm"
                 onClick={async () => { setActionLoading(true); await takeOrder(order.id); setActionLoading(false); }}
                 loading={actionLoading}
-                className="bg-blue-600 hover:bg-blue-500 text-white border-0"
+                className="bg-orange-600 hover:bg-orange-500 text-white border-0 shadow-md shadow-orange-500/20"
               >
                 🙋 Tomar pedido
               </Button>
             )}
-            {/* Liberar pedido si es mío */}
-            {order.assignedVendorId === user?.id && (order.status === 'pendiente' || order.status === 'en_revision') && (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={async () => { setActionLoading(true); await releaseOrder(order.id); setActionLoading(false); }}
-                loading={actionLoading}
-              >
-                🔓 Liberar a la cola
-              </Button>
+
+            {/* ── Acciones del vendedor asignado ── */}
+            {isMyOrder && (
+              <>
+                {/* Liberar */}
+                {(order.status === 'pendiente' || order.status === 'en_revision') && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={async () => { setActionLoading(true); await releaseOrder(order.id); setActionLoading(false); }}
+                    loading={actionLoading}
+                  >
+                    🔓 Liberar a la cola
+                  </Button>
+                )}
+                {/* Marcar en revisión */}
+                {order.status === 'pendiente' && (
+                  <Button size="sm" variant="secondary" onClick={handleSetInReview} loading={actionLoading}>
+                    🔍 Marcar en revisión
+                  </Button>
+                )}
+                {/* Armar cotización */}
+                {canQuote && !hasQuote && (
+                  <Button size="sm" onClick={() => setShowQuoteForm(!showQuoteForm)}>
+                    💰 {showQuoteForm ? 'Cerrar formulario' : 'Armar cotización'}
+                  </Button>
+                )}
+                {/* Cerrar pedido */}
+                {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
+                  <Button size="sm" variant="success" onClick={() => setShowCloseModal(true)} loading={actionLoading} className="shadow-lg shadow-emerald-500/10">
+                    ✅ Cerrar pedido (Finalizado)
+                  </Button>
+                )}
+                {/* Eliminar */}
+                {(order.status === 'pendiente' || order.status === 'en_revision') && (
+                  <Button size="sm" variant="danger" onClick={() => setShowDeleteModal(true)} loading={actionLoading}>
+                    🗑️ Eliminar pedido
+                  </Button>
+                )}
+              </>
             )}
-            {order.status === 'pendiente' && (
-              <Button size="sm" variant="secondary" onClick={handleSetInReview} loading={actionLoading}>
-                &#x1F440; Marcar en revisión
-              </Button>
+
+            {/* ── Solo lectura (pedido de otro vendedor) ── */}
+            {!isMyOrder && !isUnassigned && (
+              <div className="flex items-center gap-2 text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-3 py-2 rounded-lg">
+                <span>👁</span>
+                <span>Solo lectura — asignado a <span className="text-zinc-300 font-semibold">{order.assignedVendorName}</span></span>
+              </div>
             )}
-            {canQuote && !hasQuote && (
-              <Button size="sm" onClick={() => setShowQuoteForm(!showQuoteForm)}>
-                &#x1F4B0; {showQuoteForm ? 'Cerrar formulario' : 'Armar cotización'}
-              </Button>
-            )}
-            {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
-              <Button size="sm" variant="success" onClick={() => setShowCloseModal(true)} loading={actionLoading} className="shadow-lg shadow-emerald-500/10">
-                &#x2705; Cerrar pedido (Finalizado)
-              </Button>
-            )}
-            <Button size="sm" variant="danger" onClick={() => setShowDeleteModal(true)} loading={actionLoading}>
-              &#x1F5D1;&#xFE0F; Eliminar pedido
-            </Button>
-            {hasQuote && canQuote && (
+
+            {hasQuote && canQuote && isMyOrder && (
               <div className="text-xs text-orange-400 bg-orange-500/10 border border-orange-500/20 px-3 py-1.5 rounded-lg">
                 Ya existe una cotización enviada
               </div>

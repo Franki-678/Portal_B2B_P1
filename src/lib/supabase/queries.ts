@@ -151,11 +151,9 @@ export async function fetchAllOrders(
   if (scope.role === 'taller' && scope.workshopIds) {
     // Taller: solo sus propios pedidos
     ordersQuery = ordersQuery.in('workshop_id', scope.workshopIds);
-  } else if (scope.role === 'vendedor') {
-    // Vendedor: sus pedidos asignados + cola general (sin asignar)
-    ordersQuery = ordersQuery.or(`assigned_vendor_id.eq.${userId},assigned_vendor_id.is.null`);
   }
-  // Admin: sin filtro → ve todo
+  // Vendedor y Admin: sin filtro → ven todos los pedidos (sistema colaborativo)
+  // El control de acciones se hace en la UI según assignedVendorId
 
   const { data: rows, error } = await ordersQuery;
 
@@ -201,7 +199,16 @@ export async function fetchAllOrders(
       console.error('[Supabase] Error fetching order_images:', imgErr.message);
       throw new Error(imgErr.message);
     }
-    orderImages = imgRows ?? [];
+    // Regenerar URLs desde storage_path para garantizar acceso correcto al bucket
+    orderImages = (imgRows ?? []).map((img: any) => {
+      if (img.storage_path && !(img.url ?? '').startsWith('data:')) {
+        const { data: urlData } = sb.storage
+          .from('order-images')
+          .getPublicUrl(String(img.storage_path));
+        return { ...img, url: urlData.publicUrl };
+      }
+      return img;
+    });
   }
   const quotes: any[] = quotesRes.data ?? [];
   const allEvents: any[] = eventsRes.data ?? [];
@@ -234,7 +241,15 @@ export async function fetchAllOrders(
     if (qiiErr) {
       console.warn('[Supabase] quote_item_images (¿migración pendiente?):', qiiErr.message);
     } else {
-      quoteItemImages = qiiRows ?? [];
+      quoteItemImages = (qiiRows ?? []).map((img: any) => {
+        if (img.storage_path && !(img.url ?? '').startsWith('data:')) {
+          const { data: urlData } = sb.storage
+            .from('quote-images')
+            .getPublicUrl(String(img.storage_path));
+          return { ...img, url: urlData.publicUrl };
+        }
+        return img;
+      });
     }
   }
 
@@ -665,7 +680,15 @@ async function fetchAllOrdersForIds(
       .select('id, order_item_id, url, storage_path, created_at')
       .in('order_item_id', itemIds);
     if (imgErr) throw new Error(imgErr.message);
-    orderImages = imgRows ?? [];
+    orderImages = (imgRows ?? []).map((img: any) => {
+      if (img.storage_path && !(img.url ?? '').startsWith('data:')) {
+        const { data: urlData } = sb.storage
+          .from('order-images')
+          .getPublicUrl(String(img.storage_path));
+        return { ...img, url: urlData.publicUrl };
+      }
+      return img;
+    });
   }
 
   const quoteIds = quotes.map((q: any) => q.id);
@@ -686,7 +709,15 @@ async function fetchAllOrdersForIds(
       .from('quote_item_images')
       .select('id, quote_item_id, url, storage_path, created_at')
       .in('quote_item_id', quoteItemIds);
-    quoteItemImages = qiiRows ?? [];
+    quoteItemImages = (qiiRows ?? []).map((img: any) => {
+      if (img.storage_path && !(img.url ?? '').startsWith('data:')) {
+        const { data: urlData } = sb.storage
+          .from('quote-images')
+          .getPublicUrl(String(img.storage_path));
+        return { ...img, url: urlData.publicUrl };
+      }
+      return img;
+    });
   }
 
   const imagesByQuoteItemId: Record<string, any[]> = {};

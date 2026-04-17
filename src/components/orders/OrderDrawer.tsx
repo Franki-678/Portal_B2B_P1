@@ -159,6 +159,29 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
             <p className="text-sm text-zinc-400 mt-0.5">{order.vehicleYear}</p>
           </div>
 
+          {/* Vendedor a cargo — visible para todos */}
+          {role !== 'taller' && (
+            <div className="border-b border-zinc-800/60 px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500 mb-2">Vendedor a cargo</p>
+              {order.assignedVendorName ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-orange-500/20 bg-orange-500/10 text-sm font-bold text-orange-400">
+                    {order.assignedVendorName[0]?.toUpperCase()}
+                  </div>
+                  <p className="text-sm font-bold text-zinc-100">{order.assignedVendorName}</p>
+                </div>
+              ) : (
+                <p className="text-xs italic text-zinc-600">Sin vendedor asignado — en cola general</p>
+              )}
+            </div>
+          )}
+          {role === 'taller' && order.assignedVendorName && (
+            <div className="border-b border-zinc-800/60 px-5 py-3 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Vendedor:</span>
+              <span className="text-xs font-semibold text-zinc-300">{order.assignedVendorName}</span>
+            </div>
+          )}
+
           {/* Taller — visible para vendedor/admin; ocultado para taller mismo */}
           {role !== 'taller' && order.workshop && (
             <div className="border-b border-zinc-800/60 px-5 py-4">

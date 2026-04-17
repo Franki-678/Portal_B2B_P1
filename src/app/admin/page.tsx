@@ -57,12 +57,11 @@ function getDateRange(range: DateRange): { start: string; end: string } {
 // ============================================================
 
 const quickLinks = [
-  { href: '/admin/pedidos',       title: 'Pedidos',      description: 'Seguimiento global de pedidos y estados.', icon: '📋' },
-  { href: '/admin/vendedores',    title: 'Vendedores',   description: 'Gestión de vendedores, KPIs y asignación.', icon: '👤' },
-  { href: '/admin/clientes',      title: 'Clientes',     description: 'Listado completo de talleres y actividad.', icon: '🏭' },
-  { href: '/admin/metricas',      title: 'Métricas',     description: 'KPIs del mes, top productos y barras.', icon: '📈' },
-  { href: '/admin/usuarios',      title: 'Usuarios',     description: 'Roles, talleres asignados y directorio.', icon: '👥' },
-  { href: '/admin/configuracion', title: 'Configuración',description: 'Resumen técnico y SQL operativo de Supabase.', icon: '⚙️' },
+  { href: '/admin/pedidos',       title: 'Pedidos',        description: 'Seguimiento global de pedidos y estados.', icon: '📋' },
+  { href: '/admin/vendedores',    title: 'Vendedores',     description: 'Gestión de vendedores, KPIs y creación de cuentas.', icon: '🧑‍💼' },
+  { href: '/admin/clientes',      title: 'Clientes',       description: 'Listado completo de talleres y actividad.', icon: '🏭' },
+  { href: '/admin/metricas',      title: 'Métricas',       description: 'KPIs de facturación y rendimiento por período.', icon: '📈' },
+  { href: '/admin/configuracion', title: 'Configuración',  description: 'Carga de dataset (catálogo) y ajustes del sistema.', icon: '⚙️' },
 ];
 
 // ============================================================

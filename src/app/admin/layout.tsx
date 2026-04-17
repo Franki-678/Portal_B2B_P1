@@ -13,7 +13,6 @@ const adminNav = [
   { href: '/admin/vendedores', label: 'Vendedores', icon: '🧑‍💼' },
   { href: '/admin/metricas', label: 'Métricas', icon: '📈' },
   { href: '/admin/configuracion', label: 'Configuración', icon: '⚙️' },
-  { href: '/admin/usuarios', label: 'Usuarios', icon: '👥' },
   { href: '/vendedor', label: 'Vista Vendedor', icon: '📦' },
 ];
 
