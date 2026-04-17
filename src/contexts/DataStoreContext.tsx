@@ -23,6 +23,8 @@ import {
   fetchAllWorkshops,
   fetchOrderById,
   deleteOrderInDB,
+  takeOrderInDB,
+  releaseOrderInDB,
 } from '@/lib/supabase/queries';
 
 // ============================================================
@@ -86,6 +88,10 @@ interface DataStoreContextType {
   ) => Promise<void>;
   closeOrder: (orderId: string, userId: string, userName: string, comment?: string) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<boolean>;
+  /** Vendedor toma un pedido de la cola general (self-assign). */
+  takeOrder: (orderId: string) => Promise<boolean>;
+  /** Vendedor libera su pedido de vuelta a la cola. */
+  releaseOrder: (orderId: string) => Promise<boolean>;
   /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
   refreshData: (opts?: { forceWorkshops?: boolean; silent?: boolean }) => Promise<void>;
   /** Fuerza recarga de pedidos y talleres (botón Reintentar). */
@@ -497,6 +503,44 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     return ok;
   }, []);
 
+  const takeOrder = useCallback(
+    async (orderId: string): Promise<boolean> => {
+      if (!user) return false;
+      const sb = getSupabaseClient();
+      const ok = await takeOrderInDB(sb, orderId, user.id);
+      if (ok) {
+        // Optimistic update: asignar al usuario actual
+        updateLocalOrder(orderId, order => ({
+          ...order,
+          assignedVendorId: user.id,
+          assignedVendorName: user.name,
+        }));
+        void refreshData({ silent: true });
+      }
+      return ok;
+    },
+    [user, updateLocalOrder, refreshData]
+  );
+
+  const releaseOrder = useCallback(
+    async (orderId: string): Promise<boolean> => {
+      if (!user) return false;
+      const sb = getSupabaseClient();
+      const ok = await releaseOrderInDB(sb, orderId, user.id);
+      if (ok) {
+        // Optimistic update: liberar asignación
+        updateLocalOrder(orderId, order => ({
+          ...order,
+          assignedVendorId: undefined,
+          assignedVendorName: undefined,
+        }));
+        void refreshData({ silent: true });
+      }
+      return ok;
+    },
+    [user, updateLocalOrder, refreshData]
+  );
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -544,6 +588,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         submitQuote,
         closeOrder,
         deleteOrder,
+        takeOrder,
+        releaseOrder,
         refreshData,
         refreshOrders,
       }}

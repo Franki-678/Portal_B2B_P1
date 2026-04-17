@@ -4,12 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderCard } from '@/components/orders/OrderCard';
+import { OrderDrawer } from '@/components/orders/OrderDrawer';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { StatusBadge } from '@/components/ui/Badge';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { OrderStatus } from '@/lib/types';
+import { Order, OrderStatus } from '@/lib/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 
 const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
@@ -28,6 +28,8 @@ export default function TallerPedidosPage() {
   const [filter, setFilter] = useState<'todos' | OrderStatus>('todos');
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const all = user?.workshopId ? getWorkshopOrders(user.workshopId) : [];
   const filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
@@ -107,14 +109,17 @@ export default function TallerPedidosPage() {
                 key={order.id}
                 order={order}
                 role="taller"
-                onClick={() => router.push(`/taller/pedidos/${order.id}`)}
+                onClick={() => {
+                  setDrawerOrder(order);
+                  setDrawerOpen(true);
+                }}
                 footerActions={
                   order.status === 'pendiente' ? (
                     <Button
                       type="button"
                       size="sm"
                       variant="danger"
-                      onClick={() => setDeletingOrderId(order.id)}
+                      onClick={(e) => { e.stopPropagation(); setDeletingOrderId(order.id); }}
                     >
                       🗑️ Eliminar pedido
                     </Button>
@@ -135,6 +140,12 @@ export default function TallerPedidosPage() {
         onCancel={() => setDeletingOrderId(null)}
         onConfirm={handleDelete}
         loading={deleting}
+      />
+      <OrderDrawer
+        order={drawerOrder}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        role="taller"
       />
     </>
   );

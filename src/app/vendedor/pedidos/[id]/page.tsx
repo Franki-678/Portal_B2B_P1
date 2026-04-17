@@ -37,7 +37,7 @@ interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved' |
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderById, setOrderInReview, submitQuote, closeOrder, deleteOrder } = useDataStore();
+  const { getOrderById, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder } = useDataStore();
   const router = useRouter();
 
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -333,6 +333,28 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
           {/* Actions */}
           <div className="mt-6 pt-5 flex items-center gap-3 flex-wrap">
+            {/* Tomar pedido si está en cola (sin asignar) */}
+            {!order.assignedVendorId && order.status === 'pendiente' && (
+              <Button
+                size="sm"
+                onClick={async () => { setActionLoading(true); await takeOrder(order.id); setActionLoading(false); }}
+                loading={actionLoading}
+                className="bg-blue-600 hover:bg-blue-500 text-white border-0"
+              >
+                🙋 Tomar pedido
+              </Button>
+            )}
+            {/* Liberar pedido si es mío */}
+            {order.assignedVendorId === user?.id && (order.status === 'pendiente' || order.status === 'en_revision') && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => { setActionLoading(true); await releaseOrder(order.id); setActionLoading(false); }}
+                loading={actionLoading}
+              >
+                🔓 Liberar a la cola
+              </Button>
+            )}
             {order.status === 'pendiente' && (
               <Button size="sm" variant="secondary" onClick={handleSetInReview} loading={actionLoading}>
                 &#x1F440; Marcar en revisión

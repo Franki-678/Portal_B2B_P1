@@ -134,7 +134,8 @@ export async function fetchAllOrders(
 ): Promise<Order[]> {
   const scope = await resolveVisibleWorkshopIds(sb, userId);
 
-  if (scope.workshopIds && scope.workshopIds.length === 0) {
+  // Taller sin taller asignado → sin pedidos
+  if (scope.role === 'taller' && scope.workshopIds && scope.workshopIds.length === 0) {
     return [];
   }
 
@@ -144,9 +145,14 @@ export async function fetchAllOrders(
     .order('created_at', { ascending: false })
     .limit(200);
 
-  if (scope.workshopIds) {
+  if (scope.role === 'taller' && scope.workshopIds) {
+    // Taller: solo sus propios pedidos
     ordersQuery = ordersQuery.in('workshop_id', scope.workshopIds);
+  } else if (scope.role === 'vendedor') {
+    // Vendedor: sus pedidos asignados + cola general (sin asignar)
+    ordersQuery = ordersQuery.or(`assigned_vendor_id.eq.${userId},assigned_vendor_id.is.null`);
   }
+  // Admin: sin filtro → ve todo
 
   const { data: rows, error } = await ordersQuery;
 
@@ -1005,6 +1011,58 @@ export async function fetchProfilesDirectory(sb: SupabaseClientType): Promise<Pr
     workshopName: profile.workshop_id ? workshopMap.get(profile.workshop_id)?.name ?? null : null,
     assignedWorkshops: (profile.assigned_workshops ?? []).map((id: string) => workshopMap.get(id)?.name ?? id),
   }));
+}
+
+// ============================================================
+// COLA GENERAL: TOMAR / LIBERAR
+// ============================================================
+
+/**
+ * Un vendedor toma un pedido de la cola general (self-assign).
+ * Race-condition proof: solo actualiza si el pedido sigue sin asignar.
+ */
+export async function takeOrderInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  vendorId: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ assigned_vendor_id: vendorId, updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .is('assigned_vendor_id', null); // solo si no está tomado
+
+  if (error) {
+    console.error('[Supabase] Error taking order:', error.message);
+    return false;
+  }
+
+  await insertEvent(sb, orderId, vendorId, 'pedido_tomado', 'Pedido tomado de la cola por el vendedor.');
+  return true;
+}
+
+/**
+ * Un vendedor libera su pedido a la cola general.
+ * Solo puede liberar un pedido que le pertenece (o admin via assignOrderToVendor).
+ */
+export async function releaseOrderInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  vendorId: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ assigned_vendor_id: null, updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .eq('assigned_vendor_id', vendorId); // solo el dueño puede liberar
+
+  if (error) {
+    console.error('[Supabase] Error releasing order:', error.message);
+    return false;
+  }
+
+  await insertEvent(sb, orderId, vendorId, 'pedido_liberado', 'Pedido liberado a la cola general.');
+  return true;
 }
 
 /** Reasignar un pedido a otro vendedor (solo admin). */

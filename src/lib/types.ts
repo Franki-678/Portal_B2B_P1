@@ -20,6 +20,8 @@ export type QuoteStatus = 'borrador' | 'enviada';
 export type EventAction =
   | 'pedido_creado'
   | 'pedido_en_revision'
+  | 'pedido_tomado'               // vendedor toma el pedido de la cola
+  | 'pedido_liberado'             // vendedor libera el pedido a la cola
   | 'cotizacion_enviada'
   | 'cotizacion_aprobada'
   | 'cotizacion_rechazada'

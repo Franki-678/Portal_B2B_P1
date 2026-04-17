@@ -39,6 +39,8 @@ export const QUALITY_COLORS: Record<OrderQuality, string> = {
 export const EVENT_ACTION_LABELS: Record<EventAction, string> = {
   pedido_creado: 'Pedido creado',
   pedido_en_revision: 'Pedido en revisión',
+  pedido_tomado: 'Pedido tomado',
+  pedido_liberado: 'Pedido liberado',
   cotizacion_enviada: 'Cotización enviada',
   cotizacion_aprobada: 'Cotización aprobada',
   cotizacion_rechazada: 'Cotización rechazada',
@@ -50,6 +52,8 @@ export const EVENT_ACTION_LABELS: Record<EventAction, string> = {
 export const EVENT_ACTION_ICONS: Record<EventAction, string> = {
   pedido_creado: '📋',
   pedido_en_revision: '🔍',
+  pedido_tomado: '🙋',
+  pedido_liberado: '🔓',
   cotizacion_enviada: '📤',
   cotizacion_aprobada: '✅',
   cotizacion_rechazada: '❌',

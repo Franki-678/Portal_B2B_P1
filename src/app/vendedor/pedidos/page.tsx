@@ -1,11 +1,13 @@
 'use client';
 
 import { useDataStore } from '@/contexts/DataStoreContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { OrderDrawer } from '@/components/orders/OrderDrawer';
+import { useSearchParams } from 'next/navigation';
 import { useState, Suspense } from 'react';
-import { OrderStatus } from '@/lib/types';
+import { Order, OrderStatus } from '@/lib/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { Button } from '@/components/ui/Button';
 
@@ -22,13 +24,16 @@ const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
 
 function PedidosContent() {
   const { getAllOrders } = useDataStore();
-  const router = useRouter();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const initialStatus = (searchParams.get('status') as OrderStatus | null) || 'todos';
   const [filter, setFilter] = useState<'todos' | OrderStatus>(initialStatus as 'todos' | OrderStatus);
   const [search, setSearch] = useState('');
+  const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const all = getAllOrders();
+  // "Mis pedidos" = asignados a mí (no la cola general)
+  const all = getAllOrders().filter(o => o.assignedVendorId === user?.id || (user?.role === 'admin'));
   let filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
   if (search.trim()) {
     const q = search.toLowerCase();
@@ -111,7 +116,10 @@ function PedidosContent() {
                     key={order.id}
                     order={order}
                     role="vendedor"
-                    onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
+                    onClick={() => {
+                      setDrawerOrder(order);
+                      setDrawerOpen(true);
+                    }}
                   />
                 ))}
               </tbody>
@@ -119,6 +127,12 @@ function PedidosContent() {
           </div>
         )}
       </div>
+      <OrderDrawer
+        order={drawerOrder}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        role="vendedor"
+      />
     </>
   );
 }

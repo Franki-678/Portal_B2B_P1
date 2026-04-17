@@ -8,7 +8,8 @@ import { Sidebar, LoadingSpinner } from '@/components/ui/Layout';
 
 const vendedorNav = [
   { href: '/vendedor', label: 'Dashboard', icon: '📊' },
-  { href: '/vendedor/pedidos', label: 'Pedidos', icon: '📋' },
+  { href: '/vendedor/cola', label: 'Cola general', icon: '🔔' },
+  { href: '/vendedor/pedidos', label: 'Mis pedidos', icon: '📋' },
   { href: '/vendedor/clientes', label: 'Clientes', icon: '🏭' },
   { href: '/vendedor/configuracion', label: 'Configuración', icon: '⚙️' },
 ];
@@ -39,7 +40,7 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
   if (!user) {
     if (isLoading) {
       return (
-        <div className="min-h-screen bg-slate-950 flex">
+        <div className="h-screen overflow-hidden bg-slate-950 flex">
           <div className="hidden md:block w-64 shrink-0 border-r border-slate-800 bg-slate-900 p-4">
             <div className="h-8 w-40 rounded bg-zinc-800/80 animate-pulse mb-6" />
             <div className="space-y-3">
@@ -73,10 +74,10 @@ export default function VendedorLayout({ children }: { children: React.ReactNode
   const portalLabel = user.role === 'admin' ? 'Vista Vendedor (Admin)' : 'Portal Vendedor';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
       <Sidebar navItems={navItems} portalLabel={portalLabel} portalIcon="📦" accentColor="blue" />
-      <div className="min-h-screen min-w-0 md:pl-64">
-        <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden">
+      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden md:pl-64">
+        <div className="flex flex-1 min-w-0 flex-col overflow-y-auto">
           {children}
         </div>
       </div>
