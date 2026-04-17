@@ -5,13 +5,15 @@ import { OrderStatus, OrderQuality, EventAction } from './types';
 // ============================================================
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  pendiente: 'Pendiente',
-  en_revision: 'En revisión',
-  cotizado: 'Cotizado',
+  pendiente:        'Pendiente',
+  en_revision:      'En revisión',
+  cotizado:         'Cotizado',
   aprobado_parcial: 'Aprobado parcial',
-  aprobado: 'Aprobado',
-  rechazado: 'Rechazado',
-  cerrado: 'Cerrado',
+  aprobado:         'Aprobado',
+  rechazado:        'Rechazado',
+  cerrado:          'Cerrado',
+  cerrado_pagado:   'Cerrado · Pagado',
+  en_conflicto:     'En conflicto',
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
@@ -22,6 +24,8 @@ export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   aprobado:         'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   rechazado:        'bg-red-500/10 text-red-400 border-red-500/20',
   cerrado:          'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  cerrado_pagado:   'bg-teal-500/10 text-teal-400 border-teal-500/20',
+  en_conflicto:     'bg-red-600/15 text-red-300 border-red-500/40',
 };
 
 export const QUALITY_LABELS: Record<OrderQuality, string> = {
@@ -37,29 +41,33 @@ export const QUALITY_COLORS: Record<OrderQuality, string> = {
 };
 
 export const EVENT_ACTION_LABELS: Record<EventAction, string> = {
-  pedido_creado: 'Pedido creado',
-  pedido_en_revision: 'Pedido en revisión',
-  pedido_tomado: 'Pedido tomado',
-  pedido_liberado: 'Pedido liberado',
-  cotizacion_enviada: 'Cotización enviada',
-  cotizacion_aprobada: 'Cotización aprobada',
-  cotizacion_rechazada: 'Cotización rechazada',
+  pedido_creado:               'Pedido creado',
+  pedido_en_revision:          'Pedido en revisión',
+  pedido_tomado:               'Pedido tomado',
+  pedido_liberado:             'Pedido liberado',
+  cotizacion_enviada:          'Cotización enviada',
+  cotizacion_aprobada:         'Cotización aprobada',
+  cotizacion_rechazada:        'Cotización rechazada',
   cotizacion_aprobada_parcial: 'Cotización aprobada parcialmente',
-  pedido_cerrado: 'Pedido cerrado',
-  comentario: 'Comentario',
+  pedido_cerrado:              'Pedido cerrado',
+  pedido_pagado:               'Pago confirmado',
+  reclamo_iniciado:            'Reclamo iniciado',
+  comentario:                  'Comentario',
 };
 
 export const EVENT_ACTION_ICONS: Record<EventAction, string> = {
-  pedido_creado: '📋',
-  pedido_en_revision: '🔍',
-  pedido_tomado: '🙋',
-  pedido_liberado: '🔓',
-  cotizacion_enviada: '📤',
-  cotizacion_aprobada: '✅',
-  cotizacion_rechazada: '❌',
+  pedido_creado:               '📋',
+  pedido_en_revision:          '🔍',
+  pedido_tomado:               '🙋',
+  pedido_liberado:             '🔓',
+  cotizacion_enviada:          '📤',
+  cotizacion_aprobada:         '✅',
+  cotizacion_rechazada:        '❌',
   cotizacion_aprobada_parcial: '⚡',
-  pedido_cerrado: '🔒',
-  comentario: '💬',
+  pedido_cerrado:              '🔒',
+  pedido_pagado:               '💳',
+  reclamo_iniciado:            '⚠️',
+  comentario:                  '💬',
 };
 
 // ============================================================

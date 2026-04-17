@@ -13,7 +13,9 @@ export type OrderStatus =
   | 'aprobado_parcial'
   | 'aprobado'
   | 'rechazado'
-  | 'cerrado';
+  | 'cerrado'
+  | 'cerrado_pagado'  // Admin confirma que el taller pagó
+  | 'en_conflicto';  // Taller inició un reclamo sobre un pedido cerrado
 
 export type QuoteStatus = 'borrador' | 'enviada';
 
@@ -27,6 +29,8 @@ export type EventAction =
   | 'cotizacion_rechazada'
   | 'cotizacion_aprobada_parcial'
   | 'pedido_cerrado'
+  | 'pedido_pagado'               // admin marca el pedido como pagado (cerrado_pagado)
+  | 'reclamo_iniciado'            // taller inicia reclamo (en_conflicto)
   | 'comentario';
 
 // ============================================================
@@ -239,9 +243,38 @@ export interface AdminDashboardMetrics {
   aprobadosParcial: number;
   rechazados: number;
   cerrados: number;
+  cerradoPagado?: number;
+  enConflicto?: number;
   montoAprobado: number;
   totalTalleres: number;
   totalVendedores: number;
+}
+
+// ============================================================
+// MÉTRICAS RPC (Dashboard Admin — Bloques 3 & 4)
+// ============================================================
+
+/** Resultado de get_admin_kpis: basado solo en pedidos cerrado_pagado. */
+export interface AdminKPIResult {
+  totalFacturado: number;
+  ticketPromedio: number;
+  totalCompletados: number;
+}
+
+/** Entrada del ranking de vendedores (RPC get_vendor_ranking). */
+export interface VendorRankEntry {
+  vendorId: string;
+  vendorName: string;
+  pedidosCerrados: number;
+  montoFacturado: number;
+}
+
+/** Entrada del ranking de talleres (RPC get_workshop_ranking). */
+export interface WorkshopRankEntry {
+  workshopId: string;
+  workshopName: string;
+  totalPedidos: number;
+  montoComprado: number;
 }
 
 export interface MonthlyStatusMetric {

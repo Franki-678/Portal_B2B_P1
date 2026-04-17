@@ -73,13 +73,15 @@ export function canWorkshopRespond(status: OrderStatus): boolean {
 
 export function getStatusProgress(status: OrderStatus): number {
   const progression: Record<OrderStatus, number> = {
-    pendiente: 1,
-    en_revision: 2,
-    cotizado: 3,
+    pendiente:        1,
+    en_revision:      2,
+    cotizado:         3,
     aprobado_parcial: 4,
-    aprobado: 5,
-    rechazado: 5,
-    cerrado: 6,
+    aprobado:         5,
+    rechazado:        5,
+    cerrado:          6,
+    en_conflicto:     6,
+    cerrado_pagado:   7,
   };
   return progression[status];
 }

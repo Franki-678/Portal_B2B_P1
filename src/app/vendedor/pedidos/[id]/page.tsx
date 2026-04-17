@@ -224,6 +224,33 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
       />
 
       <div className="p-6 space-y-8 max-w-4xl mx-auto">
+
+        {/* Alerta urgente: pedido en conflicto */}
+        {order.status === 'en_conflicto' && (
+          <div className="flex items-start gap-4 rounded-2xl border border-red-500/50 bg-red-600/12 px-5 py-4 shadow-lg shadow-red-500/10 animate-pulse-slow">
+            <span className="shrink-0 text-2xl">⚠️</span>
+            <div className="min-w-0">
+              <p className="font-bold text-red-300 text-base">Reclamo activo — requiere atención</p>
+              <p className="text-sm text-red-400/80 mt-1">
+                El taller inició un reclamo sobre este pedido. Revisá el historial de eventos para conocer el motivo y coordiná con el administrador para resolver la situación.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Alerta: pedido pagado */}
+        {order.status === 'cerrado_pagado' && (
+          <div className="flex items-start gap-4 rounded-2xl border border-teal-500/30 bg-teal-500/8 px-5 py-4">
+            <span className="shrink-0 text-2xl">💳</span>
+            <div>
+              <p className="font-bold text-teal-300">Pago confirmado</p>
+              <p className="text-sm text-teal-400/70 mt-1">
+                El administrador confirmó que el taller realizó el pago. Este pedido está completo.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header Detalle Pedido */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-5">

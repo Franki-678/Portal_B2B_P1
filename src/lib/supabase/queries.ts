@@ -13,6 +13,9 @@ import {
   MonthlyVendorMetrics,
   ProfileDirectoryEntry,
   UserRole,
+  AdminKPIResult,
+  VendorRankEntry,
+  WorkshopRankEntry,
 } from '@/lib/types';
 import { generateId } from '@/lib/utils';
 
@@ -894,13 +897,15 @@ export async function fetchAdminMonthlyMetricsReport(
   const ticketPromedioMes = orders.length > 0 ? totalFacturadoMes / orders.length : 0;
 
   const statusLabels: Record<OrderStatus, string> = {
-    pendiente: 'Pendiente',
-    en_revision: 'En revisión',
-    cotizado: 'Cotizado',
-    aprobado: 'Aprobado',
+    pendiente:        'Pendiente',
+    en_revision:      'En revisión',
+    cotizado:         'Cotizado',
+    aprobado:         'Aprobado',
     aprobado_parcial: 'Aprobado parcial',
-    rechazado: 'Rechazado',
-    cerrado: 'Cerrado',
+    rechazado:        'Rechazado',
+    cerrado:          'Cerrado',
+    cerrado_pagado:   'Cerrado · Pagado',
+    en_conflicto:     'En conflicto',
   };
 
   const pedidosPorEstado = (Object.keys(statusLabels) as OrderStatus[]).map(status => ({
@@ -1081,4 +1086,164 @@ export async function assignOrderToVendor(
     return false;
   }
   return true;
+}
+
+// ============================================================
+// BLOQUES 3 & 4: ESTADOS DE CIERRE, RECLAMOS Y MÉTRICAS
+// ============================================================
+
+/**
+ * Admin marca un pedido como pagado (cerrado → cerrado_pagado).
+ * Solo funciona si el pedido está en estado 'cerrado' o 'en_conflicto'.
+ */
+export async function markOrderPaidInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  adminId: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ status: 'cerrado_pagado', updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .in('status', ['cerrado', 'en_conflicto']); // permite resolver conflictos también
+
+  if (error) {
+    console.error('[Supabase] Error marking order as paid:', error.message);
+    return false;
+  }
+
+  await insertEvent(
+    sb,
+    orderId,
+    adminId,
+    'pedido_pagado',
+    'Pago confirmado por el administrador.'
+  );
+  return true;
+}
+
+/**
+ * Taller inicia un reclamo en un pedido cerrado (cerrado → en_conflicto).
+ * El motivo del reclamo se guarda como comentario en el evento.
+ */
+export async function initiateClaimInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  userId: string,
+  reason: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ status: 'en_conflicto', updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .eq('status', 'cerrado'); // solo desde estado cerrado
+
+  if (error) {
+    console.error('[Supabase] Error initiating claim:', error.message);
+    return false;
+  }
+
+  await insertEvent(sb, orderId, userId, 'reclamo_iniciado', reason);
+  return true;
+}
+
+/**
+ * KPIs del dashboard admin basados en pedidos cerrado_pagado.
+ * Llama al RPC get_admin_kpis(p_start, p_end).
+ * Si el RPC no existe aún (migración pendiente), retorna ceros.
+ */
+export async function fetchAdminKPIs(
+  sb: SupabaseClientType,
+  startDate: string,
+  endDate: string
+): Promise<AdminKPIResult> {
+  const { data, error } = await (sb as any).rpc('get_admin_kpis', {
+    p_start: startDate,
+    p_end: endDate,
+  });
+
+  if (error) {
+    console.warn('[Supabase] get_admin_kpis RPC error (¿migración pendiente?):', error.message);
+    return { totalFacturado: 0, ticketPromedio: 0, totalCompletados: 0 };
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return { totalFacturado: 0, ticketPromedio: 0, totalCompletados: 0 };
+
+  return {
+    totalFacturado:    Number(row.total_facturado)   || 0,
+    ticketPromedio:    Number(row.ticket_promedio)   || 0,
+    totalCompletados:  Number(row.total_completados) || 0,
+  };
+}
+
+/**
+ * Ranking de vendedores por facturación (RPC get_vendor_ranking).
+ * Si el RPC no existe, retorna array vacío.
+ */
+export async function fetchVendorRanking(
+  sb: SupabaseClientType,
+  startDate: string,
+  endDate: string
+): Promise<VendorRankEntry[]> {
+  const { data, error } = await (sb as any).rpc('get_vendor_ranking', {
+    p_start: startDate,
+    p_end: endDate,
+  });
+
+  if (error) {
+    console.warn('[Supabase] get_vendor_ranking RPC error:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((r: any) => ({
+    vendorId:        r.vendor_id,
+    vendorName:      r.vendor_name,
+    pedidosCerrados: Number(r.pedidos_cerrados) || 0,
+    montoFacturado:  Number(r.monto_facturado)  || 0,
+  }));
+}
+
+/**
+ * Ranking de talleres por volumen de compra (RPC get_workshop_ranking).
+ * Si el RPC no existe, retorna array vacío.
+ */
+export async function fetchWorkshopRanking(
+  sb: SupabaseClientType,
+  startDate: string,
+  endDate: string
+): Promise<WorkshopRankEntry[]> {
+  const { data, error } = await (sb as any).rpc('get_workshop_ranking', {
+    p_start: startDate,
+    p_end: endDate,
+  });
+
+  if (error) {
+    console.warn('[Supabase] get_workshop_ranking RPC error:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((r: any) => ({
+    workshopId:    r.workshop_id,
+    workshopName:  r.workshop_name,
+    totalPedidos:  Number(r.total_pedidos)  || 0,
+    montoComprado: Number(r.monto_comprado) || 0,
+  }));
+}
+
+/**
+ * Cuenta los pedidos actualmente en conflicto.
+ * Usado para el banner de alerta en el dashboard admin.
+ */
+export async function fetchConflictCount(sb: SupabaseClientType): Promise<number> {
+  const { count, error } = await (sb as any)
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'en_conflicto');
+
+  if (error) {
+    console.error('[Supabase] Error fetching conflict count:', error.message);
+    return 0;
+  }
+  return count ?? 0;
 }

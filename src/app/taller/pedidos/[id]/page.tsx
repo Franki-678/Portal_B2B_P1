@@ -19,7 +19,7 @@ interface PageProps {
 export default function TallerPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderById, approveQuote, rejectQuote, approveQuotePartial, deleteOrder } = useDataStore();
+  const { getOrderById, approveQuote, rejectQuote, approveQuotePartial, deleteOrder, initiateClaim } = useDataStore();
   const router = useRouter();
 
   const [rejecting, setRejecting] = useState(false);
@@ -28,6 +28,9 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [partialMode, setPartialMode] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimReason, setClaimReason] = useState('');
+  const [claimLoading, setClaimLoading] = useState(false);
   const lightbox = useImageLightbox();
 
   const order = getOrderById(id);
@@ -78,6 +81,19 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     }
   };
 
+  const handleInitiateClaim = async () => {
+    if (!claimReason.trim()) return;
+    setClaimLoading(true);
+    const ok = await initiateClaim(order.id, claimReason.trim());
+    setClaimLoading(false);
+    if (ok) {
+      setShowClaimModal(false);
+      setClaimReason('');
+    } else {
+      alert('No se pudo iniciar el reclamo. Solo podés reclamar pedidos en estado cerrado.');
+    }
+  };
+
   const handlePartialApprove = async () => {
     const allIds = quote?.items.map(i => i.id) ?? [];
     const rejectedIds = allIds.filter(id => !selectedItems.has(id));
@@ -91,9 +107,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const lineAmt = (i: (typeof quoteItems)[0]) => quoteLineTotal(i);
   const subtotalOriginal = quoteItems.reduce((acc, item) => acc + lineAmt(item), 0);
 
+  const isClosed = order.status === 'cerrado' || order.status === 'cerrado_pagado' || order.status === 'en_conflicto';
+
   const montoRechazado = partialMode
     ? quoteItems.filter(i => !selectedItems.has(i.id)).reduce((s, i) => s + lineAmt(i), 0)
-    : order.status === 'aprobado_parcial' || order.status === 'cerrado'
+    : order.status === 'aprobado_parcial' || isClosed
       ? quoteItems.filter(i => i.approved === false).reduce((s, i) => s + lineAmt(i), 0)
       : order.status === 'rechazado'
         ? subtotalOriginal
@@ -103,7 +121,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     ? quoteItems.filter(i => selectedItems.has(i.id)).reduce((s, i) => s + lineAmt(i), 0)
     : order.status === 'aprobado'
       ? subtotalOriginal
-      : order.status === 'aprobado_parcial' || order.status === 'cerrado'
+      : order.status === 'aprobado_parcial' || isClosed
         ? quoteItems.filter(i => i.approved === true).reduce((s, i) => s + lineAmt(i), 0)
         : order.status === 'rechazado'
           ? 0
@@ -113,7 +131,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     partialMode ||
     montoRechazado > 0 ||
     order.status === 'aprobado_parcial' ||
-    (order.status === 'cerrado' && quoteItems.some(i => i.approved === false));
+    (isClosed && quoteItems.some(i => i.approved === false));
 
   const toggleItem = (itemId: string) => {
     setSelectedItems(prev => {
@@ -593,6 +611,59 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
           </div>
         )}
 
+        {/* Alerta: pedido pagado */}
+        {order.status === 'cerrado_pagado' && (
+          <div className="rounded-2xl border border-teal-500/30 bg-teal-500/10 p-5">
+            <div className="flex items-start gap-4">
+              <span className="text-2xl shrink-0">💳</span>
+              <div>
+                <p className="font-bold text-teal-300">Pago confirmado por el administrador</p>
+                <p className="text-sm text-teal-400/80 mt-1">
+                  Este pedido fue marcado como pagado. La transacción está completa.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Alerta: pedido en conflicto */}
+        {order.status === 'en_conflicto' && (
+          <div className="rounded-2xl border border-red-500/40 bg-red-600/10 p-5">
+            <div className="flex items-start gap-4">
+              <span className="text-2xl shrink-0">⚠️</span>
+              <div>
+                <p className="font-bold text-red-300">Reclamo activo — en revisión por el administrador</p>
+                <p className="text-sm text-red-400/80 mt-1">
+                  Tu reclamo fue registrado. El administrador y el vendedor han sido notificados. Pronto te contactarán para resolver la situación.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Botón: iniciar reclamo (solo cuando está cerrado) */}
+        {order.status === 'cerrado' && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-200">¿Hay algún problema con este pedido?</p>
+                <p className="text-xs text-amber-400/70 mt-0.5">
+                  Si los repuestos no llegaron, son incorrectos o hay otro inconveniente, podés iniciar un reclamo.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="danger"
+                onClick={() => setShowClaimModal(true)}
+                className="shrink-0"
+              >
+                ⚠️ Iniciar reclamo
+              </Button>
+            </div>
+          </div>
+        )}
+
         {order.status === 'pendiente' && (
           <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
             <div className="flex items-center justify-between gap-3">
@@ -648,6 +719,29 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
         onConfirm={handleDeleteOrder}
         loading={loading}
       />
+      <ConfirmModal
+        open={showClaimModal}
+        title="⚠️ Iniciar reclamo"
+        description="Describí el problema con este pedido. El administrador y el vendedor recibirán una alerta urgente para investigar la situación."
+        tone="danger"
+        cancelLabel="Cancelar"
+        confirmLabel="Enviar reclamo"
+        onCancel={() => { setShowClaimModal(false); setClaimReason(''); }}
+        onConfirm={handleInitiateClaim}
+        loading={claimLoading}
+      >
+        <textarea
+          value={claimReason}
+          onChange={e => setClaimReason(e.target.value)}
+          placeholder="Ej: Los repuestos llegaron incorrectos, falta el ítem 2, etc."
+          rows={4}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          className="min-h-[100px] w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+        />
+      </ConfirmModal>
     </>
   );
 }

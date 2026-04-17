@@ -27,10 +27,11 @@ interface OrderDrawerProps {
 
 export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerProps) {
   const { user } = useAuth();
-  const { takeOrder, releaseOrder, setOrderInReview } = useDataStore();
+  const { takeOrder, releaseOrder, setOrderInReview, markOrderPaid } = useDataStore();
   const [taking, setTaking] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Cerrar con Escape
@@ -77,6 +78,12 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
     setReviewLoading(false);
   };
 
+  const handleMarkPaid = async () => {
+    setMarkingPaid(true);
+    await markOrderPaid(order.id);
+    setMarkingPaid(false);
+  };
+
   // ── Render ───────────────────────────────────────────────
 
   return (
@@ -120,6 +127,25 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
 
         {/* ── Contenido scrolleable ── */}
         <div className="flex-1 overflow-y-auto">
+
+          {/* Banner de conflicto activo */}
+          {order.status === 'en_conflicto' && (
+            <div className="border-b border-red-500/30 bg-red-600/10 px-5 py-3 flex items-center gap-3">
+              <span className="text-lg shrink-0">⚠️</span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-red-300">Reclamo activo</p>
+                <p className="text-xs text-red-400/70">El taller reportó un problema. Revisá el historial.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Banner de pago confirmado */}
+          {order.status === 'cerrado_pagado' && (
+            <div className="border-b border-teal-500/20 bg-teal-500/8 px-5 py-3 flex items-center gap-3">
+              <span className="text-lg shrink-0">💳</span>
+              <p className="text-sm font-semibold text-teal-300">Pago confirmado por administración</p>
+            </div>
+          )}
 
           {/* Vehículo */}
           <div className="border-b border-slate-800/60 px-5 py-4">
@@ -306,6 +332,18 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
           {/* Acciones para ADMIN */}
           {role === 'admin' && (
             <>
+              {/* Marcar pagado — cuando está cerrado o en conflicto */}
+              {(order.status === 'cerrado' || order.status === 'en_conflicto') && (
+                <Button
+                  fullWidth
+                  size="sm"
+                  onClick={handleMarkPaid}
+                  loading={markingPaid}
+                  className="bg-teal-600 hover:bg-teal-500 text-white border-0 shadow-md shadow-teal-500/20"
+                >
+                  💳 Confirmar pago
+                </Button>
+              )}
               {isUnassigned && order.status === 'pendiente' && (
                 <Button
                   fullWidth
