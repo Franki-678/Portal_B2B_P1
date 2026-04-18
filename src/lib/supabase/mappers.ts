@@ -136,5 +136,6 @@ export function mapOrder(
     events,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    deletedAt: (row as any).deleted_at ?? undefined,
   };
 }

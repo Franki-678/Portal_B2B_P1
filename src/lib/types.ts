@@ -78,6 +78,8 @@ export interface Order {
   events: OrderEvent[];
   createdAt: string;
   updatedAt: string;
+  /** Soft-delete: fecha en que el taller eliminó el pedido. Solo visible para admin. */
+  deletedAt?: string;
 }
 
 export interface OrderItem {

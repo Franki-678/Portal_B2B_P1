@@ -84,6 +84,8 @@ export type Database = {
             | 'cerrado';
           created_at: string;
           updated_at: string;
+          deleted_at: string | null;
+          deleted_by_id: string | null;
         };
         Insert: {
           id?: string;
@@ -99,6 +101,8 @@ export type Database = {
           status?: Database['public']['Tables']['orders']['Row']['status'];
           created_at?: string;
           updated_at?: string;
+          deleted_at?: string | null;
+          deleted_by_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['orders']['Insert']>;
       };
@@ -271,6 +275,21 @@ export type Database = {
         };
         Update: Partial<Database['public']['Tables']['order_events']['Insert']>;
       };
+      vehiculos: {
+        Row: {
+          id: number;
+          marca: string;
+          modelo: string;
+          version: string;
+        };
+        Insert: {
+          id?: number;
+          marca: string;
+          modelo: string;
+          version: string;
+        };
+        Update: Partial<Database['public']['Tables']['vehiculos']['Insert']>;
+      };
     };
   };
 };
@@ -287,6 +306,7 @@ export type DbOrderEvent = Database['public']['Tables']['order_events']['Row'];
 export type DbWorkshop = Database['public']['Tables']['workshops']['Row'];
 export type DbProfile = Database['public']['Tables']['profiles']['Row'];
 export type DbCatalogoRepuesto = Database['public']['Tables']['catalogo_repuestos']['Row'];
+export type DbVehiculo = Database['public']['Tables']['vehiculos']['Row'];
 
 // ─── Vistas ───────────────────────────────────────────────────
 // Reflejo de public.v_vendor_metrics (creada en migration_admin_role.sql).

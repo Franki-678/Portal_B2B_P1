@@ -106,43 +106,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Acceso (sin credenciales reales) */}
-        <div className="bg-zinc-900/30 backdrop-blur-xl border border-zinc-800/60 rounded-3xl p-8 md:p-10 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 via-rose-500 to-sky-500 opacity-20" />
-
-          <div className="mb-6">
-            <h3 className="text-xl font-bold text-zinc-100 tracking-tight flex items-center gap-2">
-              <span className="text-amber-500">🔑</span> Acceso al portal
-            </h3>
-            <p className="text-sm text-zinc-500 mt-1 max-w-2xl">
-              Usá el enlace de abajo para iniciar sesión con la cuenta que te asignó tu organización. No compartas contraseñas en pantallas públicas.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-zinc-950/50 rounded-2xl p-5 border border-zinc-800/80">
-              <div className="text-sm font-bold text-orange-400 mb-2 tracking-tight flex items-center gap-2">🏭 Portal taller</div>
-              <p className="text-sm text-zinc-400 leading-relaxed">
-                Ejemplo de usuario: <span className="text-zinc-200 font-mono text-xs">taller@ejemplo.com</span> · Taller genérico (ej. Taller AutoSur).
-              </p>
-            </div>
-            <div className="bg-zinc-950/50 rounded-2xl p-5 border border-zinc-800/80">
-              <div className="text-sm font-bold text-sky-400 mb-2 tracking-tight flex items-center gap-2">📦 Portal vendedor</div>
-              <p className="text-sm text-zinc-400 leading-relaxed">
-                Ejemplo de usuario: <span className="text-zinc-200 font-mono text-xs">vendedor@ejemplo.com</span> · Gestión de pedidos y cotizaciones.
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-6 flex justify-center">
-            <Link href="/login">
-              <Button size="lg" variant="primary">
-                Ir a iniciar sesión
-              </Button>
-            </Link>
-          </div>
-        </div>
-
         {/* Footer / Version */}
         <div className="text-center mt-16 text-sm text-zinc-600 font-medium">
           Portal B2B Prototipo 1.1 · Diseño Industrial & SaaS

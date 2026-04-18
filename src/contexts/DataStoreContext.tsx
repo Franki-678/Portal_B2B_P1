@@ -502,12 +502,13 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
 
   const deleteOrder = useCallback(async (orderId: string): Promise<boolean> => {
     const sb = getSupabaseClient();
-    const ok = await deleteOrderInDB(sb, orderId);
+    const ok = await deleteOrderInDB(sb, orderId, user?.id);
     if (ok) {
+      // Soft delete: remove from local state (taller/vendedor won't see deleted orders)
       setOrders(prev => prev.filter(o => o.id !== orderId));
     }
     return ok;
-  }, []);
+  }, [user?.id]);
 
   const takeOrder = useCallback(
     async (orderId: string): Promise<boolean> => {

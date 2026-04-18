@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
@@ -12,9 +12,12 @@ import { QUALITY_OPTIONS } from '@/lib/constants';
 import { NewOrderItemForm } from '@/lib/types';
 import { generateId } from '@/lib/utils';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { fetchVehiclesCatalog } from '@/lib/supabase/queries';
+
+// ─── Año actual + lista de años ───────────────────────────────
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 30 }, (_, i) => ({
+const YEARS = Array.from({ length: 40 }, (_, i) => ({
   value: String(CURRENT_YEAR - i),
   label: String(CURRENT_YEAR - i),
 }));
@@ -32,62 +35,37 @@ const emptyItem = (): NewOrderItemForm => ({
   imagePreviews: [],
 });
 
+// ─── Componente ────────────────────────────────────────────────
+
 export default function NuevoPedidoPage() {
   const { user } = useAuth();
   const { createOrder } = useDataStore();
   const router = useRouter();
 
-  // ── Marcas dinámicas desde Supabase ───────────────────────
-  const [brandOptions, setBrandOptions] = useState<{ value: string; label: string }[]>([]);
-  const [brandsLoading, setBrandsLoading] = useState(true);
+  // ── Catálogo de vehículos ─────────────────────────────────
+  const [vehiclesCatalog, setVehiclesCatalog] = useState<
+    Record<string, Record<string, string[]>>
+  >({});
+  const [catalogLoading, setCatalogLoading] = useState(true);
 
   useEffect(() => {
-    const loadBrands = async () => {
-      setBrandsLoading(true);
-      try {
-        const sb = getSupabaseClient();
-
-        // Intento 1: RPC get_distinct_marcas() — hace DISTINCT en el servidor, ~30 filas.
-        // Ejecutar primero el SQL en Supabase para crear esta función.
-        const { data: rpcData, error: rpcError } = await (sb as any).rpc('get_distinct_marcas');
-
-        if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
-          const brands = (rpcData as { marca: string }[])
-            .map(r => r.marca)
-            .filter(Boolean);
-          setBrandOptions(brands.map(m => ({ value: m, label: m })));
-          return;
-        }
-
-        // Fallback: query directa sobre la columna marca (si la función RPC no existe aún).
-        // El ORDER se hace en Supabase y el LIMIT 5000 evita queries sin límite.
-        const { data, error } = await (sb as any)
-          .from('catalogo_repuestos')
-          .select('marca')
-          .not('marca', 'is', null)
-          .neq('marca', '')
-          .order('marca', { ascending: true })
-          .limit(5000);
-
-        if (!error && data) {
-          const unique = [
-            ...new Set((data as { marca: string }[]).map(r => r.marca).filter(Boolean)),
-          ].sort();
-          setBrandOptions(unique.map(m => ({ value: m, label: m })));
-        }
-      } catch {
-        setBrandOptions([]);
-      } finally {
-        setBrandsLoading(false);
-      }
-    };
-    loadBrands();
+    const sb = getSupabaseClient();
+    fetchVehiclesCatalog(sb)
+      .then(catalog => setVehiclesCatalog(catalog))
+      .catch(() => setVehiclesCatalog({}))
+      .finally(() => setCatalogLoading(false));
   }, []);
+
+  // ── Opciones derivadas del catálogo ─────────────────────────
+  const marcaOptions = useMemo(
+    () => Object.keys(vehiclesCatalog).sort().map(m => ({ value: m, label: m })),
+    [vehiclesCatalog]
+  );
 
   // ── Estado del vehículo ───────────────────────────────────
   const [vehicleBrand, setVehicleBrand] = useState('');
-  const [vehicleModel, setVehicleModel] = useState('');    // texto libre
-  const [vehicleVersion, setVehicleVersion] = useState(''); // texto libre, opcional
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [vehicleVersion, setVehicleVersion] = useState('');
   const [vehicleYear, setVehicleYear] = useState(String(CURRENT_YEAR));
   const [internalOrderNumber, setInternalOrderNumber] = useState('');
   const [items, setItems] = useState<NewOrderItemForm[]>([emptyItem()]);
@@ -97,19 +75,52 @@ export default function NuevoPedidoPage() {
   const [success, setSuccess] = useState(false);
   const [showSlowMessage, setShowSlowMessage] = useState(false);
 
+  // Opciones de modelo para la marca seleccionada
+  const modeloOptions = useMemo(() => {
+    if (!vehicleBrand || !vehiclesCatalog[vehicleBrand]) return [];
+    return Object.keys(vehiclesCatalog[vehicleBrand]).sort().map(m => ({ value: m, label: m }));
+  }, [vehicleBrand, vehiclesCatalog]);
+
+  // Opciones de versión para el modelo seleccionado
+  const versionOptions = useMemo(() => {
+    if (!vehicleBrand || !vehicleModel) return [];
+    const versiones = vehiclesCatalog[vehicleBrand]?.[vehicleModel] ?? [];
+    return versiones.map(v => ({ value: v, label: v }));
+  }, [vehicleBrand, vehicleModel, vehiclesCatalog]);
+
+  // ── Handlers de cascada ─────────────────────────────────────
+
+  const handleBrandChange = (brand: string) => {
+    setVehicleBrand(brand);
+    setVehicleModel('');
+    setVehicleVersion('');
+    setErrors(prev => ({ ...prev, vehicleBrand: undefined, vehicleModel: undefined, vehicleVersion: undefined }));
+  };
+
+  const handleModelChange = (model: string) => {
+    setVehicleModel(model);
+    setVehicleVersion('');
+    setErrors(prev => ({ ...prev, vehicleModel: undefined, vehicleVersion: undefined }));
+  };
+
+  const handleVersionChange = (version: string) => {
+    setVehicleVersion(version);
+    setErrors(prev => ({ ...prev, vehicleVersion: undefined }));
+  };
+
   // ── Validación ────────────────────────────────────────────
 
   const validate = (): boolean => {
     const errs: FormErrors = {};
 
-    // Solo Marca es obligatoria
     if (!vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
+    if (!vehicleModel) errs.vehicleModel = 'Seleccioná el modelo';
+    if (!vehicleVersion && versionOptions.length > 0)
+      errs.vehicleVersion = 'Seleccioná la versión';
 
-    // Al menos un repuesto con algún texto
     items.forEach((item) => {
       const hasPartName = !!item.partName.trim();
       const hasNote = !!item.description.trim();
-
       if (!hasPartName && !hasNote) {
         errs[`item_${item.tempId}_partName`] = 'Ingresá el repuesto o describilo en la nota';
       }
@@ -211,8 +222,8 @@ export default function NuevoPedidoPage() {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="text-center">
-          <div className="text-5xl mb-4">&#x2705;</div>
-          <h2 className="text-xl font-bold text-white mb-2">&#x00a1;Pedido enviado!</h2>
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-bold text-white mb-2">¡Pedido enviado!</h2>
           <p className="text-sm text-zinc-400">Redirigiendo al detalle...</p>
         </div>
       </div>
@@ -226,7 +237,7 @@ export default function NuevoPedidoPage() {
         subtitle="Completá los datos del repuesto que necesitás"
         action={
           <Button variant="ghost" type="button" onClick={() => router.back()}>
-            &#x2190; Volver
+            ← Volver
           </Button>
         }
       />
@@ -238,56 +249,118 @@ export default function NuevoPedidoPage() {
             {/* ── Sección 1: Datos del vehículo ── */}
             <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
               <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl">&#x1F697;</span> Datos del vehículo
+                <span className="text-xl">🚗</span> Datos del vehículo
               </h2>
+
+              {/* Indicador de carga del catálogo */}
+              {catalogLoading && (
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  <div className="w-3.5 h-3.5 border border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
+                  Cargando catálogo de vehículos…
+                </div>
+              )}
+
+              {/* Alerta si el catálogo está vacío (no cargado aún) */}
+              {!catalogLoading && marcaOptions.length === 0 && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-300/80">
+                  ⚠️ El catálogo de vehículos aún no fue cargado. El administrador debe importar el JSON desde{' '}
+                  <strong>Configuración → Catálogo de vehículos</strong>.
+                  Podés igualmente enviar el pedido escribiendo los datos manualmente abajo.
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-                {/* Marca — lista desplegable dinámica desde Supabase */}
+                {/* ── Selector 1: Marca ── */}
+                {marcaOptions.length > 0 ? (
+                  <Select
+                    label="Marca"
+                    required
+                    value={vehicleBrand}
+                    onChange={e => handleBrandChange(e.target.value)}
+                    options={marcaOptions}
+                    placeholder={catalogLoading ? 'Cargando…' : 'Seleccioná la marca'}
+                    disabled={catalogLoading}
+                    error={errors.vehicleBrand}
+                  />
+                ) : (
+                  <Input
+                    label="Marca"
+                    required
+                    value={vehicleBrand}
+                    onChange={e => {
+                      setVehicleBrand(e.target.value);
+                      setErrors(prev => ({ ...prev, vehicleBrand: undefined }));
+                    }}
+                    placeholder="Ej: Ford, Renault, Toyota…"
+                    error={errors.vehicleBrand}
+                  />
+                )}
+
+                {/* ── Selector 2: Modelo ── */}
+                {marcaOptions.length > 0 ? (
+                  <Select
+                    label="Modelo"
+                    required
+                    value={vehicleModel}
+                    onChange={e => handleModelChange(e.target.value)}
+                    options={modeloOptions}
+                    placeholder={vehicleBrand ? 'Seleccioná el modelo' : '— primero elegí la marca —'}
+                    disabled={!vehicleBrand || modeloOptions.length === 0}
+                    error={errors.vehicleModel}
+                  />
+                ) : (
+                  <Input
+                    label="Modelo"
+                    value={vehicleModel}
+                    onChange={e => setVehicleModel(e.target.value)}
+                    placeholder="Ej: Ranger, Fiesta, Corsa…"
+                  />
+                )}
+
+                {/* ── Selector 3: Versión / Año ── */}
+                {marcaOptions.length > 0 ? (
+                  <Select
+                    label="Versión / Año"
+                    required={versionOptions.length > 0}
+                    value={vehicleVersion}
+                    onChange={e => handleVersionChange(e.target.value)}
+                    options={versionOptions}
+                    placeholder={
+                      !vehicleModel
+                        ? '— primero elegí el modelo —'
+                        : versionOptions.length === 0
+                        ? 'Sin versiones cargadas'
+                        : 'Seleccioná la versión'
+                    }
+                    disabled={!vehicleModel || versionOptions.length === 0}
+                    error={errors.vehicleVersion}
+                  />
+                ) : (
+                  <Input
+                    label="Versión (opcional)"
+                    value={vehicleVersion}
+                    onChange={e => setVehicleVersion(e.target.value)}
+                    placeholder="Ej: XL 4x4, Sport, TDI…"
+                  />
+                )}
+
+                {/* ── Año exacto del vehículo ── */}
                 <Select
-                  label="Marca"
-                  required
-                  value={vehicleBrand}
-                  onChange={(e) => {
-                    setVehicleBrand(e.target.value);
-                    setErrors(prev => ({ ...prev, vehicleBrand: undefined }));
-                  }}
-                  options={brandOptions}
-                  placeholder={brandsLoading ? 'Cargando marcas...' : 'Seleccioná marca...'}
-                  error={errors.vehicleBrand}
-                />
-
-                {/* Modelo — texto libre */}
-                <Input
-                  label="Modelo"
-                  value={vehicleModel}
-                  onChange={(e) => setVehicleModel(e.target.value)}
-                  placeholder="Ej: Ranger, Fiesta, Corsa..."
-                />
-
-                {/* Versión — texto libre, opcional */}
-                <Input
-                  label="Versión (opcional)"
-                  value={vehicleVersion}
-                  onChange={(e) => setVehicleVersion(e.target.value)}
-                  placeholder="Ej: XL 4x4, Sport, TDI..."
-                />
-
-                {/* Año — lista desplegable */}
-                <Select
-                  label="Año"
+                  label="Año del vehículo"
                   required
                   value={vehicleYear}
-                  onChange={(e) => setVehicleYear(e.target.value)}
+                  onChange={e => setVehicleYear(e.target.value)}
                   options={YEARS}
                   error={errors.vehicleYear}
                 />
 
-                {/* Número de orden interno */}
+                {/* ── N° Orden Interna ── */}
                 <Input
-                  label="N° Orden Interna (Opcional)"
+                  label="N° Orden Interna (opcional)"
                   value={internalOrderNumber}
-                  onChange={(e) => setInternalOrderNumber(e.target.value)}
-                  placeholder="Secreto, interno para tu taller"
+                  onChange={e => setInternalOrderNumber(e.target.value)}
+                  placeholder="Uso interno del taller"
                 />
 
               </div>
@@ -318,14 +391,12 @@ export default function NuevoPedidoPage() {
                   <div className="space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="md:col-span-3">
-                        {/* Repuesto — autocompletado flexible desde el catálogo */}
                         <PartsAutocomplete
                           label="Pieza / Repuesto solicitado"
                           required
                           value={item.partName}
                           onChange={(val) => {
                             updateItem(item.tempId, 'partName', val);
-                            // Si se limpia el texto, limpiar también el código
                             if (!val) updateItem(item.tempId, 'codigoCatalogo', null);
                           }}
                           onSelect={(codigo, descripcion) => {
@@ -366,13 +437,11 @@ export default function NuevoPedidoPage() {
                       </div>
                     </div>
 
-                    {/* Notas — fallback cuando no se encuentra en catálogo */}
                     <Textarea
                       label="Notas (opcional)"
                       value={item.description}
                       onChange={(e) => {
                         updateItem(item.tempId, 'description', e.target.value);
-                        // Si agrega nota, limpiar error de campo vacío
                         if (e.target.value.trim()) {
                           setErrors(prev => {
                             const next = { ...prev };
@@ -385,7 +454,6 @@ export default function NuevoPedidoPage() {
                       rows={2}
                     />
 
-                    {/* Calidad deseada */}
                     <div>
                       <p className="block text-sm font-semibold text-zinc-300 mb-2">
                         Calidad deseada <span className="text-xs text-rose-500 font-bold">*</span>
@@ -409,10 +477,9 @@ export default function NuevoPedidoPage() {
                       </div>
                     </div>
 
-                    {/* Fotos opcionales */}
                     <div className="pt-2">
                       <p className="block text-sm font-semibold text-zinc-300 mb-2">
-                        Fotos de referencia (opcional - máx. 2)
+                        Fotos de referencia (opcional — máx. 2)
                       </p>
                       <div className="flex items-center gap-4 flex-wrap">
                         {item.imagePreviews.map((preview, i) => (
@@ -427,13 +494,13 @@ export default function NuevoPedidoPage() {
                               onClick={() => removeImage(item.tempId, i)}
                               className="absolute -top-2 -right-2 bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold opacity-0 group-hover/img:opacity-100 transition-opacity shadow-lg"
                             >
-                              &#x2715;
+                              ✕
                             </button>
                           </div>
                         ))}
                         {item.images.length < 2 && (
                           <label className="w-24 h-24 flex flex-col items-center justify-center border-2 border-dashed border-zinc-700/50 rounded-xl bg-zinc-950/30 hover:bg-zinc-900/50 hover:border-sky-500/30 transition-all cursor-pointer">
-                            <span className="text-2xl text-zinc-500 mb-1">&#x1F4F7;</span>
+                            <span className="text-2xl text-zinc-500 mb-1">📷</span>
                             <span className="text-[10px] uppercase font-bold text-zinc-500">Subir foto</span>
                             <input
                               type="file"
@@ -458,7 +525,7 @@ export default function NuevoPedidoPage() {
               </Button>
             </div>
 
-            {/* Submit */}
+            {/* ── Submit ── */}
             <div className="flex items-center gap-3 justify-end pt-6">
               {loading && showSlowMessage && (
                 <span className="text-xs text-zinc-400 mr-auto">

@@ -283,7 +283,7 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
           <div className="px-5 py-4 text-xs text-zinc-500 space-y-1">
             <p>Creado: {formatDate(order.createdAt)}</p>
             <p>Actualizado: {formatDate(order.updatedAt)}</p>
-            {order.internalOrderNumber && (
+            {order.internalOrderNumber && role !== 'vendedor' && (
               <p>Ref. interna: <span className="text-zinc-400 font-medium">{order.internalOrderNumber}</span></p>
             )}
           </div>

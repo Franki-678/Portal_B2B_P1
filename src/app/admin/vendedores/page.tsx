@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
@@ -37,6 +38,7 @@ function MetricPill({ label, value, color }: { label: string; value: number | st
 // ─── Componente principal ─────────────────────────────────────
 
 export default function AdminVendedoresPage() {
+  const router = useRouter();
   const [metrics, setMetrics] = useState<VendorPerformance[]>([]);
   const [profiles, setProfiles] = useState<VendorProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +78,7 @@ export default function AdminVendedoresPage() {
         fetchVendorMetrics(sb),
         (sb as any)
           .from('profiles')
-          .select('id, name, role, phone, assigned_workshops')
+          .select('id, name, role, phone, email, assigned_workshops')
           .in('role', ['vendedor', 'admin'])
           .order('name', { ascending: true })
           .then(({ data }: any) => (data ?? []) as VendorProfile[]),
@@ -89,7 +91,7 @@ export default function AdminVendedoresPage() {
           name: p.name ?? '',
           role: p.role,
           phone: p.phone ?? null,
-          email: null,
+          email: p.email ?? null,
           assignedWorkshops: p.assigned_workshops ?? [],
         }))
       );
@@ -508,6 +510,14 @@ export default function AdminVendedoresPage() {
                 </div>
               </div>
 
+              {/* Email */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Email</p>
+                <p className="text-sm font-semibold text-zinc-200 break-all">
+                  {selectedProfile?.email || <span className="text-zinc-600 italic">No disponible</span>}
+                </p>
+              </div>
+
               {/* Teléfono editable */}
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Teléfono</p>
@@ -566,17 +576,19 @@ export default function AdminVendedoresPage() {
                     {vendorOrders.map(order => (
                       <div
                         key={order.id}
-                        className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 hover:bg-zinc-800/40 transition-colors"
+                        onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
+                        className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 hover:bg-zinc-800/40 hover:border-zinc-700 transition-colors cursor-pointer group"
                       >
                         <StatusBadge status={order.status} />
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-zinc-200 truncate">
+                          <p className="text-xs font-bold text-zinc-200 truncate group-hover:text-white transition-colors">
                             {order.vehicleBrand} {order.vehicleModel} {order.vehicleYear}
                           </p>
                         </div>
                         <span className="text-[11px] text-zinc-500 shrink-0">
                           {formatRelativeTime(order.updatedAt)}
                         </span>
+                        <span className="text-zinc-600 group-hover:text-zinc-400 transition-colors text-xs">→</span>
                       </div>
                     ))}
                   </div>

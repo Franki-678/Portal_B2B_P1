@@ -137,6 +137,18 @@ export function OrderStatusTracker({ status, events }: OrderStatusTrackerProps) 
                 )}>
                   {displayLabel}
                 </h4>
+                {/* Actor name — who changed the status */}
+                {event?.userName && !isFuture && (
+                  <p className="text-xs font-semibold text-zinc-400 mt-0.5">
+                    {event.userName} cambió el estado a{' '}
+                    <span className={cn(
+                      'font-bold',
+                      isRejectedStep ? 'text-rose-400' : isCompleted ? 'text-emerald-400' : 'text-orange-400'
+                    )}>
+                      {displayLabel}
+                    </span>
+                  </p>
+                )}
                 <p className="text-xs font-medium text-zinc-500 mt-1 max-w-xs leading-relaxed">
                   {step.description}
                 </p>

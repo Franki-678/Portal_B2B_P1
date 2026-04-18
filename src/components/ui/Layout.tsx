@@ -29,12 +29,14 @@ function toTitleCase(value: string) {
     .replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function buildBreadcrumbs(pathname: string) {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return [{ href: '/', label: 'Inicio' }];
   return segments.map((segment, index) => ({
     href: `/${segments.slice(0, index + 1).join('/')}`,
-    label: toTitleCase(decodeURIComponent(segment)),
+    label: UUID_REGEX.test(segment) ? 'Pedido' : toTitleCase(decodeURIComponent(segment)),
   }));
 }
 
@@ -196,7 +198,6 @@ interface TopBarProps {
 
 export function TopBar({ title, subtitle, action }: TopBarProps) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
   const breadcrumbs = useMemo(() => buildBreadcrumbs(pathname), [pathname]);
 
   return (
@@ -229,13 +230,6 @@ export function TopBar({ title, subtitle, action }: TopBarProps) {
 
         <div className="flex items-center gap-3">
           {action && <div className="hidden sm:block">{action}</div>}
-          <div className="hidden rounded-2xl border border-zinc-800 bg-zinc-900/80 px-3 py-2 text-right md:block">
-            <div className="max-w-44 truncate text-sm font-semibold text-zinc-100">{user?.name ?? 'Usuario'}</div>
-            <div className="max-w-44 truncate text-xs text-zinc-500">{user?.email}</div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={logout} className="text-zinc-400 hover:text-rose-400">
-            Cerrar sesión
-          </Button>
         </div>
       </div>
 

@@ -144,7 +144,8 @@ export async function fetchAllOrders(
 
   let ordersQuery = (sb as any)
     .from('orders')
-    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, deleted_at')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(200);
 
@@ -429,13 +430,73 @@ export async function updateOrderStatus(
   return true;
 }
 
-export async function deleteOrderInDB(sb: SupabaseClientType, orderId: string): Promise<boolean> {
-  const { error } = await (sb as any).from('orders').delete().eq('id', orderId);
+export async function deleteOrderInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  deletedById?: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by_id: deletedById ?? null,
+    })
+    .eq('id', orderId);
   if (error) {
-    console.error('[Supabase] Error deleting order:', error.message);
+    console.error('[Supabase] Error soft-deleting order:', error.message);
     return false;
   }
   return true;
+}
+
+export async function fetchDeletedOrders(
+  sb: SupabaseClientType,
+  limit = 100
+): Promise<Order[]> {
+  const { data: rows, error } = await (sb as any)
+    .from('orders')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, deleted_at, deleted_by_id')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('[Supabase] Error fetching deleted orders:', error.message);
+    throw new Error(error.message);
+  }
+  if (!rows || rows.length === 0) return [];
+
+  const workshopIds = [...new Set(rows.map((r: any) => r.workshop_id).filter(Boolean))];
+  const [workshopsRes] = await Promise.all([
+    workshopIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : (sb as any).from('workshops').select('id, name, address, phone, contact_name, email, taller_number, created_at').in('id', workshopIds),
+  ]);
+
+  const workshops: any[] = workshopsRes.data ?? [];
+
+  return rows.map((r: any) => {
+    const ws = workshops.find((w: any) => w.id === r.workshop_id);
+    return {
+      id: r.id,
+      workshopId: r.workshop_id,
+      workshop: ws ? mapWorkshop(ws) : undefined,
+      vehicleBrand: r.vehicle_brand,
+      vehicleModel: r.vehicle_model,
+      vehicleVersion: r.vehicle_version,
+      vehicleYear: r.vehicle_year,
+      internalOrderNumber: r.internal_order_number ?? undefined,
+      orderNumber: r.order_number ?? undefined,
+      workshopOrderNumber: r.workshop_order_number ?? undefined,
+      assignedVendorId: r.assigned_vendor_id ?? undefined,
+      items: [],
+      status: r.status,
+      events: [],
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      deletedAt: r.deleted_at,
+    } as Order;
+  });
 }
 
 // ============================================================
@@ -1277,4 +1338,38 @@ export async function fetchConflictCount(sb: SupabaseClientType): Promise<number
     return 0;
   }
   return count ?? 0;
+}
+
+// ============================================================
+// CATÁLOGO DE VEHÍCULOS
+// ============================================================
+
+/**
+ * Devuelve el catálogo completo de vehículos como JSON anidado:
+ * { "Audi": { "A3": ["A3 02/04", "A3 05/08"], ... }, ... }
+ * Se carga una sola vez en el formulario de nuevo pedido.
+ */
+export async function fetchVehiclesCatalog(
+  sb: SupabaseClientType
+): Promise<Record<string, Record<string, string[]>>> {
+  const { data, error } = await (sb as any)
+    .from('vehiculos')
+    .select('marca, modelo, version')
+    .order('marca', { ascending: true })
+    .order('modelo', { ascending: true })
+    .order('version', { ascending: true });
+
+  if (error) {
+    console.error('[Supabase] Error fetching vehiculos catalog:', error.message);
+    return {};
+  }
+  if (!data || data.length === 0) return {};
+
+  const catalog: Record<string, Record<string, string[]>> = {};
+  for (const row of data as { marca: string; modelo: string; version: string }[]) {
+    if (!catalog[row.marca]) catalog[row.marca] = {};
+    if (!catalog[row.marca][row.modelo]) catalog[row.marca][row.modelo] = [];
+    catalog[row.marca][row.modelo].push(row.version);
+  }
+  return catalog;
 }
