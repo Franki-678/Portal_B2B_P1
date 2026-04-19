@@ -1352,24 +1352,41 @@ export async function fetchConflictCount(sb: SupabaseClientType): Promise<number
 export async function fetchVehiclesCatalog(
   sb: SupabaseClientType
 ): Promise<Record<string, Record<string, string[]>>> {
-  // PostgREST default limit is 1000 rows — override with 10000 to cover any realistic catalog.
-  // Current dataset: ~2000 rows. This single fetch is cached client-side in vehiclesCatalog state.
-  const { data, error } = await (sb as any)
-    .from('vehiculos')
-    .select('marca, modelo, version')
-    .order('marca', { ascending: true })
-    .order('modelo', { ascending: true })
-    .order('version', { ascending: true })
-    .limit(10000);
+  // Supabase has a server-side hard limit of max_rows = 1000 per request.
+  // We paginate with .range(from, to) in steps of 1000 and stop when a
+  // page returns fewer than 1000 rows (signals last page).
+  const PAGE_SIZE = 1000;
+  const allRows: { marca: string; modelo: string; version: string }[] = [];
+  let from = 0;
 
-  if (error) {
-    console.error('[Supabase] Error fetching vehiculos catalog:', error.message);
-    return {};
+  while (true) {
+    const { data, error } = await (sb as any)
+      .from('vehiculos')
+      .select('marca, modelo, version')
+      .order('marca', { ascending: true })
+      .order('modelo', { ascending: true })
+      .order('version', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('[Supabase] Error fetching vehiculos catalog (page starting at', from, '):', error.message);
+      break;
+    }
+
+    const page = (data ?? []) as { marca: string; modelo: string; version: string }[];
+    allRows.push(...page);
+
+    // Last page reached when the server returns fewer rows than requested
+    if (page.length < PAGE_SIZE) break;
+
+    from += PAGE_SIZE;
   }
-  if (!data || data.length === 0) return {};
 
+  if (allRows.length === 0) return {};
+
+  // Build nested catalog: { marca: { modelo: [versiones] } }
   const catalog: Record<string, Record<string, string[]>> = {};
-  for (const row of data as { marca: string; modelo: string; version: string }[]) {
+  for (const row of allRows) {
     if (!catalog[row.marca]) catalog[row.marca] = {};
     if (!catalog[row.marca][row.modelo]) catalog[row.marca][row.modelo] = [];
     catalog[row.marca][row.modelo].push(row.version);
