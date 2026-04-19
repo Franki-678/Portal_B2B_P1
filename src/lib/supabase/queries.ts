@@ -1352,12 +1352,15 @@ export async function fetchConflictCount(sb: SupabaseClientType): Promise<number
 export async function fetchVehiclesCatalog(
   sb: SupabaseClientType
 ): Promise<Record<string, Record<string, string[]>>> {
+  // PostgREST default limit is 1000 rows — override with 10000 to cover any realistic catalog.
+  // Current dataset: ~2000 rows. This single fetch is cached client-side in vehiclesCatalog state.
   const { data, error } = await (sb as any)
     .from('vehiculos')
     .select('marca, modelo, version')
     .order('marca', { ascending: true })
     .order('modelo', { ascending: true })
-    .order('version', { ascending: true });
+    .order('version', { ascending: true })
+    .limit(10000);
 
   if (error) {
     console.error('[Supabase] Error fetching vehiculos catalog:', error.message);

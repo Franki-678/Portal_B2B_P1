@@ -31,12 +31,14 @@ function toTitleCase(value: string) {
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function buildBreadcrumbs(pathname: string) {
+function buildBreadcrumbs(pathname: string, orderLabel?: string) {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return [{ href: '/', label: 'Inicio' }];
   return segments.map((segment, index) => ({
     href: `/${segments.slice(0, index + 1).join('/')}`,
-    label: UUID_REGEX.test(segment) ? 'Pedido' : toTitleCase(decodeURIComponent(segment)),
+    label: UUID_REGEX.test(segment)
+      ? (orderLabel ?? 'Pedido')
+      : toTitleCase(decodeURIComponent(segment)),
   }));
 }
 
@@ -194,11 +196,13 @@ interface TopBarProps {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  /** Label to show in place of a UUID segment in breadcrumbs (e.g. "01-PED-0001") */
+  orderLabel?: string;
 }
 
-export function TopBar({ title, subtitle, action }: TopBarProps) {
+export function TopBar({ title, subtitle, action, orderLabel }: TopBarProps) {
   const pathname = usePathname();
-  const breadcrumbs = useMemo(() => buildBreadcrumbs(pathname), [pathname]);
+  const breadcrumbs = useMemo(() => buildBreadcrumbs(pathname, orderLabel), [pathname, orderLabel]);
 
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur-xl shadow-sm shadow-black/20">

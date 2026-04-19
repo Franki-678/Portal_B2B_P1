@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
-import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal } from '@/lib/utils';
+import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
 
 interface PageProps {
@@ -147,6 +147,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
       <TopBar
         title={`Pedido ${order.workshopOrderNumber ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}` : order.id.split('-')[0].toUpperCase()}`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear}`}
+        orderLabel={formatVendorOrderLabel(order)}
         action={
           <Button variant="ghost" onClick={() => router.push('/taller/pedidos')}>
             ← Mis pedidos

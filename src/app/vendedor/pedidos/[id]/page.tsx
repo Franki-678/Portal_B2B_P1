@@ -219,6 +219,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           : order.id.split('-')[0].toUpperCase()
         }`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear} · ${order.workshop?.name}`}
+        orderLabel={formatVendorOrderLabel(order)}
         action={
           <Button variant="ghost" onClick={() => router.push('/vendedor/pedidos')}>
             &#x2190; Pedidos
