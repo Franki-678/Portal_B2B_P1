@@ -19,8 +19,12 @@ interface PartsAutocompleteProps {
   onSelect: (codigo: string | null, descripcion: string) => void;
   /** Marca seleccionada (del dropdown de marca) */
   vehicleBrand?: string;
-  /** Modelo escrito por el taller (texto libre) */
+  /** Modelo seleccionado */
   vehicleModel?: string;
+  /** Año seleccionado (del catálogo 4 niveles) */
+  vehicleYear?: string;
+  /** Versión seleccionada — contexto completo para DM Distribuidoras */
+  vehicleVersion?: string;
   error?: string;
   placeholder?: string;
 }
@@ -46,9 +50,16 @@ export function PartsAutocomplete({
   onSelect,
   vehicleBrand = '',
   vehicleModel = '',
+  vehicleYear = '',
+  vehicleVersion = '',
   error,
   placeholder = 'Ej: Paragolpe delantero, Capot, Óptica…',
 }: PartsAutocompleteProps) {
+  // Contexto de vehículo completo (para DM Distribuidoras cuando se integre)
+  const fullVehicleContext =
+    vehicleBrand && vehicleModel && vehicleYear && vehicleVersion
+      ? `${vehicleBrand} ${vehicleModel} ${vehicleYear} – ${vehicleVersion}`
+      : '';
   const [results, setResults] = useState<CatalogoItem[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -197,6 +208,11 @@ export function PartsAutocomplete({
         <label htmlFor={inputId} className="block text-xs font-semibold text-zinc-300 tracking-wide">
           {label} {required && <span className="text-orange-500">*</span>}
         </label>
+      )}
+      {fullVehicleContext && (
+        <p className="text-[10px] font-medium text-orange-400/70 -mt-0.5">
+          🚗 {fullVehicleContext}
+        </p>
       )}
 
       <div className="relative">

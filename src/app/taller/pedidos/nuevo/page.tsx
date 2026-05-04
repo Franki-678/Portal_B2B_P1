@@ -14,10 +14,10 @@ import { generateId } from '@/lib/utils';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { fetchVehiclesCatalog } from '@/lib/supabase/queries';
 
-// ─── Año actual + lista de años ───────────────────────────────
+// ─── Fallback: lista de años para cuando no hay catálogo ──────
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 40 }, (_, i) => ({
+const YEARS_FALLBACK = Array.from({ length: 40 }, (_, i) => ({
   value: String(CURRENT_YEAR - i),
   label: String(CURRENT_YEAR - i),
 }));
@@ -42,9 +42,9 @@ export default function NuevoPedidoPage() {
   const { createOrder } = useDataStore();
   const router = useRouter();
 
-  // ── Catálogo de vehículos ─────────────────────────────────
+  // ── Catálogo de vehículos (4 niveles: Marca → Modelo → Año → [Versiones]) ──
   const [vehiclesCatalog, setVehiclesCatalog] = useState<
-    Record<string, Record<string, string[]>>
+    Record<string, Record<string, Record<string, string[]>>>
   >({});
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -65,8 +65,8 @@ export default function NuevoPedidoPage() {
   // ── Estado del vehículo ───────────────────────────────────
   const [vehicleBrand, setVehicleBrand] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
+  const [vehicleYear, setVehicleYear] = useState('');
   const [vehicleVersion, setVehicleVersion] = useState('');
-  const [vehicleYear, setVehicleYear] = useState(String(CURRENT_YEAR));
   const [internalOrderNumber, setInternalOrderNumber] = useState('');
   const [items, setItems] = useState<NewOrderItemForm[]>([emptyItem()]);
 
@@ -81,26 +81,44 @@ export default function NuevoPedidoPage() {
     return Object.keys(vehiclesCatalog[vehicleBrand]).sort().map(m => ({ value: m, label: m }));
   }, [vehicleBrand, vehiclesCatalog]);
 
-  // Opciones de versión para el modelo seleccionado
-  const versionOptions = useMemo(() => {
+  // Opciones de año para la marca+modelo seleccionados
+  const yearOptions = useMemo(() => {
     if (!vehicleBrand || !vehicleModel) return [];
-    const versiones = vehiclesCatalog[vehicleBrand]?.[vehicleModel] ?? [];
-    return versiones.map(v => ({ value: v, label: v }));
+    const years = vehiclesCatalog[vehicleBrand]?.[vehicleModel];
+    if (!years) return [];
+    return Object.keys(years)
+      .sort((a, b) => Number(b) - Number(a)) // desc: año más reciente primero
+      .map(y => ({ value: y, label: y }));
   }, [vehicleBrand, vehicleModel, vehiclesCatalog]);
+
+  // Opciones de versión para la marca+modelo+año seleccionados
+  const versionOptions = useMemo(() => {
+    if (!vehicleBrand || !vehicleModel || !vehicleYear) return [];
+    const versions = vehiclesCatalog[vehicleBrand]?.[vehicleModel]?.[vehicleYear] ?? [];
+    return versions.map(v => ({ value: v, label: v }));
+  }, [vehicleBrand, vehicleModel, vehicleYear, vehiclesCatalog]);
 
   // ── Handlers de cascada ─────────────────────────────────────
 
   const handleBrandChange = (brand: string) => {
     setVehicleBrand(brand);
     setVehicleModel('');
+    setVehicleYear('');
     setVehicleVersion('');
-    setErrors(prev => ({ ...prev, vehicleBrand: undefined, vehicleModel: undefined, vehicleVersion: undefined }));
+    setErrors(prev => ({ ...prev, vehicleBrand: undefined, vehicleModel: undefined, vehicleYear: undefined, vehicleVersion: undefined }));
   };
 
   const handleModelChange = (model: string) => {
     setVehicleModel(model);
+    setVehicleYear('');
     setVehicleVersion('');
-    setErrors(prev => ({ ...prev, vehicleModel: undefined, vehicleVersion: undefined }));
+    setErrors(prev => ({ ...prev, vehicleModel: undefined, vehicleYear: undefined, vehicleVersion: undefined }));
+  };
+
+  const handleYearChange = (year: string) => {
+    setVehicleYear(year);
+    setVehicleVersion('');
+    setErrors(prev => ({ ...prev, vehicleYear: undefined, vehicleVersion: undefined }));
   };
 
   const handleVersionChange = (version: string) => {
@@ -115,6 +133,8 @@ export default function NuevoPedidoPage() {
 
     if (!vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
     if (!vehicleModel) errs.vehicleModel = 'Seleccioná el modelo';
+    if (marcaOptions.length > 0 && !vehicleYear)
+      errs.vehicleYear = 'Seleccioná el año';
     if (!vehicleVersion && versionOptions.length > 0)
       errs.vehicleVersion = 'Seleccioná la versión';
 
@@ -146,7 +166,7 @@ export default function NuevoPedidoPage() {
         vehicleBrand,
         vehicleModel,
         vehicleVersion,
-        vehicleYear: parseInt(vehicleYear),
+        vehicleYear: parseInt(vehicleYear) || 0,
         internalOrderNumber: internalOrderNumber.trim() || undefined,
         items: items.map(i => ({
           partName: i.partName,
@@ -318,22 +338,52 @@ export default function NuevoPedidoPage() {
                   />
                 )}
 
-                {/* ── Selector 3: Versión / Año ── */}
+                {/* ── Selector 3: Año ── */}
                 {marcaOptions.length > 0 ? (
                   <Select
-                    label="Versión / Año"
+                    label="Año"
+                    required
+                    value={vehicleYear}
+                    onChange={e => handleYearChange(e.target.value)}
+                    options={yearOptions}
+                    placeholder={
+                      !vehicleModel
+                        ? '— primero elegí el modelo —'
+                        : yearOptions.length === 0
+                        ? 'Sin años cargados'
+                        : 'Seleccioná el año'
+                    }
+                    disabled={!vehicleModel || yearOptions.length === 0}
+                    error={errors.vehicleYear}
+                  />
+                ) : (
+                  <Select
+                    label="Año del vehículo"
+                    required
+                    value={vehicleYear}
+                    onChange={e => setVehicleYear(e.target.value)}
+                    options={YEARS_FALLBACK}
+                    placeholder="Seleccioná el año"
+                    error={errors.vehicleYear}
+                  />
+                )}
+
+                {/* ── Selector 4: Versión ── */}
+                {marcaOptions.length > 0 ? (
+                  <Select
+                    label="Versión"
                     required={versionOptions.length > 0}
                     value={vehicleVersion}
                     onChange={e => handleVersionChange(e.target.value)}
                     options={versionOptions}
                     placeholder={
-                      !vehicleModel
-                        ? '— primero elegí el modelo —'
+                      !vehicleYear
+                        ? '— primero elegí el año —'
                         : versionOptions.length === 0
                         ? 'Sin versiones cargadas'
                         : 'Seleccioná la versión'
                     }
-                    disabled={!vehicleModel || versionOptions.length === 0}
+                    disabled={!vehicleYear || versionOptions.length === 0}
                     error={errors.vehicleVersion}
                   />
                 ) : (
@@ -344,16 +394,6 @@ export default function NuevoPedidoPage() {
                     placeholder="Ej: XL 4x4, Sport, TDI…"
                   />
                 )}
-
-                {/* ── Año exacto del vehículo ── */}
-                <Select
-                  label="Año del vehículo"
-                  required
-                  value={vehicleYear}
-                  onChange={e => setVehicleYear(e.target.value)}
-                  options={YEARS}
-                  error={errors.vehicleYear}
-                />
 
                 {/* ── N° Orden Interna ── */}
                 <Input
@@ -405,6 +445,8 @@ export default function NuevoPedidoPage() {
                           }}
                           vehicleBrand={vehicleBrand}
                           vehicleModel={vehicleModel}
+                          vehicleYear={vehicleYear}
+                          vehicleVersion={vehicleVersion}
                           error={errors[`item_${item.tempId}_partName`]}
                         />
                       </div>

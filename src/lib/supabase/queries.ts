@@ -1345,26 +1345,28 @@ export async function fetchConflictCount(sb: SupabaseClientType): Promise<number
 // ============================================================
 
 /**
- * Devuelve el catálogo completo de vehículos como JSON anidado:
- * { "Audi": { "A3": ["A3 02/04", "A3 05/08"], ... }, ... }
+ * Devuelve el catálogo completo de vehículos como JSON anidado de 4 niveles:
+ * { "Honda": { "City": { "2009": ["City 1.5 EXL", "City 1.5 LX"] } } }
+ *
+ * Marca → Modelo → Año → [Versiones]
+ *
  * Se carga una sola vez en el formulario de nuevo pedido.
+ * Supabase tiene un hard-limit de 1000 filas por request; paginamos con .range().
  */
 export async function fetchVehiclesCatalog(
   sb: SupabaseClientType
-): Promise<Record<string, Record<string, string[]>>> {
-  // Supabase has a server-side hard limit of max_rows = 1000 per request.
-  // We paginate with .range(from, to) in steps of 1000 and stop when a
-  // page returns fewer than 1000 rows (signals last page).
+): Promise<Record<string, Record<string, Record<string, string[]>>>> {
   const PAGE_SIZE = 1000;
-  const allRows: { marca: string; modelo: string; version: string }[] = [];
+  const allRows: { marca: string; modelo: string; year: string; version: string }[] = [];
   let from = 0;
 
   while (true) {
     const { data, error } = await (sb as any)
       .from('vehiculos')
-      .select('marca, modelo, version')
+      .select('marca, modelo, year, version')
       .order('marca', { ascending: true })
       .order('modelo', { ascending: true })
+      .order('year', { ascending: false })
       .order('version', { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
 
@@ -1373,10 +1375,9 @@ export async function fetchVehiclesCatalog(
       break;
     }
 
-    const page = (data ?? []) as { marca: string; modelo: string; version: string }[];
+    const page = (data ?? []) as { marca: string; modelo: string; year: string; version: string }[];
     allRows.push(...page);
 
-    // Last page reached when the server returns fewer rows than requested
     if (page.length < PAGE_SIZE) break;
 
     from += PAGE_SIZE;
@@ -1384,12 +1385,13 @@ export async function fetchVehiclesCatalog(
 
   if (allRows.length === 0) return {};
 
-  // Build nested catalog: { marca: { modelo: [versiones] } }
-  const catalog: Record<string, Record<string, string[]>> = {};
+  // Build 4-level nested catalog: { marca: { modelo: { year: [versiones] } } }
+  const catalog: Record<string, Record<string, Record<string, string[]>>> = {};
   for (const row of allRows) {
     if (!catalog[row.marca]) catalog[row.marca] = {};
-    if (!catalog[row.marca][row.modelo]) catalog[row.marca][row.modelo] = [];
-    catalog[row.marca][row.modelo].push(row.version);
+    if (!catalog[row.marca][row.modelo]) catalog[row.marca][row.modelo] = {};
+    if (!catalog[row.marca][row.modelo][row.year]) catalog[row.marca][row.modelo][row.year] = [];
+    catalog[row.marca][row.modelo][row.year].push(row.version);
   }
   return catalog;
 }

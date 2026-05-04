@@ -109,8 +109,19 @@ export default function AdminConfiguracionPage() {
     }
   };
 
-  // ── Handler: Catálogo de vehículos (JSON anidado) ─────────
-  // Formato esperado: { "Audi": { "A3": ["A3 02/04", "A3 05/08"], ... }, ... }
+  // ── Handler: Catálogo de vehículos (JSON anidado 4 niveles) ─
+  // Formato esperado:
+  //   {
+  //     "HONDA": {
+  //       "descripcion": "Honda",          ← opcional, se ignora
+  //       "modelos": {
+  //         "CITY": {
+  //           "2009": ["CITY 1.5 EXL", "CITY 1.5 LX"],
+  //           "2010": ["CITY 1.5 EXL"]
+  //         }
+  //       }
+  //     }
+  //   }
 
   const handleVehiclesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -125,32 +136,59 @@ export default function AdminConfiguracionPage() {
 
     try {
       const text = await file.text();
-      const nested: Record<string, Record<string, string[]>> = JSON.parse(text);
+      const raw: Record<string, unknown> = JSON.parse(text);
 
       // Validar estructura mínima
-      if (typeof nested !== 'object' || Array.isArray(nested)) {
-        throw new Error('El JSON debe ser un objeto: { "Marca": { "Modelo": ["version"] } }');
+      if (typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new Error('El JSON debe ser un objeto con marcas como claves.');
       }
 
-      // Aplanar a filas (marca, modelo, version)
-      const rows: { marca: string; modelo: string; version: string }[] = [];
-      for (const [marca, modelos] of Object.entries(nested)) {
-        if (typeof modelos !== 'object' || Array.isArray(modelos)) continue;
-        for (const [modelo, versiones] of Object.entries(modelos)) {
-          if (!Array.isArray(versiones)) continue;
-          for (const version of versiones) {
-            if (typeof version === 'string' && version.trim()) {
-              rows.push({ marca: marca.trim(), modelo: modelo.trim(), version: version.trim() });
+      // Aplanar a filas (marca, modelo, year, version)
+      const rows: { marca: string; modelo: string; year: string; version: string }[] = [];
+
+      for (const [marcaKey, marcaData] of Object.entries(raw)) {
+        const marca = marcaKey.trim();
+        if (!marca) continue;
+
+        // Soporte para formato con { descripcion, modelos } o directo { Modelo: { Año: [versiones] } }
+        let modelosMap: Record<string, unknown>;
+        if (
+          typeof marcaData === 'object' &&
+          !Array.isArray(marcaData) &&
+          marcaData !== null &&
+          'modelos' in (marcaData as object)
+        ) {
+          modelosMap = (marcaData as { modelos: Record<string, unknown> }).modelos;
+        } else {
+          modelosMap = marcaData as Record<string, unknown>;
+        }
+
+        if (typeof modelosMap !== 'object' || Array.isArray(modelosMap) || modelosMap === null) continue;
+
+        for (const [modeloKey, yearsData] of Object.entries(modelosMap)) {
+          const modelo = modeloKey.trim();
+          if (!modelo) continue;
+          if (typeof yearsData !== 'object' || Array.isArray(yearsData) || yearsData === null) continue;
+
+          for (const [yearKey, versiones] of Object.entries(yearsData as Record<string, unknown>)) {
+            const year = yearKey.trim();
+            if (!year) continue;
+            if (!Array.isArray(versiones)) continue;
+
+            for (const version of versiones) {
+              if (typeof version === 'string' && version.trim()) {
+                rows.push({ marca, modelo, year, version: version.trim() });
+              }
             }
           }
         }
       }
 
       if (rows.length === 0) {
-        throw new Error('No se encontraron registros válidos en el JSON.');
+        throw new Error('No se encontraron registros válidos. Revisá que el JSON tenga la estructura: { "MARCA": { "modelos": { "MODELO": { "AÑO": ["versión"] } } } }');
       }
 
-      // Upsert en lotes de 500 con conflicto en (marca, modelo, version)
+      // Upsert en lotes de 500 con conflicto en (marca, modelo, year, version)
       const sb = getSupabaseClient();
       const BATCH = 500;
       let total = 0;
@@ -158,7 +196,7 @@ export default function AdminConfiguracionPage() {
         const batch = rows.slice(i, i + BATCH);
         const { error } = await (sb as any)
           .from('vehiculos')
-          .upsert(batch, { onConflict: 'marca,modelo,version' });
+          .upsert(batch, { onConflict: 'marca,modelo,year,version' });
         if (error) throw new Error(error.message);
         total += batch.length;
       }
@@ -219,12 +257,16 @@ export default function AdminConfiguracionPage() {
 
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 text-xs text-zinc-400 space-y-1.5">
             <p>
-              <span className="text-zinc-300 font-semibold">Formato:</span>{' '}
-              JSON anidado — <span className="font-mono text-orange-400/80">{'{ "Audi": { "A3": ["A3 02/04", "A3 05/08"] } }'}</span>
+              <span className="text-zinc-300 font-semibold">Formato (4 niveles):</span>{' '}
+              <span className="font-mono text-orange-400/80">{'{ "HONDA": { "modelos": { "CITY": { "2009": ["CITY 1.5 EXL"] } } } }'}</span>
+            </p>
+            <p>
+              <span className="text-zinc-300 font-semibold">Jerarquía:</span>{' '}
+              Marca → Modelo → Año → [Versiones]
             </p>
             <p>
               <span className="text-zinc-300 font-semibold">Modo:</span>{' '}
-              Upsert por (marca, modelo, versión) — actualiza existentes e inserta nuevos. No borra los anteriores.
+              Upsert por (marca, modelo, año, versión) — actualiza existentes e inserta nuevos. No borra los anteriores.
             </p>
             <p>
               <span className="text-zinc-300 font-semibold">Nota:</span>{' '}

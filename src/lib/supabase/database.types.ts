@@ -280,12 +280,14 @@ export type Database = {
           id: number;
           marca: string;
           modelo: string;
+          year: string;
           version: string;
         };
         Insert: {
           id?: number;
           marca: string;
           modelo: string;
+          year: string;
           version: string;
         };
         Update: Partial<Database['public']['Tables']['vehiculos']['Insert']>;
