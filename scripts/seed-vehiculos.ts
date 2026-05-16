@@ -138,8 +138,9 @@ function parseJsonCatalog(raw: unknown): VehicleRow[] {
 
 // ─── Upsert en batches ────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function upsertBatches(
-  sb: ReturnType<typeof createClient>,
+  sb: any,
   rows: VehicleRow[]
 ): Promise<{ inserted: number; errors: number }> {
   let inserted = 0;
@@ -154,7 +155,8 @@ async function upsertBatches(
       `\r  Lote ${batchNum}/${totalBatches} — ${pluralize(i + batch.length, 'fila')} procesadas...`
     );
 
-    const { error } = await sb
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb as any)
       .from('vehiculos')
       .upsert(batch, { onConflict: 'marca,modelo,year,version' });
 
@@ -248,7 +250,8 @@ async function main() {
   }
 
   // Verificar conteo real en la tabla
-  const { count, error: countErr } = await sb
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { count, error: countErr } = await (sb as any)
     .from('vehiculos')
     .select('*', { count: 'exact', head: true });
 

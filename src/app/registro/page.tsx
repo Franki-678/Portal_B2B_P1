@@ -94,7 +94,7 @@ export default function RegistroPage() {
 
       <div className="w-full max-w-sm relative z-10">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex flex-col items-center gap-3 group">
+          <Link href="/login" className="inline-flex flex-col items-center gap-3 group">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-500/5 border border-orange-500/20 flex items-center justify-center text-3xl shadow-inner shadow-orange-500/10 group-hover:border-orange-500/40 transition-colors">
               🏭
             </div>
@@ -224,8 +224,8 @@ export default function RegistroPage() {
         </div>
 
         <p className="text-center text-sm font-medium text-zinc-600 mt-6">
-          <Link href="/" className="hover:text-zinc-400 transition-colors">
-            ← Volver al inicio
+          <Link href="/login" className="hover:text-zinc-400 transition-colors">
+            ← Volver al login
           </Link>
         </p>
       </div>
