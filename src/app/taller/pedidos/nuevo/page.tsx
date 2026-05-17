@@ -554,8 +554,12 @@ export default function NuevoPedidoPage() {
                             updateItem(item.tempId, 'codigoCatalogo', null);
                           }}
                           error={errors[`item_${item.tempId}_partName`]}
-                          placeholder="Escribí o seleccioná un repuesto…"
-                          hint="Agregar una breve descripción del repuesto ayuda a identificarlo con más precisión."
+                          placeholder={isUniversal
+                            ? "Buscá un insumo o accesorio universal…"
+                            : "Escribí o seleccioná un repuesto…"}
+                          hint={isUniversal
+                            ? "Buscá aceites, filtros, lámparas u otros insumos. Si no existe, presioná Enter para agregarlo."
+                            : "Agregar una breve descripción del repuesto ayuda a identificarlo con más precisión."}
                         />
                       </div>
                       <div className="md:col-span-1">

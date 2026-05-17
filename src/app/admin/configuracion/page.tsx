@@ -7,6 +7,7 @@ import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/FormFields';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { CatalogManagerModal } from '@/components/admin/CatalogManagerModal';
 
 export default function AdminConfiguracionPage() {
   const { user } = useAuth();
@@ -64,6 +65,24 @@ export default function AdminConfiguracionPage() {
       />
 
       <div className="p-6 space-y-6 max-w-3xl">
+
+        {/* ── Gestión de Base de Datos ── */}
+        <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-orange-500/20 bg-orange-500/10 text-lg">
+                🗄️
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-zinc-100">Base de Datos</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Importá catálogos de vehículos y repuestos. Vaciá tablas antes de una reimportación.
+                </p>
+              </div>
+            </div>
+            <CatalogManagerModal />
+          </div>
+        </section>
 
         {/* ── Contacto de la empresa ── */}
         <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-4">

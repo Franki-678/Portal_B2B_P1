@@ -1384,7 +1384,7 @@ export async function insertDiccionarioEntry(
 
   const { error } = await (sb as any)
     .from('catalogo_repuestos')
-    .insert({ codigo, descripcion: trimmed })
+    .insert({ codigo, descripcion: trimmed, tipo_pieza: 'Accesorios' })
     .select('id')
     .limit(1);
 
