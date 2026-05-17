@@ -609,6 +609,12 @@ function RepuestosTab() {
             </p>
           </div>
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.json" className="hidden" onChange={handleFile} />
+          {/* Warning: do not modify file structure */}
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 mt-3">
+            <p className="text-xs text-amber-400 leading-relaxed">
+              ⚠️ <strong className="font-semibold">Advertencia:</strong> Modificar los nombres de las columnas, el formato de las celdas o la estructura original de los archivos CSV/XLSX puede provocar que el sistema no reconozca los datos y falle la importación.
+            </p>
+          </div>
         </div>
       )}
 
