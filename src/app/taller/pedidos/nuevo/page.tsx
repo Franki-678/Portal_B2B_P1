@@ -7,7 +7,7 @@ import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/FormFields';
-import { PartsAutocomplete } from '@/components/ui/PartsAutocomplete';
+import { CreatableCombobox } from '@/components/ui/CreatableCombobox';
 import { QUALITY_OPTIONS } from '@/lib/constants';
 import { NewOrderItemForm } from '@/lib/types';
 import { generateId } from '@/lib/utils';
@@ -61,6 +61,9 @@ export default function NuevoPedidoPage() {
     () => Object.keys(vehiclesCatalog).sort().map(m => ({ value: m, label: m })),
     [vehiclesCatalog]
   );
+
+  // ── Toggle: producto universal / accesorio ───────────────
+  const [isUniversal, setIsUniversal] = useState(false);
 
   // ── Estado del vehículo ───────────────────────────────────
   const [vehicleBrand, setVehicleBrand] = useState('');
@@ -131,12 +134,14 @@ export default function NuevoPedidoPage() {
   const validate = (): boolean => {
     const errs: FormErrors = {};
 
-    if (!vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
-    if (!vehicleModel) errs.vehicleModel = 'Seleccioná el modelo';
-    if (marcaOptions.length > 0 && !vehicleYear)
-      errs.vehicleYear = 'Seleccioná el año';
-    if (!vehicleVersion && versionOptions.length > 0)
-      errs.vehicleVersion = 'Seleccioná la versión';
+    if (!isUniversal) {
+      if (!vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
+      if (!vehicleModel) errs.vehicleModel = 'Seleccioná el modelo';
+      if (marcaOptions.length > 0 && !vehicleYear)
+        errs.vehicleYear = 'Seleccioná el año';
+      if (!vehicleVersion && versionOptions.length > 0)
+        errs.vehicleVersion = 'Seleccioná la versión';
+    }
 
     items.forEach((item) => {
       const hasPartName = !!item.partName.trim();
@@ -163,10 +168,10 @@ export default function NuevoPedidoPage() {
     try {
       const newOrder = await createOrder({
         workshopId: user?.workshopId || '',
-        vehicleBrand,
-        vehicleModel,
-        vehicleVersion,
-        vehicleYear: parseInt(vehicleYear) || 0,
+        vehicleBrand:   isUniversal ? 'Universal' : vehicleBrand,
+        vehicleModel:   isUniversal ? '-'         : vehicleModel,
+        vehicleVersion: isUniversal ? '-'         : vehicleVersion,
+        vehicleYear:    isUniversal ? 0            : (parseInt(vehicleYear) || 0),
         internalOrderNumber: internalOrderNumber.trim() || undefined,
         items: items.map(i => ({
           partName: i.partName,
@@ -266,10 +271,64 @@ export default function NuevoPedidoPage() {
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
 
+            {/* ── Toggle: Producto Universal / Accesorio ── */}
+            <label className="flex items-center gap-3 cursor-pointer select-none group w-fit">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={isUniversal}
+                  onChange={e => {
+                    setIsUniversal(e.target.checked);
+                    if (e.target.checked) {
+                      setVehicleBrand('');
+                      setVehicleModel('');
+                      setVehicleYear('');
+                      setVehicleVersion('');
+                      setErrors(prev => {
+                        const next = { ...prev };
+                        delete next.vehicleBrand;
+                        delete next.vehicleModel;
+                        delete next.vehicleYear;
+                        delete next.vehicleVersion;
+                        return next;
+                      });
+                    }
+                  }}
+                />
+                <div className={[
+                  'w-10 h-5.5 rounded-full transition-colors duration-200 border',
+                  isUniversal
+                    ? 'bg-orange-500/80 border-orange-500'
+                    : 'bg-zinc-800 border-zinc-700 group-hover:border-zinc-600',
+                ].join(' ')} style={{ height: '1.375rem' }} />
+                <div className={[
+                  'absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200',
+                  isUniversal ? 'translate-x-[1.125rem]' : '',
+                ].join(' ')} />
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors">
+                  Producto universal / Accesorio
+                </span>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  No requiere vehículo específico (ej: aceite, filtros genéricos, accesorios).
+                </p>
+              </div>
+            </label>
+
             {/* ── Sección 1: Datos del vehículo ── */}
-            <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm">
+            <div className={[
+              'bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 space-y-5 shadow-sm transition-all duration-200',
+              isUniversal ? 'opacity-40 pointer-events-none select-none' : '',
+            ].join(' ')}>
               <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
                 <span className="text-xl">🚗</span> Datos del vehículo
+                {isUniversal && (
+                  <span className="ml-2 text-xs font-medium text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700">
+                    deshabilitado
+                  </span>
+                )}
               </h2>
 
               {/* Indicador de carga del catálogo */}
@@ -431,23 +490,16 @@ export default function NuevoPedidoPage() {
                   <div className="space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="md:col-span-3">
-                        <PartsAutocomplete
+                        <CreatableCombobox
                           label="Pieza / Repuesto solicitado"
                           required
                           value={item.partName}
                           onChange={(val) => {
                             updateItem(item.tempId, 'partName', val);
-                            if (!val) updateItem(item.tempId, 'codigoCatalogo', null);
+                            updateItem(item.tempId, 'codigoCatalogo', null);
                           }}
-                          onSelect={(codigo, descripcion) => {
-                            updateItem(item.tempId, 'partName', descripcion);
-                            updateItem(item.tempId, 'codigoCatalogo', codigo);
-                          }}
-                          vehicleBrand={vehicleBrand}
-                          vehicleModel={vehicleModel}
-                          vehicleYear={vehicleYear}
-                          vehicleVersion={vehicleVersion}
                           error={errors[`item_${item.tempId}_partName`]}
+                          placeholder="Escribí o seleccioná un repuesto…"
                         />
                       </div>
                       <div className="md:col-span-1">

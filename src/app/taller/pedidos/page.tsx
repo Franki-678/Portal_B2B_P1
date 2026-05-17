@@ -3,7 +3,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
-import { OrderCard } from '@/components/orders/OrderCard';
+import { OrderTableRow } from '@/components/orders/OrderCard';
 import { OrderDrawer } from '@/components/orders/OrderDrawer';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -103,30 +103,43 @@ export default function TallerPedidosPage() {
             }
           />
         ) : (
-          <div className="grid md:grid-cols-2 gap-4">
-            {sorted.map(order => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                role="taller"
-                onClick={() => {
-                  setDrawerOrder(order);
-                  setDrawerOpen(true);
-                }}
-                footerActions={
-                  order.status === 'pendiente' ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="danger"
-                      onClick={(e) => { e.stopPropagation(); setDeletingOrderId(order.id); }}
-                    >
-                      🗑️ Eliminar pedido
-                    </Button>
-                  ) : undefined
-                }
-              />
-            ))}
+          <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl overflow-hidden shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800/80 bg-zinc-900/60">
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Pedido</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Repuesto / Vehículo</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Estado</th>
+                  <th className="px-5 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Actualizado</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(order => (
+                  <OrderTableRow
+                    key={order.id}
+                    order={order}
+                    role="taller"
+                    onClick={() => {
+                      setDrawerOrder(order);
+                      setDrawerOpen(true);
+                    }}
+                    actions={
+                      order.status === 'pendiente' ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          onClick={() => setDeletingOrderId(order.id)}
+                        >
+                          🗑️
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

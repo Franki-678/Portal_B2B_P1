@@ -1341,6 +1341,56 @@ export async function fetchConflictCount(sb: SupabaseClientType): Promise<number
 }
 
 // ============================================================
+// DICCIONARIO ORGÁNICO DE REPUESTOS
+// ============================================================
+
+/**
+ * Busca entradas en el diccionario de repuestos por coincidencia parcial.
+ * Mínimo 2 caracteres para disparar la búsqueda.
+ */
+export async function fetchDiccionarioSuggestions(
+  sb: SupabaseClientType,
+  query: string
+): Promise<string[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const { data, error } = await (sb as any)
+    .from('diccionario_repuestos')
+    .select('nombre')
+    .ilike('nombre', `%${trimmed}%`)
+    .order('nombre', { ascending: true })
+    .limit(12);
+
+  if (error) {
+    console.error('[Diccionario] Error buscando sugerencias:', error.message);
+    return [];
+  }
+  return (data ?? []).map((r: { nombre: string }) => r.nombre);
+}
+
+/**
+ * Inserta una entrada nueva en el diccionario de forma silenciosa.
+ * Usa upsert con ignoreDuplicates para no romper si ya existe.
+ */
+export async function insertDiccionarioEntry(
+  sb: SupabaseClientType,
+  nombre: string
+): Promise<void> {
+  const trimmed = nombre.trim();
+  if (!trimmed || trimmed.length < 2) return;
+
+  const { error } = await (sb as any)
+    .from('diccionario_repuestos')
+    .upsert({ nombre: trimmed }, { onConflict: 'nombre', ignoreDuplicates: true });
+
+  if (error) {
+    // Silencioso — no romper el flujo del formulario
+    console.warn('[Diccionario] No se pudo insertar entrada:', error.message);
+  }
+}
+
+// ============================================================
 // CATÁLOGO DE VEHÍCULOS
 // ============================================================
 

@@ -275,6 +275,19 @@ export type Database = {
         };
         Update: Partial<Database['public']['Tables']['order_events']['Insert']>;
       };
+      diccionario_repuestos: {
+        Row: {
+          id: string;
+          nombre: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          nombre: string;
+          created_at?: string;
+        };
+        Update: Partial<{ nombre: string }>;
+      };
       vehiculos: {
         Row: {
           id: number;
