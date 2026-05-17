@@ -304,6 +304,7 @@ export interface AdminMonthlyMetricsReport {
   topMarca: string;
   topModelo: string;
   topProducto: string;
+  topRepuestos: Array<{ partName: string; count: number }>;
 }
 
 export interface ProfileDirectoryEntry {

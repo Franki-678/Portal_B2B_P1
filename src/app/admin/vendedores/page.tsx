@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/ui/Layout';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +8,7 @@ import { StatusBadge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/FormFields';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { fetchVendorMetrics } from '@/lib/supabase/queries';
-import { VendorPerformance, Order } from '@/lib/types';
+import { VendorPerformance } from '@/lib/types';
 import { formatCurrency, formatRelativeTime, cn } from '@/lib/utils';
 
 // ─── Tipos locales ────────────────────────────────────────────
@@ -22,7 +22,33 @@ interface VendorProfile {
   assignedWorkshops: string[];
 }
 
+/** Fila enriquecida del panel de pedidos del vendedor */
+interface VendorOrderRow {
+  id: string;
+  workshopId: string;
+  workshopName: string;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehicleYear: number;
+  workshopOrderNumber: number | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  montoAprobado: number;
+}
+
 type SortKey = 'vendorName' | 'totalPedidos' | 'cotizados' | 'aprobados' | 'rechazados' | 'montoAprobado';
+
+const ORDER_STATUS_OPTIONS = [
+  { value: 'pendiente',        label: 'Pendiente' },
+  { value: 'en_revision',      label: 'En revisión' },
+  { value: 'cotizado',         label: 'Cotizado' },
+  { value: 'aprobado',         label: 'Aprobado' },
+  { value: 'aprobado_parcial', label: 'Aprobado parcial' },
+  { value: 'rechazado',        label: 'Rechazado' },
+  { value: 'cerrado',          label: 'Cerrado' },
+  { value: 'cerrado_pagado',   label: 'Cerrado · Pagado' },
+];
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -34,6 +60,11 @@ function MetricPill({ label, value, color }: { label: string; value: number | st
     </div>
   );
 }
+
+const selectCls =
+  'h-8 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 text-xs text-zinc-200 ' +
+  'focus:outline-none focus:border-orange-500 transition-colors appearance-none cursor-pointer ' +
+  'hover:border-zinc-600';
 
 // ─── Componente principal ─────────────────────────────────────
 
@@ -49,8 +80,14 @@ export default function AdminVendedoresPage() {
 
   // Panel detalle
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
-  const [vendorOrders, setVendorOrders] = useState<Order[]>([]);
+  const [vendorOrders, setVendorOrders] = useState<VendorOrderRow[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+
+  // Filtros del panel de pedidos
+  const [workshopFilter, setWorkshopFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [amountMin, setAmountMin] = useState('');
+  const [amountMax, setAmountMax] = useState('');
 
   // Edición inline
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -104,34 +141,77 @@ export default function AdminVendedoresPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // ── Cargar pedidos de un vendedor ─────────────────────────
+  // ── Cargar pedidos de un vendedor (con taller + monto) ────
 
   const loadVendorOrders = useCallback(async (vendorId: string) => {
     setOrdersLoading(true);
     try {
       const sb = getSupabaseClient();
-      const { data, error: err } = await (sb as any)
+
+      // 1. Pedidos básicos
+      const { data: ordersData, error: err } = await (sb as any)
         .from('orders')
         .select('id, vehicle_brand, vehicle_model, vehicle_year, status, created_at, updated_at, workshop_order_number, workshop_id')
         .eq('assigned_vendor_id', vendorId)
         .order('updated_at', { ascending: false })
-        .limit(20);
+        .limit(50);
+
       if (err) throw new Error(err.message);
+      const rows: any[] = ordersData ?? [];
+
+      // 2. Nombres de talleres + cotizaciones (en paralelo)
+      const workshopIds = [...new Set(rows.map((r: any) => r.workshop_id).filter(Boolean))];
+      const orderIds   = rows.map((r: any) => r.id);
+
+      const [workshopsRes, quotesRes] = await Promise.all([
+        workshopIds.length === 0
+          ? Promise.resolve({ data: [] })
+          : (sb as any).from('workshops').select('id, name').in('id', workshopIds),
+        orderIds.length === 0
+          ? Promise.resolve({ data: [] })
+          : (sb as any).from('quotes').select('id, order_id').in('order_id', orderIds),
+      ]);
+
+      const workshopMap: Record<string, string> = {};
+      for (const w of (workshopsRes.data ?? [])) {
+        workshopMap[w.id] = w.name;
+      }
+
+      // 3. Quote_items aprobados para calcular monto
+      const quoteIdList: string[] = (quotesRes.data ?? []).map((q: any) => q.id);
+      const quoteOrderMap: Record<string, string> = {};
+      for (const q of (quotesRes.data ?? [])) quoteOrderMap[q.id] = q.order_id;
+
+      const amountByOrder: Record<string, number> = {};
+      if (quoteIdList.length > 0) {
+        const { data: qiData } = await (sb as any)
+          .from('quote_items')
+          .select('quote_id, price, quantity_offered')
+          .in('quote_id', quoteIdList)
+          .eq('approved', true);
+
+        for (const qi of (qiData ?? [])) {
+          const oid = quoteOrderMap[qi.quote_id];
+          if (oid) {
+            amountByOrder[oid] =
+              (amountByOrder[oid] ?? 0) + Number(qi.price) * (Number(qi.quantity_offered) || 1);
+          }
+        }
+      }
+
       setVendorOrders(
-        (data ?? []).map((r: any) => ({
-          id: r.id,
-          workshopId: r.workshop_id,
-          vehicleBrand: r.vehicle_brand,
-          vehicleModel: r.vehicle_model,
-          vehicleVersion: '',
-          vehicleYear: r.vehicle_year,
-          workshopOrderNumber: r.workshop_order_number,
-          assignedVendorId: vendorId,
-          items: [],
-          status: r.status,
-          events: [],
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
+        rows.map((r: any): VendorOrderRow => ({
+          id:                  r.id,
+          workshopId:          r.workshop_id ?? '',
+          workshopName:        workshopMap[r.workshop_id] ?? '—',
+          vehicleBrand:        r.vehicle_brand,
+          vehicleModel:        r.vehicle_model,
+          vehicleYear:         r.vehicle_year,
+          workshopOrderNumber: r.workshop_order_number ?? null,
+          status:              r.status,
+          createdAt:           r.created_at,
+          updatedAt:           r.updated_at,
+          montoAprobado:       amountByOrder[r.id] ?? 0,
         }))
       );
     } catch {
@@ -147,8 +227,41 @@ export default function AdminVendedoresPage() {
       return;
     }
     setSelectedVendorId(vendorId);
+    // Reset filters on vendor change
+    setWorkshopFilter('');
+    setStatusFilter('');
+    setAmountMin('');
+    setAmountMax('');
     void loadVendorOrders(vendorId);
   };
+
+  // ── Filtros derivados ─────────────────────────────────────
+
+  const uniqueWorkshops = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const o of vendorOrders) {
+      if (o.workshopId && o.workshopName && o.workshopName !== '—') {
+        map.set(o.workshopId, o.workshopName);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [vendorOrders]);
+
+  const filteredOrders = useMemo(() => {
+    const minAmt = amountMin !== '' ? Number(amountMin) : null;
+    const maxAmt = amountMax !== '' ? Number(amountMax) : null;
+    return vendorOrders.filter(o => {
+      if (workshopFilter && o.workshopId !== workshopFilter) return false;
+      if (statusFilter && o.status !== statusFilter) return false;
+      if (minAmt !== null && o.montoAprobado < minAmt) return false;
+      if (maxAmt !== null && o.montoAprobado > maxAmt) return false;
+      return true;
+    });
+  }, [vendorOrders, workshopFilter, statusFilter, amountMin, amountMax]);
+
+  const hasActiveFilters = workshopFilter || statusFilter || amountMin || amountMax;
 
   // ── Crear nuevo vendedor ──────────────────────────────────
 
@@ -233,7 +346,7 @@ export default function AdminVendedoresPage() {
 
   // ── Render ────────────────────────────────────────────────
 
-  const selectedMetric = metrics.find(m => m.vendorId === selectedVendorId);
+  const selectedMetric  = metrics.find(m => m.vendorId === selectedVendorId);
   const selectedProfile = profiles.find(p => p.id === selectedVendorId);
 
   return (
@@ -303,11 +416,7 @@ export default function AdminVendedoresPage() {
               </div>
             )}
             <div className="flex gap-2 justify-end pt-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setShowNewVendor(false); setCreateResult(null); }}
-              >
+              <Button variant="ghost" size="sm" onClick={() => { setShowNewVendor(false); setCreateResult(null); }}>
                 Cancelar
               </Button>
               <Button
@@ -326,7 +435,7 @@ export default function AdminVendedoresPage() {
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* ── Panel izquierdo: tabla ── */}
+        {/* ── Panel izquierdo: tabla métricas ── */}
         <div className={cn(
           'flex flex-col overflow-hidden border-r border-zinc-800 transition-all duration-200',
           selectedVendorId ? 'w-full lg:w-[55%] xl:w-[60%]' : 'w-full'
@@ -344,12 +453,12 @@ export default function AdminVendedoresPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-800 bg-zinc-950/40">
-                    <Th label="Vendedor" k="vendorName" />
-                    <Th label="Pedidos" k="totalPedidos" align="right" />
-                    <Th label="Cotizados" k="cotizados" align="right" />
-                    <Th label="Aprobados" k="aprobados" align="right" />
-                    <Th label="Rechazados" k="rechazados" align="right" />
-                    <Th label="Monto" k="montoAprobado" align="right" />
+                    <Th label="Vendedor"   k="vendorName" />
+                    <Th label="Pedidos"    k="totalPedidos"  align="right" />
+                    <Th label="Cotizados"  k="cotizados"     align="right" />
+                    <Th label="Aprobados"  k="aprobados"     align="right" />
+                    <Th label="Rechazados" k="rechazados"    align="right" />
+                    <Th label="Monto"      k="montoAprobado" align="right" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/50">
@@ -360,7 +469,7 @@ export default function AdminVendedoresPage() {
                     <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500 text-sm">No hay vendedores con actividad.</td></tr>
                   )}
                   {sortedMetrics.map(v => {
-                    const profile = profiles.find(p => p.id === v.vendorId);
+                    const profile   = profiles.find(p => p.id === v.vendorId);
                     const isSelected = selectedVendorId === v.vendorId;
                     return (
                       <tr
@@ -375,12 +484,7 @@ export default function AdminVendedoresPage() {
                       >
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2.5">
-                            <div className={cn(
-                              'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-xs font-bold',
-                              profiles.find(p => p.id === v.vendorId)?.role === 'admin'
-                                ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                                : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                            )}>
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border bg-orange-500/10 text-orange-400 border-orange-500/20 text-xs font-bold">
                               {(v.vendorName[0] || 'V').toUpperCase()}
                             </div>
                             <div>
@@ -405,7 +509,7 @@ export default function AdminVendedoresPage() {
               </table>
             </div>
 
-            {/* Vendedores en perfiles sin métricas aún */}
+            {/* Vendedores sin métricas */}
             {profiles.filter(p => !metrics.find(m => m.vendorId === p.id)).length > 0 && (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">Sin actividad registrada</p>
@@ -442,12 +546,12 @@ export default function AdminVendedoresPage() {
           </div>
         </div>
 
-        {/* ── Panel derecho: detalle ── */}
+        {/* ── Panel derecho: detalle vendedor ── */}
         {selectedVendorId && (
           <div className="hidden lg:flex flex-col w-[45%] xl:w-[40%] overflow-hidden bg-zinc-950/40">
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
-              {/* Header del vendedor */}
+              {/* Header */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-500/20 bg-orange-500/10 text-xl font-black text-orange-400">
@@ -474,12 +578,7 @@ export default function AdminVendedoresPage() {
                 <div className="flex gap-2">
                   {editingId === selectedVendorId ? (
                     <>
-                      <Button
-                        size="sm"
-                        onClick={() => void handleSaveProfile(selectedVendorId)}
-                        loading={saving}
-                        className="text-xs"
-                      >
+                      <Button size="sm" onClick={() => void handleSaveProfile(selectedVendorId)} loading={saving} className="text-xs">
                         Guardar
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} className="text-xs">
@@ -518,7 +617,7 @@ export default function AdminVendedoresPage() {
                 </p>
               </div>
 
-              {/* Teléfono editable */}
+              {/* Teléfono */}
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Teléfono</p>
                 {editingId === selectedVendorId ? (
@@ -535,22 +634,22 @@ export default function AdminVendedoresPage() {
                 )}
               </div>
 
-              {/* Métricas de performance */}
+              {/* Métricas */}
               {selectedMetric && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">Rendimiento total</p>
                   <div className="grid grid-cols-3 gap-2">
-                    <MetricPill label="Total" value={selectedMetric.totalPedidos}
+                    <MetricPill label="Total"      value={selectedMetric.totalPedidos}
                       color="border-zinc-700 text-zinc-200 bg-zinc-800/60" />
-                    <MetricPill label="Cotizados" value={selectedMetric.cotizados}
+                    <MetricPill label="Cotizados"  value={selectedMetric.cotizados}
                       color="border-yellow-500/20 text-yellow-400 bg-yellow-500/5" />
-                    <MetricPill label="Aprobados" value={selectedMetric.aprobados + selectedMetric.aprobadosParcial}
+                    <MetricPill label="Aprobados"  value={selectedMetric.aprobados + selectedMetric.aprobadosParcial}
                       color="border-emerald-500/20 text-emerald-400 bg-emerald-500/5" />
                     <MetricPill label="En revisión" value={selectedMetric.enRevision}
                       color="border-sky-500/20 text-sky-400 bg-sky-500/5" />
                     <MetricPill label="Rechazados" value={selectedMetric.rechazados}
                       color="border-red-500/20 text-red-400 bg-red-500/5" />
-                    <MetricPill label="Cerrados" value={selectedMetric.cerrados}
+                    <MetricPill label="Cerrados"   value={selectedMetric.cerrados}
                       color="border-blue-500/20 text-blue-400 bg-blue-500/5" />
                   </div>
                   <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
@@ -560,31 +659,103 @@ export default function AdminVendedoresPage() {
                 </div>
               )}
 
-              {/* Últimos pedidos del vendedor */}
+              {/* ── Pedidos asignados ── */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3">
-                  Últimos pedidos asignados
-                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                    Pedidos asignados
+                  </p>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={() => { setWorkshopFilter(''); setStatusFilter(''); setAmountMin(''); setAmountMax(''); }}
+                      className="text-[10px] text-orange-400 hover:text-orange-300 transition-colors font-semibold"
+                    >
+                      ✕ Limpiar filtros
+                    </button>
+                  )}
+                </div>
+
+                {/* ── Filtros ── */}
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {/* Taller */}
+                  <select
+                    value={workshopFilter}
+                    onChange={e => setWorkshopFilter(e.target.value)}
+                    className={cn(selectCls, 'flex-1 min-w-[130px]')}
+                  >
+                    <option value="">Todos los talleres</option>
+                    {uniqueWorkshops.map(w => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Estado */}
+                  <select
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                    className={cn(selectCls, 'flex-1 min-w-[120px]')}
+                  >
+                    <option value="">Todos los estados</option>
+                    {ORDER_STATUS_OPTIONS.map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
+
+                  {/* Monto mín */}
+                  <input
+                    type="number"
+                    min={0}
+                    value={amountMin}
+                    onChange={e => setAmountMin(e.target.value)}
+                    placeholder="Monto mín."
+                    className={cn(selectCls, 'w-24 placeholder:text-zinc-600')}
+                  />
+
+                  {/* Monto máx */}
+                  <input
+                    type="number"
+                    min={0}
+                    value={amountMax}
+                    onChange={e => setAmountMax(e.target.value)}
+                    placeholder="Monto máx."
+                    className={cn(selectCls, 'w-24 placeholder:text-zinc-600')}
+                  />
+                </div>
+
+                {/* Contador */}
+                {hasActiveFilters && !ordersLoading && (
+                  <p className="text-[11px] text-zinc-500 mb-2">
+                    {filteredOrders.length} de {vendorOrders.length} pedidos
+                  </p>
+                )}
+
+                {/* Lista */}
                 {ordersLoading ? (
                   <div className="text-sm text-zinc-500 text-center py-4">Cargando pedidos…</div>
-                ) : vendorOrders.length === 0 ? (
+                ) : filteredOrders.length === 0 ? (
                   <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-6 text-center text-sm text-zinc-600">
-                    Sin pedidos asignados
+                    {hasActiveFilters ? 'Sin pedidos que coincidan con los filtros.' : 'Sin pedidos asignados.'}
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {vendorOrders.map(order => (
+                    {filteredOrders.map(order => (
                       <div
                         key={order.id}
                         onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
-                        className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 hover:bg-zinc-800/40 hover:border-zinc-700 transition-colors cursor-pointer group"
+                        className="flex items-center gap-2.5 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 hover:bg-zinc-800/40 hover:border-zinc-700 transition-colors cursor-pointer group"
                       >
-                        <StatusBadge status={order.status} />
+                        <StatusBadge status={order.status as any} />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-bold text-zinc-200 truncate group-hover:text-white transition-colors">
                             {order.vehicleBrand} {order.vehicleModel} {order.vehicleYear}
                           </p>
+                          <p className="text-[11px] text-zinc-500 truncate">{order.workshopName}</p>
                         </div>
+                        {order.montoAprobado > 0 && (
+                          <span className="text-[11px] text-emerald-400 font-bold shrink-0 tabular-nums">
+                            {formatCurrency(order.montoAprobado)}
+                          </span>
+                        )}
                         <span className="text-[11px] text-zinc-500 shrink-0">
                           {formatRelativeTime(order.updatedAt)}
                         </span>
@@ -594,6 +765,7 @@ export default function AdminVendedoresPage() {
                   </div>
                 )}
               </div>
+
             </div>
           </div>
         )}

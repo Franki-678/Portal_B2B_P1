@@ -946,7 +946,7 @@ export async function fetchAdminMonthlyMetricsReport(
 
   const orderIds = orders.map(order => order.id);
 
-  const [quotesRes, quoteItemsRes, orderItemsRes, vendorMetrics] = await Promise.all([
+  const [quotesRes, quoteItemsRes, orderItemsRes, vendorMetrics, allOrdersStatusRes, allPartsRes] = await Promise.all([
     orderIds.length === 0
       ? Promise.resolve({ data: [] })
       : (sb as any).from('quotes').select('id, order_id, vendor_id').in('order_id', orderIds),
@@ -959,6 +959,10 @@ export async function fetchAdminMonthlyMetricsReport(
       ? Promise.resolve({ data: [] })
       : (sb as any).from('order_items').select('id, order_id, part_name').in('order_id', orderIds),
     fetchVendorMetrics(sb),
+    // ALL orders for status distribution donut (ignoring month filter)
+    (sb as any).from('orders').select('status').is('deleted_at', null),
+    // ALL order_items for top-repuestos table
+    (sb as any).from('order_items').select('part_name'),
   ]);
 
   const quotes = (quotesRes.data ?? []) as Array<{ id: string; order_id: string; vendor_id: string }>;
@@ -1000,11 +1004,24 @@ export async function fetchAdminMonthlyMetricsReport(
     en_conflicto:     'En conflicto',
   };
 
+  // Use ALL orders for the status distribution donut (more meaningful overview)
+  const allOrdersForDonut = (allOrdersStatusRes.data ?? []) as Array<{ status: OrderStatus }>;
   const pedidosPorEstado = (Object.keys(statusLabels) as OrderStatus[]).map(status => ({
     status,
     label: statusLabels[status],
-    total: orders.filter(order => order.status === status).length,
+    total: allOrdersForDonut.filter(order => order.status === status).length,
   }));
+
+  // Top 10 requested parts from ALL order_items
+  const partCounts: Record<string, number> = {};
+  for (const item of (allPartsRes.data ?? []) as Array<{ part_name: string }>) {
+    const name = item.part_name?.trim();
+    if (name) partCounts[name] = (partCounts[name] ?? 0) + 1;
+  }
+  const topRepuestos = Object.entries(partCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([partName, count]) => ({ partName, count }));
 
   const topByCount = (values: string[], fallback: string) => {
     if (values.length === 0) return fallback;
@@ -1058,6 +1075,7 @@ export async function fetchAdminMonthlyMetricsReport(
     topMarca: topByCount(orders.map(order => order.vehicle_brand), 'Sin datos'),
     topModelo: topByCount(orders.map(order => order.vehicle_model), 'Sin datos'),
     topProducto: topByCount(orderItems.map(item => item.part_name), 'Sin datos'),
+    topRepuestos,
   };
 }
 
