@@ -142,6 +142,10 @@ function SidebarContent({
           <span>🚪</span>
           <span>Cerrar sesión</span>
         </Button>
+        <p className="text-[10px] text-zinc-600 text-center leading-relaxed pt-1">
+          © 2026 ManIAcos. Todos los derechos reservados.<br />
+          Desarrollado con tecnología propietaria.
+        </p>
       </div>
     </div>
   );

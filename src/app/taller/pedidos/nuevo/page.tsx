@@ -22,6 +22,24 @@ const YEARS_FALLBACK = Array.from({ length: 40 }, (_, i) => ({
   label: String(CURRENT_YEAR - i),
 }));
 
+// ─── Module-level cache del catálogo de vehículos ─────────────
+// Evita re-fetches al navegar entre páginas dentro de la misma sesión.
+
+let _catalogCache: Record<string, Record<string, Record<string, string[]>>> | null = null;
+let _catalogPromise: Promise<Record<string, Record<string, Record<string, string[]>>>> | null = null;
+
+function fetchCatalogCached(
+  sb: ReturnType<typeof getSupabaseClient>
+): Promise<Record<string, Record<string, Record<string, string[]>>>> {
+  if (_catalogCache) return Promise.resolve(_catalogCache);
+  if (_catalogPromise) return _catalogPromise;
+  _catalogPromise = fetchVehiclesCatalog(sb).then(catalog => {
+    _catalogCache = catalog;
+    return catalog;
+  });
+  return _catalogPromise;
+}
+
 type FormErrors = Partial<Record<string, string>>;
 
 const emptyItem = (): NewOrderItemForm => ({
@@ -50,7 +68,7 @@ export default function NuevoPedidoPage() {
 
   useEffect(() => {
     const sb = getSupabaseClient();
-    fetchVehiclesCatalog(sb)
+    fetchCatalogCached(sb)
       .then(catalog => setVehiclesCatalog(catalog))
       .catch(() => setVehiclesCatalog({}))
       .finally(() => setCatalogLoading(false));
@@ -64,6 +82,9 @@ export default function NuevoPedidoPage() {
 
   // ── Toggle: producto universal / accesorio ───────────────
   const [isUniversal, setIsUniversal] = useState(false);
+
+  // ── Fallback manual: vehículo no está en el catálogo ─────
+  const [vehicleNotInList, setVehicleNotInList] = useState(false);
 
   // ── Estado del vehículo ───────────────────────────────────
   const [vehicleBrand, setVehicleBrand] = useState('');
@@ -135,11 +156,11 @@ export default function NuevoPedidoPage() {
     const errs: FormErrors = {};
 
     if (!isUniversal) {
-      if (!vehicleBrand) errs.vehicleBrand = 'Seleccioná la marca';
-      if (!vehicleModel) errs.vehicleModel = 'Seleccioná el modelo';
-      if (marcaOptions.length > 0 && !vehicleYear)
-        errs.vehicleYear = 'Seleccioná el año';
-      if (!vehicleVersion && versionOptions.length > 0)
+      if (!vehicleBrand) errs.vehicleBrand = vehicleNotInList ? 'Ingresá la marca' : 'Seleccioná la marca';
+      if (!vehicleModel) errs.vehicleModel = vehicleNotInList ? 'Ingresá el modelo' : 'Seleccioná el modelo';
+      const yearRequired = vehicleNotInList || marcaOptions.length > 0;
+      if (yearRequired && !vehicleYear) errs.vehicleYear = vehicleNotInList ? 'Ingresá el año' : 'Seleccioná el año';
+      if (!vehicleNotInList && !vehicleVersion && versionOptions.length > 0)
         errs.vehicleVersion = 'Seleccioná la versión';
     }
 
@@ -340,18 +361,47 @@ export default function NuevoPedidoPage() {
               )}
 
               {/* Alerta si el catálogo está vacío (no cargado aún) */}
-              {!catalogLoading && marcaOptions.length === 0 && (
+              {!catalogLoading && marcaOptions.length === 0 && !vehicleNotInList && (
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-300/80">
                   ⚠️ El catálogo de vehículos aún no fue cargado. El administrador debe importar el JSON desde{' '}
                   <strong>Configuración → Catálogo de vehículos</strong>.
-                  Podés igualmente enviar el pedido escribiendo los datos manualmente abajo.
+                  Podés igualmente ingresar los datos manualmente abajo.
                 </div>
+              )}
+
+              {/* Checkbox: Mi vehículo no está en el listado */}
+              {!catalogLoading && marcaOptions.length > 0 && (
+                <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit group">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-orange-500 focus:ring-orange-500/20"
+                    checked={vehicleNotInList}
+                    onChange={e => {
+                      setVehicleNotInList(e.target.checked);
+                      setVehicleBrand('');
+                      setVehicleModel('');
+                      setVehicleYear('');
+                      setVehicleVersion('');
+                      setErrors(prev => {
+                        const next = { ...prev };
+                        delete next.vehicleBrand;
+                        delete next.vehicleModel;
+                        delete next.vehicleYear;
+                        delete next.vehicleVersion;
+                        return next;
+                      });
+                    }}
+                  />
+                  <span className="text-xs font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors">
+                    Mi vehículo no está en el listado — ingresar datos manualmente
+                  </span>
+                </label>
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                 {/* ── Selector 1: Marca ── */}
-                {marcaOptions.length > 0 ? (
+                {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Marca"
                     required
@@ -377,7 +427,7 @@ export default function NuevoPedidoPage() {
                 )}
 
                 {/* ── Selector 2: Modelo ── */}
-                {marcaOptions.length > 0 ? (
+                {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Modelo"
                     required
@@ -391,14 +441,19 @@ export default function NuevoPedidoPage() {
                 ) : (
                   <Input
                     label="Modelo"
+                    required
                     value={vehicleModel}
-                    onChange={e => setVehicleModel(e.target.value)}
+                    onChange={e => {
+                      setVehicleModel(e.target.value);
+                      setErrors(prev => ({ ...prev, vehicleModel: undefined }));
+                    }}
                     placeholder="Ej: Ranger, Fiesta, Corsa…"
+                    error={errors.vehicleModel}
                   />
                 )}
 
                 {/* ── Selector 3: Año ── */}
-                {marcaOptions.length > 0 ? (
+                {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Año"
                     required
@@ -428,7 +483,7 @@ export default function NuevoPedidoPage() {
                 )}
 
                 {/* ── Selector 4: Versión ── */}
-                {marcaOptions.length > 0 ? (
+                {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Versión"
                     required={versionOptions.length > 0}
@@ -500,6 +555,7 @@ export default function NuevoPedidoPage() {
                           }}
                           error={errors[`item_${item.tempId}_partName`]}
                           placeholder="Escribí o seleccioná un repuesto…"
+                          hint="Agregar una breve descripción del repuesto ayuda a identificarlo con más precisión."
                         />
                       </div>
                       <div className="md:col-span-1">

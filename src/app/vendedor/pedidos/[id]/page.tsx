@@ -399,8 +399,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 )}
                 {/* Armar cotización */}
                 {canQuote && !hasQuote && (
-                  <Button size="sm" onClick={() => setShowQuoteForm(!showQuoteForm)}>
-                    💰 {showQuoteForm ? 'Cerrar formulario' : 'Armar cotización'}
+                  <Button size="sm" onClick={() => setShowQuoteForm(true)}>
+                    💰 Armar cotización
                   </Button>
                 )}
                 {/* Cerrar pedido */}
@@ -434,211 +434,245 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* FORMULARIO DE COTIZACIÓN */}
+        {/* ── SLIDE-OVER DRAWER: COTIZACIÓN ── */}
         {showQuoteForm && (
-          <form
-            onSubmit={handleSubmitQuote}
-            className="relative overflow-hidden rounded-3xl border border-orange-500/30 bg-zinc-900 shadow-xl shadow-orange-500/5"
-            autoComplete="off"
-          >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-amber-500 opacity-50" />
-            <div className="p-6 border-b border-zinc-800/80 bg-orange-500/5">
-              <h3 className="text-lg font-bold text-orange-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl">&#x1F4B0;</span> Nueva cotización
-              </h3>
-              <p className="text-sm font-medium text-orange-400/80 mt-1">
-                Completá los datos de los ítems para cotizarle al taller
-              </p>
-            </div>
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              onClick={() => !loading && setShowQuoteForm(false)}
+            />
 
-            <div className="p-5 space-y-6">
-              <Textarea
-                label="Observaciones generales"
-                value={quoteNotes}
-                onChange={e => setQuoteNotes(e.target.value)}
-                placeholder="Notas generales, tiempo estimado de preparación, etc."
-                rows={2}
-              />
+            {/* Drawer panel */}
+            <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-zinc-900 border-l border-zinc-800 shadow-2xl shadow-black/60">
 
-              <div className="space-y-5">
-                {items.map((item, idx) => (
-                  <div key={item.tempId} className={`border border-zinc-800/80 rounded-2xl p-6 transition-all ${!item.isAvailable ? 'bg-zinc-950/80 opacity-60 grayscale-[30%]' : 'bg-zinc-950/40 shadow-sm relative group'}`}>
-                    <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3 mb-4">
-                      <div>
-                        <span className="text-sm font-bold text-orange-500 bg-orange-500/10 px-3 py-1 rounded-md uppercase tracking-widest">
-                          Ítem {idx + 1}
-                        </span>
-                        <span className="text-zinc-300 font-bold ml-3">{item.partName}</span>
-                      </div>
-                      <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-orange-500 focus:ring-orange-500/20"
-                          checked={!item.isAvailable}
-                          onChange={(e) => updateItem(item.tempId, 'isAvailable', !e.target.checked)}
-                        />
-                        <span className="text-zinc-400">Sin stock</span>
-                      </label>
-                    </div>
+              {/* Drawer header */}
+              <div className="relative flex items-center justify-between border-b border-zinc-800/80 bg-orange-500/5 px-6 py-5 shrink-0">
+                <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-orange-500 to-amber-500 opacity-60" />
+                <div>
+                  <h3 className="text-lg font-bold text-orange-100 flex items-center gap-2 tracking-tight">
+                    <span className="text-xl">&#x1F4B0;</span> Nueva cotización
+                  </h3>
+                  <p className="text-sm font-medium text-orange-400/70 mt-0.5">
+                    Completá los datos de los ítems para cotizarle al taller
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !loading && setShowQuoteForm(false)}
+                  disabled={loading}
+                  className="rounded-xl border border-zinc-700 bg-zinc-800 p-2 text-zinc-400 hover:text-white hover:border-zinc-600 transition disabled:opacity-40"
+                  aria-label="Cerrar"
+                >
+                  ✕
+                </button>
+              </div>
 
-                    {item.isAvailable && (
-                      <div className="space-y-5">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Drawer scrollable body + form */}
+              <form
+                onSubmit={handleSubmitQuote}
+                className="flex flex-1 flex-col overflow-hidden"
+                autoComplete="off"
+              >
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  <Textarea
+                    label="Observaciones generales"
+                    value={quoteNotes}
+                    onChange={e => setQuoteNotes(e.target.value)}
+                    placeholder="Notas generales, tiempo estimado de preparación, etc."
+                    rows={2}
+                  />
+
+                  <div className="space-y-5">
+                    {items.map((item, idx) => (
+                      <div
+                        key={item.tempId}
+                        className={`border border-zinc-800/80 rounded-2xl p-6 transition-all ${
+                          !item.isAvailable
+                            ? 'bg-zinc-950/80 opacity-60 grayscale-[30%]'
+                            : 'bg-zinc-950/40 shadow-sm relative group'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3 mb-4">
                           <div>
-                            <p className="mb-2 block text-sm font-semibold text-zinc-300">Cantidad solicitada (taller)</p>
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-2.5 text-sm text-zinc-400">
-                              {item.requestedQuantity} unidad{item.requestedQuantity !== 1 ? 'es' : ''}
+                            <span className="text-sm font-bold text-orange-500 bg-orange-500/10 px-3 py-1 rounded-md uppercase tracking-widest">
+                              Ítem {idx + 1}
+                            </span>
+                            <span className="text-zinc-300 font-bold ml-3">{item.partName}</span>
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-orange-500 focus:ring-orange-500/20"
+                              checked={!item.isAvailable}
+                              onChange={(e) => updateItem(item.tempId, 'isAvailable', !e.target.checked)}
+                            />
+                            <span className="text-zinc-400">Sin stock</span>
+                          </label>
+                        </div>
+
+                        {item.isAvailable && (
+                          <div className="space-y-5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <p className="mb-2 block text-sm font-semibold text-zinc-300">Cantidad solicitada (taller)</p>
+                                <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-2.5 text-sm text-zinc-400">
+                                  {item.requestedQuantity} unidad{item.requestedQuantity !== 1 ? 'es' : ''}
+                                </div>
+                              </div>
+                              <Input
+                                label="Cantidad ofrecida"
+                                required
+                                type="number"
+                                min={1}
+                                value={item.quantityOffered || ''}
+                                onChange={e =>
+                                  updateItem(item.tempId, 'quantityOffered', parseInt(e.target.value, 10) || 1)
+                                }
+                                error={errors[`${item.tempId}-qty`]}
+                              />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <Input
+                                label="Precio unitario (ARS)"
+                                required
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.price || ''}
+                                onChange={e => updateItem(item.tempId, 'price', parseFloat(e.target.value) || 0)}
+                                placeholder="0"
+                                error={errors[`${item.tempId}-price`]}
+                              />
+                              <Select
+                                label="Calidad Ofrecida"
+                                value={item.quality}
+                                onChange={e => updateItem(item.tempId, 'quality', e.target.value as OrderQuality)}
+                                options={QUALITY_OPTIONS.map(q => ({ value: q.value, label: q.label }))}
+                              />
+                            </div>
+                            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3 text-sm">
+                              <span className="font-medium text-orange-200/90">Total ítem: </span>
+                              <span className="text-lg font-black text-white">
+                                {formatCurrency(
+                                  quoteLineTotal({
+                                    price: item.price || 0,
+                                    quantityOffered: item.quantityOffered || 1,
+                                  })
+                                )}
+                              </span>
+                              <span className="ml-2 text-xs text-zinc-500">
+                                ({item.quantityOffered || 1} x {formatCurrency(item.price || 0)})
+                              </span>
+                            </div>
+
+                            <Textarea
+                              label="Descripción adicional (tu repuesto)"
+                              value={item.description}
+                              onChange={e => updateItem(item.tempId, 'description', e.target.value)}
+                              placeholder="Compatibilidades, estado..."
+                              rows={2}
+                            />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <Input
+                                label="Fabricante / Marca"
+                                value={item.manufacturer || ''}
+                                onChange={e => updateItem(item.tempId, 'manufacturer', e.target.value)}
+                                placeholder="Ej: Toyota, XYZ..."
+                              />
+                              <Input
+                                label="Proveedor"
+                                value={item.supplier || ''}
+                                onChange={e => updateItem(item.tempId, 'supplier', e.target.value)}
+                                placeholder="Ej: Dist. Norte..."
+                              />
+                            </div>
+
+                            <div>
+                              <p className="mb-2 block text-sm font-semibold text-zinc-300">
+                                Fotos del repuesto (máx. 5)
+                              </p>
+                              <div className="flex flex-wrap items-start gap-3">
+                                {item.imagePreviews.map((preview, pi) => (
+                                  <div key={pi} className="group/img relative inline-block">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={preview}
+                                      alt=""
+                                      className="h-20 w-20 rounded-xl border border-zinc-700/50 object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeImageAt(item.tempId, pi)}
+                                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white opacity-0 shadow-lg transition-opacity group-hover/img:opacity-100"
+                                    >
+                                      &#x2715;
+                                    </button>
+                                  </div>
+                                ))}
+                                {item.imageFiles.length < 5 && (
+                                  <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-700/50 bg-zinc-950/30 transition-all hover:border-orange-500/30 hover:bg-zinc-900/50">
+                                    <span className="text-2xl text-zinc-500">&#x1F4F7;</span>
+                                    <span className="mt-0.5 text-[10px] font-bold uppercase text-zinc-500">Foto</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      multiple
+                                      className="hidden"
+                                      onChange={e => handleImageUpload(item.tempId, e)}
+                                    />
+                                  </label>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <Input
-                            label="Cantidad ofrecida"
-                            required
-                            type="number"
-                            min={1}
-                            value={item.quantityOffered || ''}
-                            onChange={e =>
-                              updateItem(item.tempId, 'quantityOffered', parseInt(e.target.value, 10) || 1)
-                            }
-                            error={errors[`${item.tempId}-qty`]}
-                          />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            label="Precio unitario (ARS)"
-                            required
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.price || ''}
-                            onChange={e => updateItem(item.tempId, 'price', parseFloat(e.target.value) || 0)}
-                            placeholder="0"
-                            error={errors[`${item.tempId}-price`]}
-                          />
-                          <Select
-                            label="Calidad Ofrecida"
-                            value={item.quality}
-                            onChange={e => updateItem(item.tempId, 'quality', e.target.value as OrderQuality)}
-                            options={QUALITY_OPTIONS.map(q => ({ value: q.value, label: q.label }))}
-                          />
-                        </div>
-                        <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3 text-sm">
-                          <span className="font-medium text-orange-200/90">Total ítem: </span>
-                          <span className="text-lg font-black text-white">
-                            {formatCurrency(
-                              quoteLineTotal({
-                                price: item.price || 0,
-                                quantityOffered: item.quantityOffered || 1,
-                              })
-                            )}
-                          </span>
-                          <span className="ml-2 text-xs text-zinc-500">
-                            ({item.quantityOffered || 1} x {formatCurrency(item.price || 0)})
-                          </span>
-                        </div>
-
-                        <Textarea
-                          label="Descripción adicional (tu repuesto)"
-                          value={item.description}
-                          onChange={e => updateItem(item.tempId, 'description', e.target.value)}
-                          placeholder="Compatibilidades, estado..."
-                          rows={2}
-                        />
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Input
-                            label="Fabricante / Marca"
-                            value={item.manufacturer || ''}
-                            onChange={e => updateItem(item.tempId, 'manufacturer', e.target.value)}
-                            placeholder="Ej: Toyota, XYZ..."
-                          />
-                          <Input
-                            label="Proveedor"
-                            value={item.supplier || ''}
-                            onChange={e => updateItem(item.tempId, 'supplier', e.target.value)}
-                            placeholder="Ej: Dist. Norte..."
-                          />
-                        </div>
-                        
-                        <div>
-                          <p className="mb-2 block text-sm font-semibold text-zinc-300">
-                            Fotos del repuesto (máx. 5)
-                          </p>
-                          <div className="flex flex-wrap items-start gap-3">
-                            {item.imagePreviews.map((preview, pi) => (
-                              <div key={pi} className="group/img relative inline-block">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={preview}
-                                  alt=""
-                                  className="h-20 w-20 rounded-xl border border-zinc-700/50 object-cover"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeImageAt(item.tempId, pi)}
-                                  className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white opacity-0 shadow-lg transition-opacity group-hover/img:opacity-100"
-                                >
-                                  &#x2715;
-                                </button>
-                              </div>
-                            ))}
-                            {item.imageFiles.length < 5 && (
-                              <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-700/50 bg-zinc-950/30 transition-all hover:border-orange-500/30 hover:bg-zinc-900/50">
-                                <span className="text-2xl text-zinc-500">&#x1F4F7;</span>
-                                <span className="mt-0.5 text-[10px] font-bold uppercase text-zinc-500">Foto</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  className="hidden"
-                                  onChange={e => handleImageUpload(item.tempId, e)}
-                                />
-                              </label>
-                            )}
-                          </div>
-                        </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* Resumen total */}
-            <div className="px-6 py-4 border-t border-zinc-800/60 bg-zinc-950/40">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-zinc-400">Total cotización</span>
-                <span className="text-xl font-black text-white">
-                  {formatCurrency(
-                    items
-                      .filter(i => i.isAvailable)
-                      .reduce(
-                        (acc, i) =>
-                          acc +
-                          quoteLineTotal({
-                            price: i.price || 0,
-                            quantityOffered: i.quantityOffered || 1,
-                          }),
-                        0
-                      )
+                {/* Drawer sticky footer */}
+                <div className="shrink-0 border-t border-zinc-800/80 bg-zinc-950/60 px-6 py-4 space-y-3">
+                  {/* Total */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-zinc-400">Total cotización</span>
+                    <span className="text-xl font-black text-white">
+                      {formatCurrency(
+                        items
+                          .filter(i => i.isAvailable)
+                          .reduce(
+                            (acc, i) =>
+                              acc + quoteLineTotal({ price: i.price || 0, quantityOffered: i.quantityOffered || 1 }),
+                            0
+                          )
+                      )}
+                    </span>
+                  </div>
+                  {loading && showSlowMessage && (
+                    <span className="block text-xs text-zinc-400">
+                      Procesando... esto puede tardar unos segundos.
+                    </span>
                   )}
-                </span>
-              </div>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setShowQuoteForm(false)}
+                      disabled={loading}
+                      className="flex-1"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit" loading={loading} size="lg" className="flex-1">
+                      &#x1F4E4; Enviar cotización
+                    </Button>
+                  </div>
+                </div>
+              </form>
             </div>
-
-            <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/50 flex flex-col md:flex-row items-center justify-end gap-4">
-              {loading && showSlowMessage && (
-                <span className="text-xs text-zinc-400 mr-auto">
-                  Procesando... esto puede tardar unos segundos.
-                </span>
-              )}
-              <Button type="button" variant="ghost" onClick={() => setShowQuoteForm(false)} className="w-full md:w-auto">
-                Cancelar
-              </Button>
-              <Button type="submit" loading={loading} size="lg" className="w-full md:w-auto">
-                &#x1F4E4; Enviar cotización
-              </Button>
-            </div>
-          </form>
+          </>
         )}
 
         {/* COTIZACIÓN ENVIADA EXISTENTE */}

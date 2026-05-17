@@ -1341,12 +1341,12 @@ export async function fetchConflictCount(sb: SupabaseClientType): Promise<number
 }
 
 // ============================================================
-// DICCIONARIO ORGÁNICO DE REPUESTOS
+// CATÁLOGO ORGÁNICO DE REPUESTOS (catalogo_repuestos)
 // ============================================================
 
 /**
- * Busca entradas en el diccionario de repuestos por coincidencia parcial.
- * Mínimo 2 caracteres para disparar la búsqueda.
+ * Busca repuestos en el catálogo por coincidencia parcial de descripción.
+ * Mínimo 2 caracteres. Retorna array de strings con las descripciones.
  */
 export async function fetchDiccionarioSuggestions(
   sb: SupabaseClientType,
@@ -1356,22 +1356,22 @@ export async function fetchDiccionarioSuggestions(
   if (trimmed.length < 2) return [];
 
   const { data, error } = await (sb as any)
-    .from('diccionario_repuestos')
-    .select('nombre')
-    .ilike('nombre', `%${trimmed}%`)
-    .order('nombre', { ascending: true })
+    .from('catalogo_repuestos')
+    .select('descripcion')
+    .ilike('descripcion', `%${trimmed}%`)
+    .order('descripcion', { ascending: true })
     .limit(12);
 
   if (error) {
-    console.error('[Diccionario] Error buscando sugerencias:', error.message);
+    console.error('[Catálogo] Error buscando sugerencias:', error.message);
     return [];
   }
-  return (data ?? []).map((r: { nombre: string }) => r.nombre);
+  return (data ?? []).map((r: { descripcion: string }) => r.descripcion);
 }
 
 /**
- * Inserta una entrada nueva en el diccionario de forma silenciosa.
- * Usa upsert con ignoreDuplicates para no romper si ya existe.
+ * Inserta un repuesto nuevo en el catálogo de forma silenciosa (crecimiento orgánico).
+ * Genera un código único basado en timestamp. Ignora duplicados por descripción.
  */
 export async function insertDiccionarioEntry(
   sb: SupabaseClientType,
@@ -1380,13 +1380,17 @@ export async function insertDiccionarioEntry(
   const trimmed = nombre.trim();
   if (!trimmed || trimmed.length < 2) return;
 
-  const { error } = await (sb as any)
-    .from('diccionario_repuestos')
-    .upsert({ nombre: trimmed }, { onConflict: 'nombre', ignoreDuplicates: true });
+  const codigo = 'ORG-' + Date.now().toString(36).toUpperCase();
 
-  if (error) {
-    // Silencioso — no romper el flujo del formulario
-    console.warn('[Diccionario] No se pudo insertar entrada:', error.message);
+  const { error } = await (sb as any)
+    .from('catalogo_repuestos')
+    .insert({ codigo, descripcion: trimmed })
+    .select('id')
+    .limit(1);
+
+  if (error && !error.message?.includes('unique')) {
+    // Solo loguea si no es un error de duplicado esperado
+    console.warn('[Catálogo] Entrada orgánica ya existente o error:', error.message);
   }
 }
 
