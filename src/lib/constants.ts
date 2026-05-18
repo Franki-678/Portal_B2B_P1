@@ -10,10 +10,12 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cotizado:         'Cotizado',
   aprobado_parcial: 'Aprobado parcial',
   aprobado:         'Aprobado',
+  pagado:           'Pagado · Por entregar',
   rechazado:        'Rechazado',
   cerrado:          'Cerrado',
   cerrado_pagado:   'Cerrado · Pagado',
   en_conflicto:     'En conflicto',
+  cancelado:        'Cancelado',
 };
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
@@ -22,10 +24,12 @@ export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   cotizado:         'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
   aprobado_parcial: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   aprobado:         'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  pagado:           'bg-violet-500/10 text-violet-400 border-violet-500/20',
   rechazado:        'bg-red-500/10 text-red-400 border-red-500/20',
   cerrado:          'bg-blue-500/10 text-blue-400 border-blue-500/20',
   cerrado_pagado:   'bg-teal-500/10 text-teal-400 border-teal-500/20',
   en_conflicto:     'bg-red-600/15 text-red-300 border-red-500/40',
+  cancelado:        'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
 };
 
 export const QUALITY_LABELS: Record<OrderQuality, string> = {
@@ -51,7 +55,10 @@ export const EVENT_ACTION_LABELS: Record<EventAction, string> = {
   cotizacion_aprobada_parcial: 'Cotización aprobada parcialmente',
   pedido_cerrado:              'Pedido cerrado',
   pedido_pagado:               'Pago confirmado',
+  pedido_marcado_pagado:       'Pago registrado por vendedor',
+  pedido_entregado:            'Mercadería entregada',
   reclamo_iniciado:            'Reclamo iniciado',
+  conflicto_resuelto:          'Conflicto resuelto',
   comentario:                  'Comentario',
 };
 
@@ -66,7 +73,10 @@ export const EVENT_ACTION_ICONS: Record<EventAction, string> = {
   cotizacion_aprobada_parcial: '⚡',
   pedido_cerrado:              '🔒',
   pedido_pagado:               '💳',
+  pedido_marcado_pagado:       '💰',
+  pedido_entregado:            '📦',
   reclamo_iniciado:            '⚠️',
+  conflicto_resuelto:          '🤝',
   comentario:                  '💬',
 };
 

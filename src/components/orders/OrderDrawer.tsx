@@ -27,11 +27,13 @@ interface OrderDrawerProps {
 
 export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerProps) {
   const { user } = useAuth();
-  const { takeOrder, releaseOrder, setOrderInReview, markOrderPaid } = useDataStore();
+  const { takeOrder, releaseOrder, setOrderInReview, markOrderPaid, markOrderPaidByVendor, markOrderDelivered } = useDataStore();
   const [taking, setTaking] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [markingPaidByVendor, setMarkingPaidByVendor] = useState(false);
+  const [markingDelivered, setMarkingDelivered] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Cerrar con Escape
@@ -82,6 +84,18 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
     setMarkingPaid(true);
     await markOrderPaid(order.id);
     setMarkingPaid(false);
+  };
+
+  const handleMarkPaidByVendor = async () => {
+    setMarkingPaidByVendor(true);
+    await markOrderPaidByVendor(order.id);
+    setMarkingPaidByVendor(false);
+  };
+
+  const handleMarkDelivered = async () => {
+    setMarkingDelivered(true);
+    await markOrderDelivered(order.id);
+    setMarkingDelivered(false);
   };
 
   // ── Render ───────────────────────────────────────────────
@@ -139,11 +153,19 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
             </div>
           )}
 
+          {/* Banner: pago registrado por vendedor */}
+          {order.status === 'pagado' && (
+            <div className="border-b border-violet-500/20 bg-violet-500/10 px-5 py-3 flex items-center gap-3">
+              <span className="text-lg shrink-0">💰</span>
+              <p className="text-sm font-semibold text-violet-300">Pago registrado — pendiente de entrega</p>
+            </div>
+          )}
+
           {/* Banner de pago confirmado */}
           {order.status === 'cerrado_pagado' && (
             <div className="border-b border-teal-500/20 bg-teal-500/8 px-5 py-3 flex items-center gap-3">
               <span className="text-lg shrink-0">💳</span>
-              <p className="text-sm font-semibold text-teal-300">Pago confirmado por administración</p>
+              <p className="text-sm font-semibold text-teal-300">Entregado y cobrado</p>
             </div>
           )}
 
@@ -334,6 +356,43 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
                 </Button>
               )}
 
+              {/* Flujo cobro/entrega: aprobado → pagado o cerrado_pagado */}
+              {isMyOrder && (order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
+                <>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleMarkPaidByVendor}
+                    loading={markingPaidByVendor}
+                  >
+                    💰 Marcar como Pagado
+                  </Button>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    onClick={handleMarkDelivered}
+                    loading={markingDelivered}
+                    className="bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-300 border border-emerald-600/30"
+                  >
+                    📦 Entregado y Pagado
+                  </Button>
+                </>
+              )}
+
+              {/* pagado → marcar entregado */}
+              {isMyOrder && order.status === 'pagado' && (
+                <Button
+                  fullWidth
+                  size="sm"
+                  onClick={handleMarkDelivered}
+                  loading={markingDelivered}
+                  className="bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-300 border border-emerald-600/30"
+                >
+                  📦 Marcar como Entregado
+                </Button>
+              )}
+
               {/* Ir al detalle completo */}
               <Link href={`/vendedor/pedidos/${order.id}`} className="block w-full">
                 <Button fullWidth size="sm" variant="ghost" className="text-zinc-300 hover:text-white">
@@ -355,8 +414,8 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
           {/* Acciones para ADMIN */}
           {role === 'admin' && (
             <>
-              {/* Marcar pagado — cuando está cerrado o en conflicto */}
-              {(order.status === 'cerrado' || order.status === 'en_conflicto') && (
+              {/* Marcar pagado — cuando está cerrado */}
+              {order.status === 'cerrado' && (
                 <Button
                   fullWidth
                   size="sm"
@@ -366,6 +425,14 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
                 >
                   💳 Confirmar pago
                 </Button>
+              )}
+              {/* Gestionar conflicto en detalle completo */}
+              {order.status === 'en_conflicto' && (
+                <Link href={`/vendedor/pedidos/${order.id}`} className="block w-full">
+                  <Button fullWidth size="sm" className="bg-red-700/20 border border-red-500/30 text-red-300 hover:bg-red-700/30">
+                    ⚠️ Gestionar conflicto →
+                  </Button>
+                </Link>
               )}
               {isUnassigned && order.status === 'pendiente' && (
                 <Button

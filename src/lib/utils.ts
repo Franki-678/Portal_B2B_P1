@@ -78,9 +78,11 @@ export function getStatusProgress(status: OrderStatus): number {
     cotizado:         3,
     aprobado_parcial: 4,
     aprobado:         5,
+    pagado:           5,
     rechazado:        5,
     cerrado:          6,
     en_conflicto:     6,
+    cancelado:        6,
     cerrado_pagado:   7,
   };
   return progression[status];

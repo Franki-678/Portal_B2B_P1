@@ -37,7 +37,7 @@ interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved' |
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderById, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder } = useDataStore();
+  const { getOrderById, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder, markOrderPaidByVendor, markOrderDelivered, resolveConflict } = useDataStore();
   const router = useRouter();
 
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -49,6 +49,10 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showSlowMessage, setShowSlowMessage] = useState(false);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictOutcome, setConflictOutcome] = useState('devolucion_total');
+  const [conflictDetail, setConflictDetail] = useState('');
+  const [conflictLoading, setConflictLoading] = useState(false);
   const lightbox = useImageLightbox();
 
   const order = getOrderById(id);
@@ -122,6 +126,32 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
       router.push('/vendedor/pedidos');
     } else {
       alert('No se pudo eliminar el pedido.');
+    }
+  };
+
+  const handleMarkPaidByVendor = async () => {
+    setActionLoading(true);
+    await markOrderPaidByVendor(order.id);
+    setActionLoading(false);
+  };
+
+  const handleMarkDelivered = async () => {
+    setActionLoading(true);
+    await markOrderDelivered(order.id);
+    setActionLoading(false);
+  };
+
+  const handleResolveConflict = async () => {
+    if (!conflictDetail.trim()) return;
+    setConflictLoading(true);
+    const ok = await resolveConflict(order.id, conflictOutcome, conflictDetail.trim());
+    setConflictLoading(false);
+    if (ok) {
+      setShowConflictModal(false);
+      setConflictDetail('');
+      setConflictOutcome('devolucion_total');
+    } else {
+      alert('No se pudo resolver el conflicto. Verificá que el pedido esté en estado "en_conflicto".');
     }
   };
 
@@ -229,27 +259,64 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
       <div className="p-6 space-y-8 max-w-4xl mx-auto">
 
-        {/* Alerta urgente: pedido en conflicto */}
+        {/* Alerta urgente: pedido en conflicto (TAREA 4) */}
         {order.status === 'en_conflicto' && (
-          <div className="flex items-start gap-4 rounded-2xl border border-red-500/50 bg-red-600/12 px-5 py-4 shadow-lg shadow-red-500/10 animate-pulse-slow">
-            <span className="shrink-0 text-2xl">⚠️</span>
-            <div className="min-w-0">
-              <p className="font-bold text-red-300 text-base">Reclamo activo — requiere atención</p>
-              <p className="text-sm text-red-400/80 mt-1">
-                El taller inició un reclamo sobre este pedido. Revisá el historial de eventos para conocer el motivo y coordiná con el administrador para resolver la situación.
+          <div className="rounded-2xl border border-red-500/50 bg-red-600/10 px-5 py-5 shadow-lg shadow-red-500/10">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+              <div className="flex items-start gap-4 flex-1">
+                <span className="shrink-0 text-2xl">⚠️</span>
+                <div className="min-w-0">
+                  <p className="font-bold text-red-300 text-base">Reclamo activo — requiere atención</p>
+                  <p className="text-sm text-red-400/80 mt-1">
+                    El taller inició un reclamo. Revisá el historial, coordiná la resolución y registrá el acuerdo.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setShowConflictModal(true)}
+                className="shrink-0 bg-red-600/20 border border-red-500/40 text-red-300 hover:bg-red-600/30"
+              >
+                🤝 Conflicto Solucionado
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Alerta: pedido cancelado */}
+        {order.status === 'cancelado' && (
+          <div className="flex items-start gap-4 rounded-2xl border border-zinc-600/40 bg-zinc-800/30 px-5 py-4">
+            <span className="shrink-0 text-2xl">🚫</span>
+            <div>
+              <p className="font-bold text-zinc-400">Pedido cancelado</p>
+              <p className="text-sm text-zinc-500 mt-1">
+                Este pedido fue cancelado como parte de la resolución del conflicto.
               </p>
             </div>
           </div>
         )}
 
-        {/* Alerta: pedido pagado */}
+        {/* Alerta: pago registrado por vendedor (esperando entrega) */}
+        {order.status === 'pagado' && (
+          <div className="flex items-start gap-4 rounded-2xl border border-violet-500/30 bg-violet-500/10 px-5 py-4">
+            <span className="shrink-0 text-2xl">💰</span>
+            <div>
+              <p className="font-bold text-violet-300">Pago registrado — pendiente de entrega</p>
+              <p className="text-sm text-violet-400/70 mt-1">
+                Registraste el pago del taller. Cuando entregues los repuestos, marcá el pedido como entregado.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Alerta: pedido pagado y entregado */}
         {order.status === 'cerrado_pagado' && (
           <div className="flex items-start gap-4 rounded-2xl border border-teal-500/30 bg-teal-500/8 px-5 py-4">
             <span className="shrink-0 text-2xl">💳</span>
             <div>
-              <p className="font-bold text-teal-300">Pago confirmado</p>
+              <p className="font-bold text-teal-300">Entregado y cobrado</p>
               <p className="text-sm text-teal-400/70 mt-1">
-                El administrador confirmó que el taller realizó el pago. Este pedido está completo.
+                La mercadería fue entregada y el pago confirmado. Este pedido está completo.
               </p>
             </div>
           </div>
@@ -403,10 +470,38 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                     💰 Armar cotización
                   </Button>
                 )}
-                {/* Cerrar pedido */}
+                {/* Flujo de cobro y entrega (TAREA 1) */}
                 {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && (
-                  <Button size="sm" variant="success" onClick={() => setShowCloseModal(true)} loading={actionLoading} className="shadow-lg shadow-emerald-500/10">
-                    ✅ Cerrar pedido (Finalizado)
+                  <>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleMarkPaidByVendor}
+                      loading={actionLoading}
+                    >
+                      💰 Marcar como Pagado
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="success"
+                      onClick={handleMarkDelivered}
+                      loading={actionLoading}
+                      className="shadow-lg shadow-emerald-500/10"
+                    >
+                      📦 Entregado y Pagado
+                    </Button>
+                  </>
+                )}
+                {/* Pedido pagado → marcar entrega */}
+                {order.status === 'pagado' && (
+                  <Button
+                    size="sm"
+                    variant="success"
+                    onClick={handleMarkDelivered}
+                    loading={actionLoading}
+                    className="shadow-lg shadow-emerald-500/10"
+                  >
+                    📦 Marcar como Entregado
                   </Button>
                 )}
                 {/* Eliminar */}
@@ -784,10 +879,69 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
             &#x1F4CB; Estado del pedido
           </h3>
-          <OrderStatusTracker status={order.status} events={order.events} />
+          <OrderStatusTracker status={order.status} events={order.events} userRole={user?.role} />
         </div>
       </div>
       {lightbox.node}
+
+      {/* Modal: Resolver conflicto (TAREA 4) */}
+      {showConflictModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-7 max-w-lg w-full shadow-2xl">
+            <h3 className="text-xl font-extrabold text-zinc-100 mb-1 tracking-tight">🤝 Resolver conflicto</h3>
+            <p className="text-sm text-zinc-400 mb-6">Registrá el acuerdo alcanzado con el taller.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-zinc-300 mb-2">Tipo de resolución</label>
+                <select
+                  value={conflictOutcome}
+                  onChange={e => setConflictOutcome(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-3 text-sm font-medium text-zinc-200 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
+                >
+                  <option value="devolucion_total">Devolución total</option>
+                  <option value="devolucion_parcial">Devolución parcial</option>
+                  <option value="descuento">Se aplicó descuento</option>
+                  <option value="sin_cambios">Resuelto sin cambios</option>
+                  <option value="cancelado">Cancelado</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-zinc-300 mb-2">Detalle del acuerdo <span className="text-red-400">*</span></label>
+                <textarea
+                  value={conflictDetail}
+                  onChange={e => setConflictDetail(e.target.value)}
+                  placeholder="Describí el acuerdo alcanzado con el taller..."
+                  rows={4}
+                  className="min-h-[100px] w-full resize-y rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
+                />
+              </div>
+              {conflictOutcome === 'cancelado' && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-300">
+                  ⚠️ El pedido pasará al estado <strong>Cancelado</strong>. Esta acción no se puede deshacer.
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="ghost"
+                onClick={() => { setShowConflictModal(false); setConflictDetail(''); setConflictOutcome('devolucion_total'); }}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleResolveConflict}
+                loading={conflictLoading}
+                disabled={!conflictDetail.trim()}
+                className="flex-1 bg-red-600/20 border border-red-500/40 text-red-300 hover:bg-red-600/30 disabled:opacity-40"
+              >
+                ✅ Confirmar resolución
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal
         open={showCloseModal}
         title="&#x00BF;Cerrar este pedido?"

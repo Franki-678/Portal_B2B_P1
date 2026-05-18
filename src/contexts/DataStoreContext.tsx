@@ -26,7 +26,10 @@ import {
   takeOrderInDB,
   releaseOrderInDB,
   markOrderPaidInDB,
+  markOrderPaidByVendorInDB,
+  markOrderDeliveredInDB,
   initiateClaimInDB,
+  resolveConflictInDB,
 } from '@/lib/supabase/queries';
 
 // ============================================================
@@ -96,8 +99,14 @@ interface DataStoreContextType {
   releaseOrder: (orderId: string) => Promise<boolean>;
   /** Admin marca un pedido cerrado como pagado (cerrado_pagado). */
   markOrderPaid: (orderId: string) => Promise<boolean>;
+  /** Vendedor marca que el taller ya pagó (aprobado/aprobado_parcial → pagado). */
+  markOrderPaidByVendor: (orderId: string) => Promise<boolean>;
+  /** Vendedor marca la entrega (aprobado/aprobado_parcial/pagado → cerrado_pagado). */
+  markOrderDelivered: (orderId: string) => Promise<boolean>;
   /** Taller inicia un reclamo en un pedido cerrado (en_conflicto). */
   initiateClaim: (orderId: string, reason: string) => Promise<boolean>;
+  /** Admin/Vendedor resuelve un conflicto con resultado y detalle. */
+  resolveConflict: (orderId: string, outcome: string, detail: string) => Promise<boolean>;
   /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
   refreshData: (opts?: { forceWorkshops?: boolean; silent?: boolean }) => Promise<void>;
   /** Fuerza recarga de pedidos y talleres (botón Reintentar). */
@@ -562,6 +571,34 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     [user, updateLocalOrder, refreshData]
   );
 
+  const markOrderPaidByVendor = useCallback(
+    async (orderId: string): Promise<boolean> => {
+      if (!user) return false;
+      const sb = getSupabaseClient();
+      const ok = await markOrderPaidByVendorInDB(sb, orderId, user.id);
+      if (ok) {
+        updateLocalOrder(orderId, order => ({ ...order, status: 'pagado' as OrderStatus }));
+        void refreshData({ silent: true });
+      }
+      return ok;
+    },
+    [user, updateLocalOrder, refreshData]
+  );
+
+  const markOrderDelivered = useCallback(
+    async (orderId: string): Promise<boolean> => {
+      if (!user) return false;
+      const sb = getSupabaseClient();
+      const ok = await markOrderDeliveredInDB(sb, orderId, user.id);
+      if (ok) {
+        updateLocalOrder(orderId, order => ({ ...order, status: 'cerrado_pagado' as OrderStatus }));
+        void refreshData({ silent: true });
+      }
+      return ok;
+    },
+    [user, updateLocalOrder, refreshData]
+  );
+
   const initiateClaim = useCallback(
     async (orderId: string, reason: string): Promise<boolean> => {
       if (!user) return false;
@@ -569,6 +606,21 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       const ok = await initiateClaimInDB(sb, orderId, user.id, reason);
       if (ok) {
         updateLocalOrder(orderId, order => ({ ...order, status: 'en_conflicto' as OrderStatus }));
+        void refreshData({ silent: true });
+      }
+      return ok;
+    },
+    [user, updateLocalOrder, refreshData]
+  );
+
+  const resolveConflict = useCallback(
+    async (orderId: string, outcome: string, detail: string): Promise<boolean> => {
+      if (!user) return false;
+      const sb = getSupabaseClient();
+      const ok = await resolveConflictInDB(sb, orderId, user.id, outcome, detail);
+      if (ok) {
+        const newStatus: OrderStatus = outcome === 'cancelado' ? 'cancelado' : 'cerrado';
+        updateLocalOrder(orderId, order => ({ ...order, status: newStatus }));
         void refreshData({ silent: true });
       }
       return ok;
@@ -626,7 +678,10 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         takeOrder,
         releaseOrder,
         markOrderPaid,
+        markOrderPaidByVendor,
+        markOrderDelivered,
         initiateClaim,
+        resolveConflict,
         refreshData,
         refreshOrders,
       }}

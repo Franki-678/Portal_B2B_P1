@@ -998,10 +998,12 @@ export async function fetchAdminMonthlyMetricsReport(
     cotizado:         'Cotizado',
     aprobado:         'Aprobado',
     aprobado_parcial: 'Aprobado parcial',
+    pagado:           'Pagado · Por entregar',
     rechazado:        'Rechazado',
     cerrado:          'Cerrado',
     cerrado_pagado:   'Cerrado · Pagado',
     en_conflicto:     'En conflicto',
+    cancelado:        'Cancelado',
   };
 
   // Use ALL orders for the status distribution donut (more meaningful overview)
@@ -1228,6 +1230,110 @@ export async function markOrderPaidInDB(
     adminId,
     'pedido_pagado',
     'Pago confirmado por el administrador.'
+  );
+  return true;
+}
+
+/**
+ * Vendedor marca que el taller ya pagó (aprobado/aprobado_parcial → pagado).
+ * Indica pago recibido, pero mercadería aún no entregada.
+ */
+export async function markOrderPaidByVendorInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  vendorId: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ status: 'pagado', updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .in('status', ['aprobado', 'aprobado_parcial']);
+
+  if (error) {
+    console.error('[Supabase] Error marking order as pagado:', error.message);
+    return false;
+  }
+
+  await insertEvent(
+    sb,
+    orderId,
+    vendorId,
+    'pedido_marcado_pagado',
+    'El taller realizó el pago. Mercadería pendiente de entrega.'
+  );
+  return true;
+}
+
+/**
+ * Vendedor marca la entrega (aprobado/aprobado_parcial/pagado → cerrado_pagado).
+ * Flujo rápido: entrega y pago en un solo paso.
+ */
+export async function markOrderDeliveredInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  vendorId: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ status: 'cerrado_pagado', updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .in('status', ['aprobado', 'aprobado_parcial', 'pagado']);
+
+  if (error) {
+    console.error('[Supabase] Error marking order as delivered:', error.message);
+    return false;
+  }
+
+  await insertEvent(
+    sb,
+    orderId,
+    vendorId,
+    'pedido_entregado',
+    'Mercadería entregada y pago confirmado. Pedido completado.'
+  );
+  return true;
+}
+
+/**
+ * Admin/Vendedor resuelve un conflicto.
+ * outcome: 'devolucion_total' | 'devolucion_parcial' | 'descuento' | 'sin_cambios' | 'cancelado'
+ * Si outcome === 'cancelado' el pedido pasa a estado 'cancelado', sino a 'cerrado'.
+ */
+export async function resolveConflictInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  userId: string,
+  outcome: string,
+  detail: string
+): Promise<boolean> {
+  const newStatus = outcome === 'cancelado' ? 'cancelado' : 'cerrado';
+
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .eq('status', 'en_conflicto');
+
+  if (error) {
+    console.error('[Supabase] Error resolving conflict:', error.message);
+    return false;
+  }
+
+  const outcomeLabels: Record<string, string> = {
+    devolucion_total:   'Devolución total',
+    devolucion_parcial: 'Devolución parcial',
+    descuento:          'Se aplicó descuento',
+    sin_cambios:        'Resuelto sin cambios',
+    cancelado:          'Pedido cancelado',
+  };
+  const outcomeLabel = outcomeLabels[outcome] ?? outcome;
+
+  await insertEvent(
+    sb,
+    orderId,
+    userId,
+    'conflicto_resuelto',
+    `Resolución: ${outcomeLabel}. ${detail}`.trim()
   );
   return true;
 }

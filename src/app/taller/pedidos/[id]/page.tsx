@@ -31,6 +31,8 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimReason, setClaimReason] = useState('');
   const [claimLoading, setClaimLoading] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'efectivo'>('transferencia');
   const lightbox = useImageLightbox();
 
   const order = getOrderById(id);
@@ -55,10 +57,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const canRespond = canWorkshopRespond(order.status);
   const hasInvalidQuoteItems = Boolean(quote?.items.some(i => (i.price ?? 0) <= 0));
 
-  const handleApprove = async () => {
+  const handleApproveConfirm = async () => {
     setLoading(true);
     await approveQuote(order.id, user!.id, user!.name);
     setLoading(false);
+    setShowApproveModal(false);
   };
 
   const handleReject = async () => {
@@ -107,7 +110,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const lineAmt = (i: (typeof quoteItems)[0]) => quoteLineTotal(i);
   const subtotalOriginal = quoteItems.reduce((acc, item) => acc + lineAmt(item), 0);
 
-  const isClosed = order.status === 'cerrado' || order.status === 'cerrado_pagado' || order.status === 'en_conflicto';
+  const isClosed = order.status === 'cerrado' || order.status === 'cerrado_pagado' || order.status === 'en_conflicto' || order.status === 'pagado' || order.status === 'cancelado';
 
   const montoRechazado = partialMode
     ? quoteItems.filter(i => !selectedItems.has(i.id)).reduce((s, i) => s + lineAmt(i), 0)
@@ -214,8 +217,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
                     <Button
                       size="sm"
                       variant="success"
-                      onClick={handleApprove}
-                      loading={loading}
+                      onClick={() => setShowApproveModal(true)}
                       disabled={hasInvalidQuoteItems}
                     >
                       ✅ Aprobar Todo
@@ -612,6 +614,70 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
           </div>
         )}
 
+        {/* WhatsApp: notificar al vendedor tras aprobación */}
+        {(order.status === 'aprobado' || order.status === 'aprobado_parcial') && order.assignedVendorName && (() => {
+          const vendorName = order.assignedVendorName ?? 'vendedor';
+          const workshopName = user?.workshopName ?? 'el taller';
+          const orderLabel = order.workshopOrderNumber
+            ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+            : order.id.split('-')[0].toUpperCase();
+          const total = formatCurrency(totalAPagar);
+          const method = paymentMethod === 'efectivo' ? 'efectivo' : 'transferencia bancaria';
+          const msg = `Hola ${vendorName}, soy el taller ${workshopName}. Te apruebo el pedido #${orderLabel} por un total de ${total}. Lo voy a pagar por ${method}. Avisame para coordinar.`;
+          return (
+            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/8 p-5 shadow-md shadow-emerald-500/5">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1">
+                  <p className="font-bold text-emerald-300 text-sm">¡Cotización aprobada!</p>
+                  <p className="text-xs text-emerald-400/70 mt-1">
+                    Avisale a <span className="font-semibold text-emerald-300">{vendorName}</span> por WhatsApp para coordinar la entrega y el pago.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('transferencia')}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${paymentMethod === 'transferencia' ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300' : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-600'}`}
+                    >
+                      🏦 Transferencia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('efectivo')}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${paymentMethod === 'efectivo' ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300' : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-600'}`}
+                    >
+                      💵 Efectivo
+                    </button>
+                  </div>
+                </div>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/50 bg-emerald-600/20 px-4 py-3 text-sm font-bold text-emerald-300 shadow-lg shadow-emerald-500/10 transition-all hover:bg-emerald-600/30 shrink-0"
+                >
+                  <span className="text-xl">💬</span>
+                  Avisar por WhatsApp
+                </a>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Alerta: pedido pagado (estado intermedio - vendedor marcó pago) */}
+        {order.status === 'pagado' && (
+          <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-5">
+            <div className="flex items-start gap-4">
+              <span className="text-2xl shrink-0">💰</span>
+              <div>
+                <p className="font-bold text-violet-300">Pago registrado</p>
+                <p className="text-sm text-violet-400/80 mt-1">
+                  El vendedor registró tu pago. Los repuestos están siendo preparados para entrega.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Alerta: pedido pagado */}
         {order.status === 'cerrado_pagado' && (
           <div className="rounded-2xl border border-teal-500/30 bg-teal-500/10 p-5">
@@ -628,14 +694,47 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
         )}
 
         {/* Alerta: pedido en conflicto */}
-        {order.status === 'en_conflicto' && (
-          <div className="rounded-2xl border border-red-500/40 bg-red-600/10 p-5">
+        {order.status === 'en_conflicto' && (() => {
+          const workshopName = user?.workshopName ?? 'el taller';
+          const orderLabel = order.workshopOrderNumber
+            ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`
+            : order.id.split('-')[0].toUpperCase();
+          const conflictMsg = `Hola, soy ${workshopName}. Tengo un reclamo activo en el pedido #${orderLabel}. ¿Podemos coordinar la resolución?`;
+          return (
+            <div className="rounded-2xl border border-red-500/40 bg-red-600/10 p-5">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                <div className="flex items-start gap-4 flex-1">
+                  <span className="text-2xl shrink-0">⚠️</span>
+                  <div>
+                    <p className="font-bold text-red-300">Pedido en conflicto</p>
+                    <p className="text-sm text-red-400/80 mt-1">
+                      Comunicate con el vendedor o administrador por WhatsApp para coordinar la resolución.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(conflictMsg)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-600/15 px-4 py-2.5 text-sm font-bold text-red-300 transition-all hover:bg-red-600/25 shrink-0"
+                >
+                  <span className="text-lg">💬</span>
+                  Contactar por WhatsApp
+                </a>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Alerta: pedido cancelado */}
+        {order.status === 'cancelado' && (
+          <div className="rounded-2xl border border-zinc-600/40 bg-zinc-800/30 p-5">
             <div className="flex items-start gap-4">
-              <span className="text-2xl shrink-0">⚠️</span>
+              <span className="text-2xl shrink-0">🚫</span>
               <div>
-                <p className="font-bold text-red-300">Reclamo activo — en revisión por el administrador</p>
-                <p className="text-sm text-red-400/80 mt-1">
-                  Tu reclamo fue registrado. El administrador y el vendedor han sido notificados. Pronto te contactarán para resolver la situación.
+                <p className="font-bold text-zinc-400">Pedido cancelado</p>
+                <p className="text-sm text-zinc-500 mt-1">
+                  Este pedido fue cancelado como resolución al conflicto. Revisá el historial para más detalles.
                 </p>
               </div>
             </div>
@@ -681,11 +780,45 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
           <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2 tracking-tight">
             📜 Estado del pedido
           </h3>
-          <OrderStatusTracker status={order.status} events={order.events} />
+          <OrderStatusTracker status={order.status} events={order.events} userRole={user?.role} />
         </div>
         
       </div>
       {lightbox.node}
+      {/* Modal: Método de pago al aprobar */}
+      {showApproveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-7 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-extrabold text-zinc-100 mb-1 tracking-tight">¿Cómo vas a pagar este pedido?</h3>
+            <p className="text-sm text-zinc-400 mb-6">Seleccioná el método de pago para informarle al vendedor.</p>
+            <div className="flex gap-3 mb-7">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('transferencia')}
+                className={`flex-1 rounded-2xl border py-4 px-4 text-sm font-bold transition-all ${paymentMethod === 'transferencia' ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-lg shadow-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'}`}
+              >
+                🏦 Transferencia
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('efectivo')}
+                className={`flex-1 rounded-2xl border py-4 px-4 text-sm font-bold transition-all ${paymentMethod === 'efectivo' ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-lg shadow-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'}`}
+              >
+                💵 Efectivo
+              </button>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="ghost" onClick={() => setShowApproveModal(false)} className="flex-1">
+                Cancelar
+              </Button>
+              <Button variant="success" onClick={handleApproveConfirm} loading={loading} className="flex-1">
+                ✅ Confirmar aprobación
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal
         open={rejecting}
         title="Rechazar cotización"

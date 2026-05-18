@@ -12,10 +12,12 @@ export type OrderStatus =
   | 'cotizado'
   | 'aprobado_parcial'
   | 'aprobado'
+  | 'pagado'           // Vendedor confirma que el taller pagó (mercadería aún no entregada)
   | 'rechazado'
   | 'cerrado'
-  | 'cerrado_pagado'  // Admin confirma que el taller pagó
-  | 'en_conflicto';  // Taller inició un reclamo sobre un pedido cerrado
+  | 'cerrado_pagado'  // Admin confirma entrega y pago
+  | 'en_conflicto'   // Taller inició un reclamo sobre un pedido cerrado
+  | 'cancelado';     // Conflicto resuelto con cancelación
 
 export type QuoteStatus = 'borrador' | 'enviada';
 
@@ -30,7 +32,10 @@ export type EventAction =
   | 'cotizacion_aprobada_parcial'
   | 'pedido_cerrado'
   | 'pedido_pagado'               // admin marca el pedido como pagado (cerrado_pagado)
+  | 'pedido_marcado_pagado'       // vendedor marca que el taller pagó (→ pagado)
+  | 'pedido_entregado'            // vendedor marca entrega (→ cerrado_pagado)
   | 'reclamo_iniciado'            // taller inicia reclamo (en_conflicto)
+  | 'conflicto_resuelto'          // admin/vendedor resuelve el conflicto
   | 'comentario';
 
 // ============================================================
