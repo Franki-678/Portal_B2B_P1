@@ -19,6 +19,7 @@ interface VendorProfile {
   role: string;
   phone: string | null;
   email: string | null;
+  telegramUsername: string | null;
   assignedWorkshops: string[];
 }
 
@@ -93,6 +94,7 @@ export default function AdminVendedoresPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editTelegram, setEditTelegram] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Modal: Nuevo Vendedor
@@ -115,7 +117,7 @@ export default function AdminVendedoresPage() {
         fetchVendorMetrics(sb),
         (sb as any)
           .from('profiles')
-          .select('id, name, role, phone, email, assigned_workshops')
+          .select('id, name, role, phone, email, telegram_username, assigned_workshops')
           .in('role', ['vendedor', 'admin'])
           .order('name', { ascending: true })
           .then(({ data }: any) => (data ?? []) as VendorProfile[]),
@@ -129,6 +131,7 @@ export default function AdminVendedoresPage() {
           role: p.role,
           phone: p.phone ?? null,
           email: p.email ?? null,
+          telegramUsername: p.telegram_username ?? null,
           assignedWorkshops: p.assigned_workshops ?? [],
         }))
       );
@@ -300,12 +303,22 @@ export default function AdminVendedoresPage() {
     setSaving(true);
     try {
       const sb = getSupabaseClient();
+      // Normalizar telegram_username: sacar @, espacios y guardar null si está vacío.
+      const cleanTelegram = editTelegram.trim().replace(/^@+/, '').trim();
+      const telegramValue = cleanTelegram ? cleanTelegram : null;
+
       await (sb as any)
         .from('profiles')
-        .update({ name: editName.trim(), phone: editPhone.trim() || null })
+        .update({
+          name: editName.trim(),
+          phone: editPhone.trim() || null,
+          telegram_username: telegramValue,
+        })
         .eq('id', vendorId);
       setProfiles(prev =>
-        prev.map(p => p.id === vendorId ? { ...p, name: editName.trim(), phone: editPhone.trim() || null } : p)
+        prev.map(p => p.id === vendorId
+          ? { ...p, name: editName.trim(), phone: editPhone.trim() || null, telegramUsername: telegramValue }
+          : p)
       );
       setMetrics(prev =>
         prev.map(m => m.vendorId === vendorId ? { ...m, vendorName: editName.trim() } : m)
@@ -593,6 +606,7 @@ export default function AdminVendedoresPage() {
                         setEditingId(selectedVendorId);
                         setEditName(selectedProfile?.name || selectedMetric?.vendorName || '');
                         setEditPhone(selectedProfile?.phone || '');
+                        setEditTelegram(selectedProfile?.telegramUsername || '');
                       }}
                       className="text-xs"
                     >
@@ -630,6 +644,32 @@ export default function AdminVendedoresPage() {
                 ) : (
                   <p className="text-sm font-semibold text-zinc-200">
                     {selectedProfile?.phone || <span className="text-zinc-600 italic">Sin teléfono registrado</span>}
+                  </p>
+                )}
+              </div>
+
+              {/* Telegram username */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1 flex items-center gap-1.5">
+                  <span className="text-sky-400">✈️</span> Usuario de Telegram (opcional)
+                </p>
+                {editingId === selectedVendorId ? (
+                  <>
+                    <input
+                      value={editTelegram}
+                      onChange={e => setEditTelegram(e.target.value)}
+                      placeholder="@juan_vendedor"
+                      className="text-sm text-white bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 w-full focus:outline-none focus:border-sky-500"
+                    />
+                    <p className="text-[10px] text-zinc-500 mt-1.5 italic">
+                      El bot usará este usuario para etiquetar al vendedor en el grupo. Sin @ funciona igual.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm font-semibold text-sky-400">
+                    {selectedProfile?.telegramUsername
+                      ? `@${selectedProfile.telegramUsername}`
+                      : <span className="text-zinc-600 italic font-normal">Sin usuario de Telegram</span>}
                   </p>
                 )}
               </div>
