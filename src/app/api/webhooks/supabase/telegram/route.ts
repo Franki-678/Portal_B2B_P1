@@ -17,11 +17,14 @@
  *   3. Si es order_events INSERT → buscamos contexto y mandamos al grupo.
  *   4. Si es orders UPDATE sin cambio de status (taller editó) → mention al vendor.
  *   5. Cambios de status reales ya se cubren via order_events.
+ *
+ * MODO TEST: POST con header `x-test-mode: true` y body `{ "test": "ping" }` o
+ * `{ "test": "approved-mock" }` para verificar Telegram sin pasar por DB.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { getWebhookSecret } from '@/lib/telegram/config';
+import { getTelegramConfig, getWebhookSecret } from '@/lib/telegram/config';
 import {
   formatEventForGroup,
   formatVendorMention,
@@ -29,11 +32,19 @@ import {
   type OrderEventRecord,
   type FormatContext,
 } from '@/lib/telegram/formatters';
-import { sendToGroup } from '@/lib/telegram/service';
+import { sendToGroup, pingBot } from '@/lib/telegram/service';
 
 // Necesitamos runtime Node (no Edge) para @supabase/supabase-js + service-role.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// ─── Logger con prefijo + timestamp ──────────────────────────────────────
+
+function log(level: 'info' | 'warn' | 'error', ...args: unknown[]): void {
+  const ts = new Date().toISOString();
+  const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+  fn(`[TG-WH ${ts}]`, ...args);
+}
 
 // ─── Tipos del payload de Supabase ────────────────────────────────────────
 
@@ -71,25 +82,24 @@ async function lookupOrder(orderId: string): Promise<OrderRecord | null> {
     )
     .eq('id', orderId)
     .single();
-  if (error || !data) return null;
-  return data as unknown as OrderRecord;
+  if (error) {
+    log('error', 'lookupOrder query error:', error.message);
+    return null;
+  }
+  return (data ?? null) as unknown as OrderRecord | null;
 }
 
 async function lookupWorkshopName(workshopId: string): Promise<string> {
   const sb = getServiceClient();
-  const { data } = await sb
+  const { data, error } = await sb
     .from('workshops')
     .select('name')
     .eq('id', workshopId)
     .single();
+  if (error) log('warn', 'lookupWorkshopName error:', error.message);
   return (data?.name as string | undefined) ?? 'Taller';
 }
 
-/**
- * Lee `profiles.telegram_username` del vendedor asignado.
- * Devuelve el username limpio (sin @) o null si no está configurado.
- * Esta es la fuente única de verdad para etiquetar vendedores en Telegram.
- */
 async function lookupVendorTelegramUsername(vendorId: string | null): Promise<string | null> {
   if (!vendorId) return null;
   const sb = getServiceClient();
@@ -98,24 +108,26 @@ async function lookupVendorTelegramUsername(vendorId: string | null): Promise<st
     .select('telegram_username')
     .eq('id', vendorId)
     .single();
-  if (error || !data) return null;
-  const raw = (data as { telegram_username: string | null }).telegram_username;
+  if (error) {
+    log('warn', 'lookupVendorTelegramUsername error:', error.message);
+    return null;
+  }
+  const raw = (data as { telegram_username: string | null } | null)?.telegram_username;
   if (!raw || !raw.trim()) return null;
-  // Defensivo: limpiar @ por si quedó alguno guardado en la DB
   return raw.trim().replace(/^@+/, '');
 }
 
-/**
- * Suma el total ARS de los items aprobados (approved !== false) de la quote
- * del pedido. Devuelve null si no hay cotización.
- */
 async function lookupApprovedTotal(orderId: string): Promise<number | null> {
   const sb = getServiceClient();
   const { data, error } = await sb
     .from('quote_items')
     .select('price, quantity_offered, approved, quotes!inner(order_id)')
     .eq('quotes.order_id', orderId);
-  if (error || !data) return null;
+  if (error) {
+    log('warn', 'lookupApprovedTotal error:', error.message);
+    return null;
+  }
+  if (!data) return null;
   const rows = data as unknown as Array<{
     price: number;
     quantity_offered: number;
@@ -137,11 +149,20 @@ function eventNeedsTotal(action: string): boolean {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
 
-async function handleOrderEventInsert(event: OrderEventRecord): Promise<void> {
+interface HandleResult {
+  ok: boolean;
+  reason?: string;
+  telegramError?: string;
+  msgSnippet?: string;
+}
+
+async function handleOrderEventInsert(event: OrderEventRecord): Promise<HandleResult> {
+  log('info', 'order_events INSERT:', { eventId: event.id, action: event.action, orderId: event.order_id });
+
   const order = await lookupOrder(event.order_id);
   if (!order) {
-    console.warn('[Webhook] Order no encontrada para event', event.id);
-    return;
+    log('warn', 'Order no encontrada — evento descartado');
+    return { ok: false, reason: 'order_not_found' };
   }
 
   const [workshopName, vendorTelegramUsername, approvedTotal] = await Promise.all([
@@ -150,32 +171,43 @@ async function handleOrderEventInsert(event: OrderEventRecord): Promise<void> {
     eventNeedsTotal(event.action) ? lookupApprovedTotal(order.id) : Promise.resolve(null),
   ]);
 
+  log('info', 'context resolved:', {
+    workshop: workshopName,
+    vendor: vendorTelegramUsername,
+    total: approvedTotal,
+  });
+
   const ctx: FormatContext = { order, workshopName, vendorTelegramUsername, approvedTotal };
   const msg = formatEventForGroup(event, ctx);
-  if (!msg) return; // evento silenciado
+  if (!msg) {
+    log('info', 'evento silenciado por formatter:', event.action);
+    return { ok: true, reason: 'silenced_event' };
+  }
 
-  await sendToGroup(msg);
+  const send = await sendToGroup(msg);
+  if (!send.ok) {
+    log('error', 'Telegram sendToGroup falló:', send.error);
+    return { ok: false, telegramError: send.error, msgSnippet: msg.slice(0, 120) };
+  }
+  log('info', 'mensaje enviado OK al grupo');
+  return { ok: true, msgSnippet: msg.slice(0, 120) };
 }
 
-/**
- * Heurística para detectar "el taller modificó el pedido y espera respuesta":
- * el status no cambió, el pedido ya tiene vendor asignado y se actualizó.
- * Los cambios reales de status van via order_events.
- *
- * NOTA: sin auditoría de actor no podemos saber 100% que fue el taller.
- * En esta versión asumimos que cualquier UPDATE sin cambio de status
- * y con vendor asignado es candidato a mention. Conservador.
- */
-async function handleOrderUpdate(oldRow: OrderRecord, newRow: OrderRecord): Promise<void> {
-  if (oldRow.status !== newRow.status) return; // cubierto por order_events
-  if (!newRow.assigned_vendor_id) return;       // sin vendor, no hay a quien pingear
+async function handleOrderUpdate(oldRow: OrderRecord, newRow: OrderRecord): Promise<HandleResult> {
+  if (oldRow.status !== newRow.status) {
+    return { ok: true, reason: 'status_change_handled_by_event' };
+  }
+  if (!newRow.assigned_vendor_id) {
+    return { ok: true, reason: 'no_vendor_assigned' };
+  }
 
-  // Filtramos updates triviales (timestamps, sin cambios visibles)
   const significantChange =
-    oldRow.vehicle_brand   !== newRow.vehicle_brand   ||
-    oldRow.vehicle_model   !== newRow.vehicle_model   ||
-    oldRow.vehicle_year    !== newRow.vehicle_year;
-  if (!significantChange) return;
+    oldRow.vehicle_brand !== newRow.vehicle_brand ||
+    oldRow.vehicle_model !== newRow.vehicle_model ||
+    oldRow.vehicle_year !== newRow.vehicle_year;
+  if (!significantChange) {
+    return { ok: true, reason: 'no_significant_change' };
+  }
 
   const [workshopName, vendorTelegramUsername] = await Promise.all([
     lookupWorkshopName(newRow.workshop_id),
@@ -183,78 +215,179 @@ async function handleOrderUpdate(oldRow: OrderRecord, newRow: OrderRecord): Prom
   ]);
 
   const ctx: FormatContext = { order: newRow, workshopName, vendorTelegramUsername };
-  await sendToGroup(formatVendorMention(ctx, 'editó datos del vehículo'));
+  const msg = formatVendorMention(ctx, 'editó datos del vehículo');
+  const send = await sendToGroup(msg);
+  if (!send.ok) {
+    log('error', 'mention falló:', send.error);
+    return { ok: false, telegramError: send.error };
+  }
+  return { ok: true };
+}
+
+// ─── Modo TEST: bypass DB para probar Telegram directo ────────────────────
+
+async function handleTestMode(body: { test: string }): Promise<NextResponse> {
+  if (body.test === 'ping') {
+    const ping = await pingBot();
+    return NextResponse.json({ mode: 'test', step: 'pingBot', ...ping });
+  }
+  if (body.test === 'group-hello') {
+    const send = await sendToGroup(
+      '🧪 <b>[TEST]</b>\nMensaje de prueba desde el endpoint webhook.\n<i>Si ves esto, el bot tiene permisos en el grupo.</i>'
+    );
+    return NextResponse.json({ mode: 'test', step: 'sendToGroup', ...send });
+  }
+  if (body.test === 'approved-mock') {
+    const mockOrder: OrderRecord = {
+      id: 'test-uuid-0000',
+      workshop_id: 'workshop-mock',
+      status: 'aprobado',
+      workshop_order_number: 9999,
+      assigned_vendor_id: 'vendor-mock',
+      assigned_vendor_name: 'Lucas Pereyra',
+      vehicle_brand: 'Toyota',
+      vehicle_model: 'Hilux',
+      vehicle_year: 2018,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const mockEvent: OrderEventRecord = {
+      id: 'event-mock',
+      order_id: mockOrder.id,
+      user_id: 'taller-mock',
+      user_name: 'Roberto Funes',
+      action: 'cotizacion_aprobada',
+      comment: 'Test desde endpoint',
+      created_at: new Date().toISOString(),
+    };
+    const ctx: FormatContext = {
+      order: mockOrder,
+      workshopName: 'Taller QA',
+      vendorTelegramUsername: 'Franco_San_Martin',
+      approvedTotal: 125000,
+    };
+    const msg = formatEventForGroup(mockEvent, ctx);
+    if (!msg) return NextResponse.json({ mode: 'test', step: 'format', ok: false, reason: 'empty_msg' });
+    const send = await sendToGroup(msg);
+    return NextResponse.json({ mode: 'test', step: 'sendToGroup', ...send, msg });
+  }
+  return NextResponse.json(
+    { mode: 'test', error: 'unknown test command', available: ['ping', 'group-hello', 'approved-mock'] },
+    { status: 400 }
+  );
 }
 
 // ─── Endpoint ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // 1. Validar secret
+  // 1. Validar secret (en modo test relajamos)
   let expectedSecret: string;
   try {
     expectedSecret = getWebhookSecret();
   } catch (err) {
-    console.error('[Webhook] Config error:', err);
-    return NextResponse.json({ error: 'misconfigured' }, { status: 500 });
+    log('error', 'config error:', err);
+    return NextResponse.json({ error: 'misconfigured', detail: String(err) }, { status: 500 });
   }
 
   const providedSecret = req.headers.get('x-supabase-signature');
+  const isTestMode = req.headers.get('x-test-mode') === 'true';
+
   if (providedSecret !== expectedSecret) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    log('warn', 'unauthorized request — header mismatch', {
+      provided: providedSecret ? `${providedSecret.slice(0, 4)}...` : 'null',
+      expectedPrefix: expectedSecret.slice(0, 4) + '...',
+    });
+    return NextResponse.json(
+      { error: 'unauthorized', hint: 'x-supabase-signature header inválido o ausente' },
+      { status: 401 }
+    );
   }
 
   // 2. Parsear payload
-  let payload: SupabaseWebhookPayload;
+  let payload: SupabaseWebhookPayload | { test: string };
   try {
-    payload = (await req.json()) as SupabaseWebhookPayload;
+    payload = await req.json();
   } catch {
     return NextResponse.json({ error: 'bad json' }, { status: 400 });
   }
 
-  // 3. Despachar según tabla + tipo
-  try {
-    if (payload.table === 'order_events' && payload.type === 'INSERT' && payload.record) {
-      await handleOrderEventInsert(payload.record as unknown as OrderEventRecord);
-    } else if (
-      payload.table === 'orders' &&
-      payload.type === 'UPDATE' &&
-      payload.record &&
-      payload.old_record
-    ) {
-      await handleOrderUpdate(
-        payload.old_record as unknown as OrderRecord,
-        payload.record as unknown as OrderRecord
-      );
-    }
-    // INSERT en orders: no notificamos acá; lo cubre el evento `pedido_creado`
-    // que se inserta inmediatamente después en order_events.
+  // 3. Modo test
+  if (isTestMode && 'test' in payload) {
+    return handleTestMode(payload as { test: string });
+  }
 
-    return NextResponse.json({ ok: true });
+  const wh = payload as SupabaseWebhookPayload;
+  log('info', 'webhook incoming:', { table: wh.table, type: wh.type });
+
+  // 4. Dispatch
+  try {
+    let result: HandleResult = { ok: true, reason: 'no_handler' };
+
+    if (wh.table === 'order_events' && wh.type === 'INSERT' && wh.record) {
+      result = await handleOrderEventInsert(wh.record as unknown as OrderEventRecord);
+    } else if (wh.table === 'orders' && wh.type === 'UPDATE' && wh.record && wh.old_record) {
+      result = await handleOrderUpdate(
+        wh.old_record as unknown as OrderRecord,
+        wh.record as unknown as OrderRecord
+      );
+    } else {
+      log('info', 'sin handler para esta combinación');
+    }
+
+    // Devolvemos el resultado real (sin retry automático de Supabase incluso si ok:false,
+    // porque los errores de Telegram NO son recuperables con reintentos).
+    return NextResponse.json(result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown';
-    console.error('[Webhook] handler error:', msg);
-    // Devolvemos 200 igual para que Supabase no reintente en loop por errores
-    // transitorios de Telegram. Logueamos para investigar.
+    log('error', 'handler exception:', msg);
     return NextResponse.json({ ok: false, error: msg }, { status: 200 });
   }
 }
 
 /**
- * GET de health-check: confirma que el endpoint está vivo y la config presente.
- * NO devuelve secretos.
+ * GET healthcheck COMPLETO: chequea todas las env vars y opcionalmente pingea al bot.
+ *   ?ping=1 → además llama a Telegram getMe para validar el token.
  */
-export async function GET(): Promise<NextResponse> {
-  try {
-    getWebhookSecret();
-    return NextResponse.json({
-      ok: true,
-      endpoint: 'supabase → telegram',
-      timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'unknown' },
-      { status: 500 }
-    );
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const url = new URL(req.url);
+  const wantPing = url.searchParams.get('ping') === '1';
+
+  const checks = {
+    webhookSecret: !!process.env.SUPABASE_WEBHOOK_SECRET,
+    botToken:      !!process.env.TELEGRAM_BOT_TOKEN,
+    groupId:       !!process.env.TELEGRAM_GROUP_ID,
+    adminId:       !!process.env.TELEGRAM_ADMIN_ID,
+    supabaseUrl:   !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    serviceRole:   !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  };
+
+  const allOk = Object.values(checks).every(Boolean);
+
+  let bot: { ok: boolean; username?: string; error?: string } | null = null;
+  if (wantPing && checks.botToken) {
+    try {
+      const p = await pingBot();
+      bot = { ok: p.ok, username: p.botUsername, error: p.error };
+    } catch (err) {
+      bot = { ok: false, error: err instanceof Error ? err.message : 'unknown' };
+    }
   }
+
+  // Confirmar también que la config del bot esté disponible
+  let configOk = false;
+  try {
+    getTelegramConfig();
+    configOk = true;
+  } catch {
+    configOk = false;
+  }
+
+  return NextResponse.json({
+    ok: allOk && configOk,
+    endpoint: 'supabase → telegram',
+    timestamp: new Date().toISOString(),
+    envChecks: checks,
+    configOk,
+    bot,
+  });
 }
