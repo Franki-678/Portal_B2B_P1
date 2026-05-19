@@ -30,7 +30,11 @@ export interface OrderEventRecord {
   id: string;
   order_id: string;
   user_id: string;
-  user_name: string;
+  /**
+   * Nombre del actor. NO existe físicamente en `order_events` — se inyecta
+   * en el endpoint mediante un JOIN a `profiles.name`. Default 'Usuario'.
+   */
+  user_name?: string;
   action: EventAction;
   comment: string | null;
   created_at: string;
@@ -104,7 +108,7 @@ export function formatOrderTaken(ctx: FormatContext, event: OrderEventRecord): s
   const label = formatOrderLabel(ctx.order);
   return [
     `🙋 <b>[TOMADO]</b>`,
-    `👤 <b>${esc(event.user_name)}</b> tomó el pedido <code>#${label}</code>`,
+    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> tomó el pedido <code>#${label}</code>`,
     `🏢 ${esc(ctx.workshopName)}`,
   ].join('\n');
 }
@@ -113,7 +117,7 @@ export function formatQuoteSent(ctx: FormatContext, event: OrderEventRecord): st
   const label = formatOrderLabel(ctx.order);
   return [
     `📝 <b>[COTIZADO]</b>`,
-    `👤 <b>${esc(event.user_name)}</b> envió cotización para <code>#${label}</code>`,
+    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> envió cotización para <code>#${label}</code>`,
     `🏢 ${esc(ctx.workshopName)}`,
   ].join('\n');
 }
@@ -155,7 +159,7 @@ export function formatOrderMarkedPaid(ctx: FormatContext, event: OrderEventRecor
   const label = formatOrderLabel(ctx.order);
   return [
     `💰 <b>[PAGO REGISTRADO]</b>`,
-    `👤 <b>${esc(event.user_name)}</b> registró el pago de <code>#${label}</code>`,
+    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> registró el pago de <code>#${label}</code>`,
     `🏢 ${esc(ctx.workshopName)}`,
     `⏳ Mercadería pendiente de entrega.`,
   ].join('\n');
@@ -166,7 +170,7 @@ export function formatOrderDelivered(ctx: FormatContext, event: OrderEventRecord
   const monto = ctx.approvedTotal != null ? formatCurrency(ctx.approvedTotal) : '—';
   return [
     `📦 <b>[ENTREGADO Y COBRADO]</b>`,
-    `👤 <b>${esc(event.user_name)}</b> entregó <code>#${label}</code>`,
+    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> entregó <code>#${label}</code>`,
     `🏢 ${esc(ctx.workshopName)}`,
     `✅ <b>Total facturado:</b> ${monto}`,
   ].join('\n');
@@ -189,7 +193,7 @@ export function formatConflictResolved(ctx: FormatContext, event: OrderEventReco
   const label = formatOrderLabel(ctx.order);
   const lines = [
     `🤝 <b>[CONFLICTO RESUELTO]</b>`,
-    `👤 <b>${esc(event.user_name)}</b> resolvió <code>#${label}</code>`,
+    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> resolvió <code>#${label}</code>`,
     `🏢 ${esc(ctx.workshopName)}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);

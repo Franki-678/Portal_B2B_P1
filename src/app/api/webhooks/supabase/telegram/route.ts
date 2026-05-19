@@ -100,6 +100,22 @@ async function lookupWorkshopName(workshopId: string): Promise<string> {
   return (data?.name as string | undefined) ?? 'Taller';
 }
 
+/**
+ * Resuelve el nombre del actor de un evento desde `profiles.name`.
+ * La tabla `order_events` solo guarda user_id; el name se inyecta acá.
+ */
+async function lookupUserName(userId: string | null): Promise<string> {
+  if (!userId) return 'Usuario';
+  const sb = getServiceClient();
+  const { data, error } = await sb
+    .from('profiles')
+    .select('name')
+    .eq('id', userId)
+    .single();
+  if (error || !data) return 'Usuario';
+  return (data as { name: string | null }).name ?? 'Usuario';
+}
+
 async function lookupVendorTelegramUsername(vendorId: string | null): Promise<string | null> {
   if (!vendorId) return null;
   const sb = getServiceClient();
@@ -165,20 +181,24 @@ async function handleOrderEventInsert(event: OrderEventRecord): Promise<HandleRe
     return { ok: false, reason: 'order_not_found' };
   }
 
-  const [workshopName, vendorTelegramUsername, approvedTotal] = await Promise.all([
+  const [workshopName, vendorTelegramUsername, approvedTotal, actorName] = await Promise.all([
     lookupWorkshopName(order.workshop_id),
     lookupVendorTelegramUsername(order.assigned_vendor_id),
     eventNeedsTotal(event.action) ? lookupApprovedTotal(order.id) : Promise.resolve(null),
+    lookupUserName(event.user_id),
   ]);
 
   log('info', 'context resolved:', {
     workshop: workshopName,
     vendor: vendorTelegramUsername,
     total: approvedTotal,
+    actor: actorName,
   });
 
+  // Inyectar user_name resuelto desde profiles
+  const enrichedEvent: OrderEventRecord = { ...event, user_name: actorName };
   const ctx: FormatContext = { order, workshopName, vendorTelegramUsername, approvedTotal };
-  const msg = formatEventForGroup(event, ctx);
+  const msg = formatEventForGroup(enrichedEvent, ctx);
   if (!msg) {
     log('info', 'evento silenciado por formatter:', event.action);
     return { ok: true, reason: 'silenced_event' };
