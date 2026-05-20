@@ -10,14 +10,18 @@ import type { OrderStatus, EventAction } from '@/lib/types';
 
 // ─── Tipos del payload de Supabase ────────────────────────────────────────
 
-/** Forma esperada del registro `orders` que viene en el webhook. */
+/**
+ * Forma esperada del registro `orders` que viene en el webhook de Supabase.
+ * Solo contiene columnas que existen físicamente en la tabla.
+ * El nombre del taller y del vendedor se resuelven via JOIN en el endpoint
+ * y se pasan como campos de FormatContext (nunca van inline en este tipo).
+ */
 export interface OrderRecord {
   id: string;
   workshop_id: string;
   status: OrderStatus;
   workshop_order_number: number | null;
   assigned_vendor_id: string | null;
-  assigned_vendor_name: string | null;
   vehicle_brand: string;
   vehicle_model: string;
   vehicle_year: number;
@@ -48,10 +52,16 @@ export interface FormatContext {
   approvedTotal?: number | null;
   /**
    * Username de Telegram del vendedor asignado, sin @ (ej: 'juan_pereyra').
-   * Resuelto desde `profiles.telegram_username` por el endpoint antes de formatear.
-   * Si es null/undefined, las menciones caen al nombre en negrita sin ping.
+   * Resuelto desde `profiles.telegram_username` via JOIN en el endpoint.
+   * Si es null/undefined, las menciones caen al nombre real en negrita sin ping.
    */
   vendorTelegramUsername?: string | null;
+  /**
+   * Nombre real del vendedor asignado (profiles.name).
+   * Resuelto via JOIN en el endpoint — nunca viene inline en OrderRecord.
+   * Se usa como fallback de mención cuando no hay telegram_username.
+   */
+  vendorName?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -128,7 +138,7 @@ export function formatQuoteApproved(
   partial: boolean
 ): string {
   const label = formatOrderLabel(ctx.order);
-  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.order.assigned_vendor_name);
+  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
   const monto = ctx.approvedTotal != null ? formatCurrency(ctx.approvedTotal) : '—';
   const tag = partial ? '🟡 <b>[APROBADO PARCIAL]</b>' : '🟢 <b>[APROBADO]</b>';
   const lines = [
@@ -144,7 +154,7 @@ export function formatQuoteApproved(
 
 export function formatQuoteRejected(ctx: FormatContext, event: OrderEventRecord): string {
   const label = formatOrderLabel(ctx.order);
-  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.order.assigned_vendor_name);
+  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
   const lines = [
     `🔴 <b>[RECHAZADO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
@@ -178,7 +188,7 @@ export function formatOrderDelivered(ctx: FormatContext, event: OrderEventRecord
 
 export function formatClaimInitiated(ctx: FormatContext, event: OrderEventRecord): string {
   const label = formatOrderLabel(ctx.order);
-  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.order.assigned_vendor_name);
+  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
   const lines = [
     `⚠️ <b>[CONFLICTO INICIADO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
@@ -206,7 +216,7 @@ export function formatConflictResolved(ctx: FormatContext, event: OrderEventReco
  */
 export function formatVendorMention(ctx: FormatContext, accion: string): string {
   const label = formatOrderLabel(ctx.order);
-  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.order.assigned_vendor_name);
+  const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
   return [
     `🔔 ${mention}, el taller modificó <code>#${label}</code>`,
     `🏢 ${esc(ctx.workshopName)} · ${esc(accion)}`,

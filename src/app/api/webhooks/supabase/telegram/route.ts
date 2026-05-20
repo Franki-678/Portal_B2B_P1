@@ -71,33 +71,100 @@ function getServiceClient(): SupabaseClient {
   return cachedClient;
 }
 
+// ─── Tipos internos de la query relacional ────────────────────────────────
+
+/**
+ * Resultado enriquecido de `lookupOrder`: incluye el pedido más los datos
+ * resueltos via JOIN (nombre del taller y nombre/telegram del vendedor).
+ * Reemplaza las llamadas separadas a lookupWorkshopName y lookupVendorTelegramUsername.
+ */
+interface OrderQueryResult {
+  order: OrderRecord;
+  workshopName: string;
+  /** Username de Telegram sin @ ni espacios. Null si el vendedor no tiene. */
+  vendorTelegramUsername: string | null;
+  /** Nombre real del vendedor (profiles.name). Null si no hay vendedor asignado. */
+  vendorName: string | null;
+}
+
 // ─── Lookups ──────────────────────────────────────────────────────────────
 
-async function lookupOrder(orderId: string): Promise<OrderRecord | null> {
+/**
+ * Busca el pedido en la DB junto con el nombre del taller y los datos del
+ * vendedor en una sola query relacional.
+ *
+ * La sintaxis `workshop:workshops(name)` y `vendor:profiles!assigned_vendor_id(...)`
+ * usa las FK de Supabase para hacer el JOIN en un solo round-trip:
+ *   - orders.workshop_id       → workshops.id
+ *   - orders.assigned_vendor_id → profiles.id
+ */
+async function lookupOrder(orderId: string): Promise<OrderQueryResult | null> {
   const sb = getServiceClient();
   const { data, error } = await sb
     .from('orders')
     .select(
-      'id, workshop_id, status, workshop_order_number, assigned_vendor_id, assigned_vendor_name, vehicle_brand, vehicle_model, vehicle_year, created_at, updated_at'
+      `id,
+       workshop_id,
+       status,
+       workshop_order_number,
+       assigned_vendor_id,
+       vehicle_brand,
+       vehicle_model,
+       vehicle_year,
+       created_at,
+       updated_at,
+       workshop:workshops(name),
+       vendor:profiles!assigned_vendor_id(name, telegram_username)`
     )
     .eq('id', orderId)
     .single();
+
   if (error) {
     log('error', 'lookupOrder query error:', error.message);
     return null;
   }
-  return (data ?? null) as unknown as OrderRecord | null;
-}
+  if (!data) return null;
 
-async function lookupWorkshopName(workshopId: string): Promise<string> {
-  const sb = getServiceClient();
-  const { data, error } = await sb
-    .from('workshops')
-    .select('name')
-    .eq('id', workshopId)
-    .single();
-  if (error) log('warn', 'lookupWorkshopName error:', error.message);
-  return (data?.name as string | undefined) ?? 'Taller';
+  // Supabase retorna las relaciones como objetos anidados.
+  const row = data as unknown as {
+    id: string;
+    workshop_id: string;
+    status: OrderRecord['status'];
+    workshop_order_number: number | null;
+    assigned_vendor_id: string | null;
+    vehicle_brand: string;
+    vehicle_model: string;
+    vehicle_year: number;
+    created_at: string;
+    updated_at: string;
+    workshop: { name: string } | null;
+    vendor: { name: string; telegram_username: string | null } | null;
+  };
+
+  const order: OrderRecord = {
+    id: row.id,
+    workshop_id: row.workshop_id,
+    status: row.status,
+    workshop_order_number: row.workshop_order_number,
+    assigned_vendor_id: row.assigned_vendor_id,
+    vehicle_brand: row.vehicle_brand,
+    vehicle_model: row.vehicle_model,
+    vehicle_year: row.vehicle_year,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+
+  const rawTelegram = row.vendor?.telegram_username;
+  const vendorTelegramUsername = rawTelegram?.trim()
+    ? rawTelegram.trim().replace(/^@+/, '')
+    : null;
+
+  return {
+    order,
+    workshopName: row.workshop?.name ?? 'Taller',
+    vendorTelegramUsername,
+    vendorName: row.vendor?.name ?? null,
+  };
 }
 
 /**
@@ -114,23 +181,6 @@ async function lookupUserName(userId: string | null): Promise<string> {
     .single();
   if (error || !data) return 'Usuario';
   return (data as { name: string | null }).name ?? 'Usuario';
-}
-
-async function lookupVendorTelegramUsername(vendorId: string | null): Promise<string | null> {
-  if (!vendorId) return null;
-  const sb = getServiceClient();
-  const { data, error } = await sb
-    .from('profiles')
-    .select('telegram_username')
-    .eq('id', vendorId)
-    .single();
-  if (error) {
-    log('warn', 'lookupVendorTelegramUsername error:', error.message);
-    return null;
-  }
-  const raw = (data as { telegram_username: string | null } | null)?.telegram_username;
-  if (!raw || !raw.trim()) return null;
-  return raw.trim().replace(/^@+/, '');
 }
 
 async function lookupApprovedTotal(orderId: string): Promise<number | null> {
@@ -175,15 +225,18 @@ interface HandleResult {
 async function handleOrderEventInsert(event: OrderEventRecord): Promise<HandleResult> {
   log('info', 'order_events INSERT:', { eventId: event.id, action: event.action, orderId: event.order_id });
 
-  const order = await lookupOrder(event.order_id);
-  if (!order) {
+  // Una sola query: pedido + taller + vendedor via JOIN relacional.
+  const result = await lookupOrder(event.order_id);
+  if (!result) {
     log('warn', 'Order no encontrada — evento descartado');
     return { ok: false, reason: 'order_not_found' };
   }
 
-  const [workshopName, vendorTelegramUsername, approvedTotal, actorName] = await Promise.all([
-    lookupWorkshopName(order.workshop_id),
-    lookupVendorTelegramUsername(order.assigned_vendor_id),
+  const { order, workshopName, vendorTelegramUsername, vendorName } = result;
+
+  // lookupApprovedTotal y lookupUserName siguen siendo queries separadas
+  // porque no tienen FK directa desde orders.
+  const [approvedTotal, actorName] = await Promise.all([
     eventNeedsTotal(event.action) ? lookupApprovedTotal(order.id) : Promise.resolve(null),
     lookupUserName(event.user_id),
   ]);
@@ -191,13 +244,14 @@ async function handleOrderEventInsert(event: OrderEventRecord): Promise<HandleRe
   log('info', 'context resolved:', {
     workshop: workshopName,
     vendor: vendorTelegramUsername,
+    vendorName,
     total: approvedTotal,
     actor: actorName,
   });
 
   // Inyectar user_name resuelto desde profiles
   const enrichedEvent: OrderEventRecord = { ...event, user_name: actorName };
-  const ctx: FormatContext = { order, workshopName, vendorTelegramUsername, approvedTotal };
+  const ctx: FormatContext = { order, workshopName, vendorTelegramUsername, vendorName, approvedTotal };
   const msg = formatEventForGroup(enrichedEvent, ctx);
   if (!msg) {
     log('info', 'evento silenciado por formatter:', event.action);
@@ -229,12 +283,15 @@ async function handleOrderUpdate(oldRow: OrderRecord, newRow: OrderRecord): Prom
     return { ok: true, reason: 'no_significant_change' };
   }
 
-  const [workshopName, vendorTelegramUsername] = await Promise.all([
-    lookupWorkshopName(newRow.workshop_id),
-    lookupVendorTelegramUsername(newRow.assigned_vendor_id),
-  ]);
+  // Usamos lookupOrder para obtener taller + vendedor en una sola query.
+  const result = await lookupOrder(newRow.id);
+  if (!result) {
+    log('warn', 'handleOrderUpdate: order no encontrada para lookup relacional');
+    return { ok: false, reason: 'order_not_found' };
+  }
 
-  const ctx: FormatContext = { order: newRow, workshopName, vendorTelegramUsername };
+  const { order, workshopName, vendorTelegramUsername, vendorName } = result;
+  const ctx: FormatContext = { order, workshopName, vendorTelegramUsername, vendorName };
   const msg = formatVendorMention(ctx, 'editó datos del vehículo');
   const send = await sendToGroup(msg);
   if (!send.ok) {
@@ -264,7 +321,6 @@ async function handleTestMode(body: { test: string }): Promise<NextResponse> {
       status: 'aprobado',
       workshop_order_number: 9999,
       assigned_vendor_id: 'vendor-mock',
-      assigned_vendor_name: 'Lucas Pereyra',
       vehicle_brand: 'Toyota',
       vehicle_model: 'Hilux',
       vehicle_year: 2018,
@@ -284,6 +340,7 @@ async function handleTestMode(body: { test: string }): Promise<NextResponse> {
       order: mockOrder,
       workshopName: 'Taller QA',
       vendorTelegramUsername: 'Franco_San_Martin',
+      vendorName: 'Lucas Pereyra',   // resuelto via JOIN en producción
       approvedTotal: 125000,
     };
     const msg = formatEventForGroup(mockEvent, ctx);
