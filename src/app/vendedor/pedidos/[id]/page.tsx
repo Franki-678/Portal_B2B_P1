@@ -53,6 +53,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [conflictOutcome, setConflictOutcome] = useState('devolucion_total');
   const [conflictDetail, setConflictDetail] = useState('');
   const [conflictLoading, setConflictLoading] = useState(false);
+  const [conflictAdjustmentType, setConflictAdjustmentType] = useState<'monto' | 'porcentaje'>('monto');
+  const [conflictAdjustmentValue, setConflictAdjustmentValue] = useState('');
   const lightbox = useImageLightbox();
 
   // Soporta UUID (legacy) y slug "NN-PED-XXXX" / "PED-XXXX"
@@ -144,13 +146,40 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
   const handleResolveConflict = async () => {
     if (!conflictDetail.trim()) return;
+
+    const needsAdjustment = conflictOutcome === 'descuento' || conflictOutcome === 'devolucion_parcial';
+    let adjustmentAmount: number | null = null;
+    let adjustmentNote: string | undefined;
+
+    if (needsAdjustment && conflictAdjustmentValue.trim()) {
+      const raw = parseFloat(conflictAdjustmentValue.replace(',', '.'));
+      if (!isNaN(raw) && raw > 0) {
+        if (conflictAdjustmentType === 'porcentaje') {
+          // Store the percentage as-is; the note clarifies it's a %
+          adjustmentAmount = raw;
+          adjustmentNote = `${conflictDetail.trim()} — Ajuste del ${raw}%`;
+        } else {
+          adjustmentAmount = raw;
+          adjustmentNote = `${conflictDetail.trim()} — Ajuste de $${raw.toLocaleString('es-AR')}`;
+        }
+      }
+    }
+
     setConflictLoading(true);
-    const ok = await resolveConflict(order.id, conflictOutcome, conflictDetail.trim());
+    const ok = await resolveConflict(
+      order.id,
+      conflictOutcome,
+      conflictDetail.trim(),
+      adjustmentAmount,
+      adjustmentNote,
+    );
     setConflictLoading(false);
     if (ok) {
       setShowConflictModal(false);
       setConflictDetail('');
       setConflictOutcome('devolucion_total');
+      setConflictAdjustmentValue('');
+      setConflictAdjustmentType('monto');
     } else {
       alert('No se pudo resolver el conflicto. Verificá que el pedido esté en estado "en_conflicto".');
     }
@@ -327,7 +356,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-5">
             <div>
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-3 mb-3 flex-wrap">
                 <StatusBadge status={order.status} />
                 <span className="text-[11px] text-zinc-100 font-mono font-bold bg-zinc-800/80 px-2 py-0.5 rounded-md border border-zinc-700/50 uppercase tracking-widest">
                   {order.workshop?.tallerNumber && order.workshopOrderNumber
@@ -335,6 +364,21 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                     : order.id.split('-')[0].toUpperCase()
                   }
                 </span>
+                {order.paymentMethod && (
+                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    order.paymentMethod === 'transferencia'
+                      ? 'bg-sky-500/10 border-sky-500/30 text-sky-300'
+                      : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                  }`}>
+                    {order.paymentMethod === 'transferencia' ? '🏦' : '💵'}
+                    {order.paymentMethod === 'transferencia' ? 'Transferencia' : 'Efectivo'}
+                  </span>
+                )}
+                {order.adjustmentAmount != null && (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-amber-500/10 border-amber-500/30 text-amber-300">
+                    ✂️ Ajuste: ${order.adjustmentAmount.toLocaleString('es-AR')}
+                  </span>
+                )}
               </div>
               <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Pedido del Taller</h2>
               <p className="text-sm font-medium text-zinc-400 mt-1">
@@ -916,6 +960,57 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                   className="min-h-[100px] w-full resize-y rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
                 />
               </div>
+
+              {/* Ajuste económico — solo para descuento o devolución parcial */}
+              {(conflictOutcome === 'descuento' || conflictOutcome === 'devolucion_parcial') && (
+                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/8 p-4 space-y-3">
+                  <p className="text-xs font-bold text-amber-300 uppercase tracking-widest">
+                    💰 Ajuste económico
+                  </p>
+                  <p className="text-xs text-amber-400/70 -mt-1">
+                    Registrá el monto o porcentaje acordado. Se descontará del total del pedido en los KPIs.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConflictAdjustmentType('monto')}
+                      className={`flex-1 rounded-xl border py-2 text-sm font-bold transition-all ${
+                        conflictAdjustmentType === 'monto'
+                          ? 'border-amber-500/50 bg-amber-500/20 text-amber-200'
+                          : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'
+                      }`}
+                    >
+                      $ Monto fijo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConflictAdjustmentType('porcentaje')}
+                      className={`flex-1 rounded-xl border py-2 text-sm font-bold transition-all ${
+                        conflictAdjustmentType === 'porcentaje'
+                          ? 'border-amber-500/50 bg-amber-500/20 text-amber-200'
+                          : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'
+                      }`}
+                    >
+                      % Porcentaje
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-zinc-400 pointer-events-none select-none">
+                      {conflictAdjustmentType === 'monto' ? '$' : '%'}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={conflictAdjustmentValue}
+                      onChange={e => setConflictAdjustmentValue(e.target.value)}
+                      placeholder={conflictAdjustmentType === 'monto' ? '0.00' : '0-100'}
+                      className="w-full rounded-xl border border-zinc-700 bg-zinc-800/80 pl-9 pr-4 py-2.5 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                  </div>
+                </div>
+              )}
+
               {conflictOutcome === 'cancelado' && (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-300">
                   ⚠️ El pedido pasará al estado <strong>Cancelado</strong>. Esta acción no se puede deshacer.
@@ -925,7 +1020,13 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             <div className="flex gap-3 mt-6">
               <Button
                 variant="ghost"
-                onClick={() => { setShowConflictModal(false); setConflictDetail(''); setConflictOutcome('devolucion_total'); }}
+                onClick={() => {
+                  setShowConflictModal(false);
+                  setConflictDetail('');
+                  setConflictOutcome('devolucion_total');
+                  setConflictAdjustmentValue('');
+                  setConflictAdjustmentType('monto');
+                }}
                 className="flex-1"
               >
                 Cancelar

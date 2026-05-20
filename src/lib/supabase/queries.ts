@@ -144,7 +144,7 @@ export async function fetchAllOrders(
 
   let ordersQuery = (sb as any)
     .from('orders')
-    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, deleted_at')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, deleted_at, payment_method, adjustment_amount, adjustment_note')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(200);
@@ -678,7 +678,7 @@ export async function insertEvent(
 export async function fetchOrderById(sb: SupabaseClientType, orderId: string): Promise<Order | null> {
   const { data: rows, error } = await (sb as any)
     .from('orders')
-    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, payment_method, adjustment_amount, adjustment_note')
     .eq('id', orderId)
     .limit(1);
 
@@ -709,7 +709,7 @@ async function fetchAllOrdersForIds(
 ): Promise<Order[]> {
   const { data: rows, error } = await (sb as any)
     .from('orders')
-    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, payment_method, adjustment_amount, adjustment_note')
     .in('id', orderIds);
 
   if (error) {
@@ -1304,13 +1304,24 @@ export async function resolveConflictInDB(
   orderId: string,
   userId: string,
   outcome: string,
-  detail: string
+  detail: string,
+  adjustmentAmount?: number | null,
+  adjustmentNote?: string
 ): Promise<boolean> {
   const newStatus = outcome === 'cancelado' ? 'cancelado' : 'cerrado';
 
+  const updatePayload: Record<string, unknown> = {
+    status: newStatus,
+    updated_at: new Date().toISOString(),
+  };
+  if (adjustmentAmount != null && adjustmentAmount > 0) {
+    updatePayload.adjustment_amount = adjustmentAmount;
+    updatePayload.adjustment_note = adjustmentNote ?? detail;
+  }
+
   const { error } = await (sb as any)
     .from('orders')
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq('id', orderId)
     .eq('status', 'en_conflicto');
 
@@ -1341,12 +1352,14 @@ export async function resolveConflictInDB(
 /**
  * Taller inicia un reclamo en un pedido cerrado (cerrado → en_conflicto).
  * El motivo del reclamo se guarda como comentario en el evento.
+ * imageFiles: imágenes de evidencia (opcionales) subidas al bucket claim_evidence.
  */
 export async function initiateClaimInDB(
   sb: SupabaseClientType,
   orderId: string,
   userId: string,
-  reason: string
+  reason: string,
+  imageFiles?: File[]
 ): Promise<boolean> {
   const { error } = await (sb as any)
     .from('orders')
@@ -1360,6 +1373,39 @@ export async function initiateClaimInDB(
   }
 
   await insertEvent(sb, orderId, userId, 'reclamo_iniciado', reason);
+
+  // Subir imágenes de evidencia al bucket claim_evidence
+  if (imageFiles && imageFiles.length > 0) {
+    await Promise.all(
+      imageFiles.slice(0, 5).map(async file => {
+        const ext = file.name.split('.').pop() ?? 'jpg';
+        const storagePath = `${orderId}/${generateId()}.${ext}`;
+        let finalUrl = '';
+
+        const { error: uploadErr } = await sb.storage
+          .from('claim_evidence')
+          .upload(storagePath, file);
+
+        if (!uploadErr) {
+          const { data: urlData } = sb.storage
+            .from('claim_evidence')
+            .getPublicUrl(storagePath);
+          finalUrl = urlData.publicUrl;
+        } else {
+          console.warn('[Supabase] claim_evidence upload fallback:', uploadErr.message);
+          finalUrl = await fileToBase64(file);
+        }
+
+        await (sb as any).from('claim_images').insert({
+          order_id: orderId,
+          user_id: userId,
+          url: finalUrl,
+          storage_path: uploadErr ? null : storagePath,
+        });
+      })
+    );
+  }
+
   return true;
 }
 

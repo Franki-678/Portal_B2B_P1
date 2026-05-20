@@ -59,9 +59,14 @@ function mapAuthError(error: { message: string }): string {
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  mustChangePassword: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; role?: UserRole; error?: string }>;
   registerTaller: (data: RegisterTallerData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  /** Envía email de recuperación de contraseña. */
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  /** Actualiza la contraseña del usuario autenticado (reset o cambio forzado). */
+  updatePassword: (newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface RegisterTallerData {
@@ -78,6 +83,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const router = useRouter();
   const initialized = useRef(false);
 
@@ -92,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = (await withHydrateTimeout(
           supabase
             .from('profiles')
-            .select('name, role, workshop_id, assigned_workshops')
+            .select('name, role, workshop_id, assigned_workshops, must_change_password')
             .eq('id', userId)
             .maybeSingle()
         )) as { data: unknown; error: unknown };
@@ -112,7 +118,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: UserRole;
           workshop_id: string | null;
           assigned_workshops: string[] | null;
+          must_change_password: boolean | null;
         };
+        setMustChangePassword(!!row.must_change_password);
         let workshopName: string | undefined;
         if (row.workshop_id) {
           const wsRes = (await withHydrateTimeout(
@@ -321,6 +329,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [persistUserCache, router]);
 
+  const resetPassword = useCallback(async (email: string): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Supabase no está configurado.' };
+    const supabase = getSupabaseClient();
+    const redirectTo = `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`;
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    if (!isSupabaseConfigured()) return { success: false, error: 'Supabase no está configurado.' };
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { success: false, error: error.message };
+    // Limpiar flag must_change_password en profiles
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      await (supabase as any).from('profiles').update({ must_change_password: false }).eq('id', authUser.id);
+      setMustChangePassword(false);
+    }
+    return { success: true };
+  }, []);
+
   const registerTaller = useCallback(async (data: RegisterTallerData) => {
     if (!isSupabaseConfigured()) {
       return { success: false, error: 'Supabase no está configurado.' };
@@ -425,7 +456,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [persistUserCache]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, registerTaller }}>
+    <AuthContext.Provider value={{ user, isLoading, mustChangePassword, login, logout, registerTaller, resetPassword, updatePassword }}>
       {children}
     </AuthContext.Provider>
   );

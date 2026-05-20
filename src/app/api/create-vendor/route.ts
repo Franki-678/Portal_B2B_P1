@@ -12,25 +12,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { name?: string; email?: string; phone?: string };
+  let body: { name?: string; email?: string; phone?: string; tempPassword?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Cuerpo de la solicitud inválido.' }, { status: 400 });
   }
 
-  const { name, email, phone } = body;
+  const { name, email, phone, tempPassword } = body;
   if (!name?.trim() || !email?.trim()) {
     return NextResponse.json({ error: 'Nombre y email son requeridos.' }, { status: 400 });
+  }
+  if (!tempPassword?.trim() || tempPassword.trim().length < 8) {
+    return NextResponse.json(
+      { error: 'La contraseña temporal debe tener al menos 8 caracteres.' },
+      { status: 400 }
+    );
   }
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Crear usuario en Auth (confirmado, sin contraseña inicial)
+  // Crear usuario con contraseña temporal ya seteada (confirmado directo)
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email: email.trim(),
+    password: tempPassword.trim(),
     email_confirm: true,
     user_metadata: { name: name.trim(), role: 'vendedor' },
   });
@@ -45,7 +52,7 @@ export async function POST(request: NextRequest) {
 
   const userId = authData.user.id;
 
-  // Crear/actualizar el perfil
+  // Crear/actualizar perfil con must_change_password = true
   const { error: profileError } = await supabaseAdmin
     .from('profiles')
     .upsert({
@@ -53,13 +60,18 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       role: 'vendedor',
       phone: phone?.trim() || null,
+      must_change_password: true,
     });
 
   if (profileError) {
-    // Revertir creación de usuario si el perfil falla
+    // Revertir si el perfil falla
     await supabaseAdmin.auth.admin.deleteUser(userId);
     return NextResponse.json({ error: profileError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, userId, message: `Vendedor "${name.trim()}" creado. Recibirá un email para establecer su contraseña.` });
+  return NextResponse.json({
+    success: true,
+    userId,
+    message: `Vendedor "${name.trim()}" creado. Puede iniciar sesión con la contraseña temporal. Se le solicitará cambiarla en su primer acceso.`,
+  });
 }

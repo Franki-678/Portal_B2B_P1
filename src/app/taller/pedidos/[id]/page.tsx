@@ -31,6 +31,8 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimReason, setClaimReason] = useState('');
   const [claimLoading, setClaimLoading] = useState(false);
+  const [claimImages, setClaimImages] = useState<File[]>([]);
+  const [claimPreviews, setClaimPreviews] = useState<string[]>([]);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'efectivo'>('transferencia');
   const lightbox = useImageLightbox();
@@ -60,7 +62,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
 
   const handleApproveConfirm = async () => {
     setLoading(true);
-    await approveQuote(order.id, user!.id, user!.name);
+    await approveQuote(order.id, user!.id, user!.name, paymentMethod);
     setLoading(false);
     setShowApproveModal(false);
   };
@@ -85,14 +87,35 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     }
   };
 
+  const handleClaimImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    e.target.value = '';
+    const toAdd = files.slice(0, Math.max(0, 5 - claimImages.length));
+    const newFiles = [...claimImages, ...toAdd];
+    const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+    claimPreviews.forEach(u => URL.revokeObjectURL(u));
+    setClaimImages(newFiles);
+    setClaimPreviews(newPreviews);
+  };
+
+  const removeClaimImage = (idx: number) => {
+    URL.revokeObjectURL(claimPreviews[idx] ?? '');
+    setClaimImages(prev => prev.filter((_, i) => i !== idx));
+    setClaimPreviews(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handleInitiateClaim = async () => {
     if (!claimReason.trim()) return;
     setClaimLoading(true);
-    const ok = await initiateClaim(order.id, claimReason.trim());
+    const ok = await initiateClaim(order.id, claimReason.trim(), claimImages.length > 0 ? claimImages : undefined);
     setClaimLoading(false);
     if (ok) {
       setShowClaimModal(false);
       setClaimReason('');
+      setClaimImages([]);
+      claimPreviews.forEach(u => URL.revokeObjectURL(u));
+      setClaimPreviews([]);
     } else {
       alert('No se pudo iniciar el reclamo. Solo podés reclamar pedidos en estado cerrado.');
     }
@@ -857,25 +880,61 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
       <ConfirmModal
         open={showClaimModal}
         title="⚠️ Iniciar reclamo"
-        description="Describí el problema con este pedido. El administrador y el vendedor recibirán una alerta urgente para investigar la situación."
+        description="Describí el problema con este pedido. El administrador y el vendedor recibirán una alerta urgente."
         tone="danger"
         cancelLabel="Cancelar"
         confirmLabel="Enviar reclamo"
-        onCancel={() => { setShowClaimModal(false); setClaimReason(''); }}
+        onCancel={() => {
+          setShowClaimModal(false);
+          setClaimReason('');
+          setClaimImages([]);
+          claimPreviews.forEach(u => URL.revokeObjectURL(u));
+          setClaimPreviews([]);
+        }}
         onConfirm={handleInitiateClaim}
         loading={claimLoading}
       >
-        <textarea
-          value={claimReason}
-          onChange={e => setClaimReason(e.target.value)}
-          placeholder="Ej: Los repuestos llegaron incorrectos, falta el ítem 2, etc."
-          rows={4}
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          className="min-h-[100px] w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-        />
+        <div className="space-y-4">
+          <textarea
+            value={claimReason}
+            onChange={e => setClaimReason(e.target.value)}
+            placeholder="Ej: Los repuestos llegaron incorrectos, falta el ítem 2, etc."
+            rows={4}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            className="min-h-[100px] w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-amber-500/40 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+          />
+          {/* Imágenes de evidencia */}
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 mb-2">
+              Imágenes de evidencia <span className="text-zinc-600 font-normal">(opcional, máx. 5)</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {claimPreviews.map((preview, pi) => (
+                <div key={pi} className="relative group/img">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={preview} alt="" className="h-16 w-16 rounded-xl object-cover border border-zinc-700/50" />
+                  <button
+                    type="button"
+                    onClick={() => removeClaimImage(pi)}
+                    className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {claimImages.length < 5 && (
+                <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-700/60 bg-zinc-900/40 hover:border-amber-500/40 hover:bg-zinc-900/60 transition-all">
+                  <span className="text-xl text-zinc-500">📷</span>
+                  <span className="text-[9px] font-bold uppercase text-zinc-600 mt-0.5">Foto</span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleClaimImageChange} />
+                </label>
+              )}
+            </div>
+          </div>
+        </div>
       </ConfirmModal>
     </>
   );

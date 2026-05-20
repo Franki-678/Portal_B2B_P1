@@ -85,6 +85,12 @@ export interface Order {
   updatedAt: string;
   /** Soft-delete: fecha en que el taller eliminó el pedido. Solo visible para admin. */
   deletedAt?: string;
+  /** Método de pago elegido por el taller al aprobar la cotización. */
+  paymentMethod?: 'transferencia' | 'efectivo' | null;
+  /** Monto de ajuste por conflicto (descuento o devolución parcial). */
+  adjustmentAmount?: number | null;
+  /** Nota descriptiva del ajuste por conflicto. */
+  adjustmentNote?: string | null;
 }
 
 export interface OrderItem {

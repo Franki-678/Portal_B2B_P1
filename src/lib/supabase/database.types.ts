@@ -86,6 +86,9 @@ export type Database = {
           updated_at: string;
           deleted_at: string | null;
           deleted_by_id: string | null;
+          payment_method: 'transferencia' | 'efectivo' | null;
+          adjustment_amount: number | null;
+          adjustment_note: string | null;
         };
         Insert: {
           id?: string;
@@ -103,6 +106,9 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
           deleted_by_id?: string | null;
+          payment_method?: 'transferencia' | 'efectivo' | null;
+          adjustment_amount?: number | null;
+          adjustment_note?: string | null;
         };
         Update: Partial<Database['public']['Tables']['orders']['Insert']>;
       };

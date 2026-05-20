@@ -74,7 +74,7 @@ interface DataStoreContextType {
       images: File[];
     }[];
   }) => Promise<Order>;
-  approveQuote: (orderId: string, userId: string, userName: string) => Promise<void>;
+  approveQuote: (orderId: string, userId: string, userName: string, paymentMethod?: 'transferencia' | 'efectivo') => Promise<void>;
   rejectQuote: (orderId: string, userId: string, userName: string, comment: string) => Promise<void>;
   approveQuotePartial: (
     orderId: string,
@@ -110,9 +110,9 @@ interface DataStoreContextType {
   /** Vendedor marca la entrega (aprobado/aprobado_parcial/pagado → cerrado_pagado). */
   markOrderDelivered: (orderId: string) => Promise<boolean>;
   /** Taller inicia un reclamo en un pedido cerrado (en_conflicto). */
-  initiateClaim: (orderId: string, reason: string) => Promise<boolean>;
+  initiateClaim: (orderId: string, reason: string, imageFiles?: File[]) => Promise<boolean>;
   /** Admin/Vendedor resuelve un conflicto con resultado y detalle. */
-  resolveConflict: (orderId: string, outcome: string, detail: string) => Promise<boolean>;
+  resolveConflict: (orderId: string, outcome: string, detail: string, adjustmentAmount?: number | null, adjustmentNote?: string) => Promise<boolean>;
   /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
   refreshData: (opts?: { forceWorkshops?: boolean; silent?: boolean }) => Promise<void>;
   /** Fuerza recarga de pedidos y talleres (botón Reintentar). */
@@ -404,12 +404,18 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const approveQuote = useCallback(
-    async (orderId: string, userId: string, userName: string) => {
+    async (orderId: string, userId: string, userName: string, paymentMethod?: 'transferencia' | 'efectivo') => {
       const sb = getSupabaseClient();
       const order = orders.find(o => o.id === orderId);
       const allIds = order?.quote?.items.map(i => i.id) ?? [];
       await updateQuoteItemsApproval(sb, allIds, []);
-      await updateOrderStatus(sb, orderId, 'aprobado', userId, 'cotizacion_aprobada', 'Cotización aprobada en su totalidad.');
+      const comment = paymentMethod
+        ? `Cotización aprobada. Método de pago: ${paymentMethod === 'transferencia' ? 'Transferencia bancaria' : 'Efectivo'}.`
+        : 'Cotización aprobada en su totalidad.';
+      await updateOrderStatus(sb, orderId, 'aprobado', userId, 'cotizacion_aprobada', comment);
+      if (paymentMethod) {
+        await (sb as any).from('orders').update({ payment_method: paymentMethod }).eq('id', orderId);
+      }
       await refreshData();
       const full = await fetchOrderById(sb, orderId);
       if (full?.workshop && full.quote) {
@@ -637,10 +643,10 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const initiateClaim = useCallback(
-    async (orderId: string, reason: string): Promise<boolean> => {
+    async (orderId: string, reason: string, imageFiles?: File[]): Promise<boolean> => {
       if (!user) return false;
       const sb = getSupabaseClient();
-      const ok = await initiateClaimInDB(sb, orderId, user.id, reason);
+      const ok = await initiateClaimInDB(sb, orderId, user.id, reason, imageFiles);
       if (ok) {
         updateLocalOrder(orderId, order => ({ ...order, status: 'en_conflicto' as OrderStatus }));
         void refreshData({ silent: true });
@@ -651,13 +657,17 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const resolveConflict = useCallback(
-    async (orderId: string, outcome: string, detail: string): Promise<boolean> => {
+    async (orderId: string, outcome: string, detail: string, adjustmentAmount?: number | null, adjustmentNote?: string): Promise<boolean> => {
       if (!user) return false;
       const sb = getSupabaseClient();
-      const ok = await resolveConflictInDB(sb, orderId, user.id, outcome, detail);
+      const ok = await resolveConflictInDB(sb, orderId, user.id, outcome, detail, adjustmentAmount, adjustmentNote);
       if (ok) {
         const newStatus: OrderStatus = outcome === 'cancelado' ? 'cancelado' : 'cerrado';
-        updateLocalOrder(orderId, order => ({ ...order, status: newStatus }));
+        updateLocalOrder(orderId, order => ({
+          ...order,
+          status: newStatus,
+          ...(adjustmentAmount != null ? { adjustmentAmount, adjustmentNote: adjustmentNote ?? detail } : {}),
+        }));
         void refreshData({ silent: true });
       }
       return ok;

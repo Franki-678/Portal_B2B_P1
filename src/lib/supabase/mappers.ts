@@ -137,5 +137,8 @@ export function mapOrder(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: (row as any).deleted_at ?? undefined,
+    paymentMethod: (row as any).payment_method ?? null,
+    adjustmentAmount: (row as any).adjustment_amount != null ? Number((row as any).adjustment_amount) : null,
+    adjustmentNote: (row as any).adjustment_note ?? null,
   };
 }

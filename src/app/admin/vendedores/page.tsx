@@ -102,6 +102,7 @@ export default function AdminVendedoresPage() {
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newTempPassword, setNewTempPassword] = useState('');
   const [creating, setCreating] = useState(false);
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -270,20 +271,29 @@ export default function AdminVendedoresPage() {
 
   const handleCreateVendor = async () => {
     if (!newName.trim() || !newEmail.trim()) return;
+    if (!newTempPassword.trim() || newTempPassword.trim().length < 8) {
+      setCreateResult({ ok: false, msg: 'La contraseña temporal debe tener al menos 8 caracteres.' });
+      return;
+    }
     setCreating(true);
     setCreateResult(null);
     try {
       const res = await fetch('/api/create-vendor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), email: newEmail.trim(), phone: newPhone.trim() || undefined }),
+        body: JSON.stringify({
+          name: newName.trim(),
+          email: newEmail.trim(),
+          phone: newPhone.trim() || undefined,
+          tempPassword: newTempPassword.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         setCreateResult({ ok: false, msg: data.error ?? 'Error al crear el vendedor.' });
       } else {
         setCreateResult({ ok: true, msg: data.message ?? 'Vendedor creado exitosamente.' });
-        setNewName(''); setNewEmail(''); setNewPhone('');
+        setNewName(''); setNewEmail(''); setNewPhone(''); setNewTempPassword('');
         setTimeout(() => {
           setShowNewVendor(false);
           setCreateResult(null);
@@ -395,9 +405,9 @@ export default function AdminVendedoresPage() {
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-white transition"
               >✕</button>
             </div>
-            <p className="text-xs text-zinc-500">
-              Se creará una cuenta en el sistema. El vendedor recibirá un email para ingresar.
-            </p>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-300 font-medium space-y-1">
+              <p>🔑 Asigná una contraseña temporal. El vendedor <strong>deberá cambiarla</strong> en su primer inicio de sesión.</p>
+            </div>
             <div className="space-y-4">
               <Input
                 label="Nombre completo"
@@ -418,6 +428,15 @@ export default function AdminVendedoresPage() {
                 onChange={e => setNewPhone(e.target.value)}
                 placeholder="Ej: 1155551234"
               />
+              <Input
+                label="Contraseña temporal"
+                type="password"
+                value={newTempPassword}
+                onChange={e => setNewTempPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                required
+                hint="El vendedor deberá cambiarla al primer login"
+              />
             </div>
             {createResult && (
               <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${
@@ -436,7 +455,7 @@ export default function AdminVendedoresPage() {
                 size="sm"
                 onClick={() => void handleCreateVendor()}
                 loading={creating}
-                disabled={!newName.trim() || !newEmail.trim()}
+                disabled={!newName.trim() || !newEmail.trim() || newTempPassword.trim().length < 8}
                 className="bg-orange-600 hover:bg-orange-500 text-white border-0"
               >
                 Crear vendedor
