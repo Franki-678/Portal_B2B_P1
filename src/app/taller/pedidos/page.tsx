@@ -4,13 +4,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
-import { OrderDrawer } from '@/components/orders/OrderDrawer';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Order, OrderStatus } from '@/lib/types';
+import { OrderStatus } from '@/lib/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
+import { matchesOrderSearch, formatOrderSlug } from '@/lib/utils';
 
 const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
   { value: 'todos', label: 'Todos' },
@@ -28,11 +28,13 @@ export default function TallerPedidosPage() {
   const [filter, setFilter] = useState<'todos' | OrderStatus>('todos');
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
   const all = user?.workshopId ? getWorkshopOrders(user.workshopId) : [];
-  const filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
+  let filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
+  if (search.trim()) {
+    filtered = filtered.filter(o => matchesOrderSearch(o, search));
+  }
   const sorted = [...filtered].sort((a, b) =>
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
@@ -62,6 +64,19 @@ export default function TallerPedidosPage() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Buscador + Filtros */}
+        <div className="space-y-3">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="🔍 Buscar por repuesto, vehículo o PED-0142..."
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            className="w-full max-w-md rounded-xl border border-white/10 bg-zinc-900/60 px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-orange-500/40 focus:outline-none"
+          />
         {/* Filtros */}
         <div className="flex items-center gap-2 flex-wrap">
           {STATUS_FILTERS.map(f => (
@@ -82,6 +97,7 @@ export default function TallerPedidosPage() {
               )}
             </button>
           ))}
+        </div>
         </div>
 
         {/* Lista */}
@@ -104,7 +120,8 @@ export default function TallerPedidosPage() {
           />
         ) : (
           <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
               <thead>
                 <tr className="border-b border-zinc-800/80 bg-zinc-900/60">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Pedido</th>
@@ -120,10 +137,7 @@ export default function TallerPedidosPage() {
                     key={order.id}
                     order={order}
                     role="taller"
-                    onClick={() => {
-                      setDrawerOrder(order);
-                      setDrawerOpen(true);
-                    }}
+                    onClick={() => router.push(`/taller/pedidos/${formatOrderSlug(order, 'taller')}`)}
                     actions={
                       order.status === 'pendiente' ? (
                         <Button
@@ -140,6 +154,7 @@ export default function TallerPedidosPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
@@ -153,12 +168,6 @@ export default function TallerPedidosPage() {
         onCancel={() => setDeletingOrderId(null)}
         onConfirm={handleDelete}
         loading={deleting}
-      />
-      <OrderDrawer
-        order={drawerOrder}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        role="taller"
       />
     </>
   );

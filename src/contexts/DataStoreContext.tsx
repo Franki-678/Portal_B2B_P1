@@ -51,6 +51,12 @@ interface DataStoreContextType {
   // Taller
   getWorkshopOrders: (workshopId: string) => Order[];
   getOrderById: (id: string) => Order | undefined;
+  /**
+   * Busca un pedido por slug friendly (PED-0142 o 01-PED-0142) o por UUID.
+   * @param slug  El segmento de URL: "PED-0142", "01-PED-0142" o UUID
+   * @param workshopId  Si se pasa, restringe la búsqueda al taller (para slugs "PED-XXXX")
+   */
+  getOrderBySlug: (slug: string, workshopId?: string) => Order | undefined;
   createOrder: (data: {
     workshopId: string;
     workshop?: import("@/lib/types").Workshop;
@@ -291,6 +297,37 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
 
   const getOrderById = useCallback(
     (id: string) => orders.find(o => o.id === id),
+    [orders]
+  );
+
+  const getOrderBySlug = useCallback(
+    (slug: string, workshopId?: string): Order | undefined => {
+      // UUID directo
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (UUID_RE.test(slug)) return orders.find(o => o.id === slug);
+
+      // NN-PED-XXXX → tallerNumber + workshopOrderNumber (único global)
+      const fullMatch = slug.match(/^(\d{2})-ped-(\d{4})$/i);
+      if (fullMatch) {
+        const tallerNum = parseInt(fullMatch[1], 10);
+        const orderNum  = parseInt(fullMatch[2], 10);
+        return orders.find(
+          o => o.workshop?.tallerNumber === tallerNum && o.workshopOrderNumber === orderNum
+        );
+      }
+
+      // PED-XXXX → workshopOrderNumber, opcionalmente filtrado por workshopId
+      const shortMatch = slug.match(/^ped-(\d{4})$/i);
+      if (shortMatch) {
+        const orderNum = parseInt(shortMatch[1], 10);
+        return orders.find(
+          o => o.workshopOrderNumber === orderNum &&
+               (!workshopId || o.workshopId === workshopId)
+        );
+      }
+
+      return undefined;
+    },
     [orders]
   );
 
@@ -665,6 +702,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         isUsingSupabase: usingSupabase,
         getWorkshopOrders,
         getOrderById,
+        getOrderBySlug,
         createOrder,
         approveQuote,
         rejectQuote,

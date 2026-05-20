@@ -154,3 +154,81 @@ export function formatVendorOrderLabel(order: Order): string {
   }
   return order.id.replace(/-/g, '').slice(0, 12).toUpperCase();
 }
+
+// ============================================================
+// FRIENDLY URL SLUGS
+// ============================================================
+
+/**
+ * Genera el slug de URL para navegar al detalle de un pedido.
+ *
+ * - role 'taller'   → "PED-0142"          (único dentro del taller autenticado)
+ * - role 'vendedor' → "01-PED-0142"        (único globalmente: tallerN + orderN)
+ * - fallback        → UUID del pedido
+ */
+export function formatOrderSlug(order: Order, role: 'taller' | 'vendedor' | 'admin'): string {
+  if (role === 'taller') {
+    if (order.workshopOrderNumber != null) {
+      return `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`;
+    }
+  } else {
+    // vendedor / admin: incluir número de taller para unicidad global
+    if (order.workshop?.tallerNumber != null && order.workshopOrderNumber != null) {
+      return `${String(order.workshop.tallerNumber).padStart(2, '0')}-PED-${String(order.workshopOrderNumber).padStart(4, '0')}`;
+    }
+    if (order.workshopOrderNumber != null) {
+      return `PED-${String(order.workshopOrderNumber).padStart(4, '0')}`;
+    }
+  }
+  return order.id; // fallback: UUID
+}
+
+/**
+ * Regex para detectar segmentos de slug de pedido en breadcrumbs.
+ * Coincide con: PED-0142, 01-PED-0142
+ */
+export const PED_SLUG_REGEX = /^(?:\d{2}-)?ped-\d{4}$/i;
+
+// ============================================================
+// BÚSQUEDA INTELIGENTE
+// ============================================================
+
+/**
+ * Normaliza texto para búsqueda: minúsculas + sin tildes/diacríticos.
+ * "Autocarrocería Sur" → "autocarroceria sur"
+ */
+export function normalizeText(s: string): string {
+  return (s ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Devuelve true si el pedido coincide con la búsqueda libre.
+ * Soporta:
+ *   - Número de pedido: "142", "0142", "PED-0142", "01-PED-0142"
+ *   - Nombre de repuesto, marca/modelo de vehículo, nombre de taller
+ *   - Búsqueda sin tildes: "autocarro" encuentra "Autocarrocería Sur"
+ */
+export function matchesOrderSearch(order: Order, rawQuery: string): boolean {
+  if (!rawQuery.trim()) return true;
+  const q = normalizeText(rawQuery);
+
+  // Coincidencia por número de pedido: acepta "142", "0142", "PED-0142", "01-PED-0142"
+  const numMatch = q.match(/(?:\d{2}-)?(?:ped-?)?0*(\d+)$/);
+  if (numMatch && order.workshopOrderNumber != null) {
+    const queryNum = parseInt(numMatch[1], 10);
+    if (!isNaN(queryNum) && order.workshopOrderNumber === queryNum) return true;
+  }
+
+  // Búsqueda textual normalizada en repuestos, vehículo y taller
+  const fields: string[] = [
+    ...(order.items?.map(i => i.partName) ?? []),
+    order.vehicleBrand ?? '',
+    order.vehicleModel ?? '',
+    order.workshop?.name ?? '',
+  ];
+  return fields.some(f => normalizeText(f).includes(q));
+}

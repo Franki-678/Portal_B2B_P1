@@ -13,8 +13,6 @@ import type { OrderStatus, EventAction } from '@/lib/types';
 /**
  * Forma esperada del registro `orders` que viene en el webhook de Supabase.
  * Solo contiene columnas que existen físicamente en la tabla.
- * El nombre del taller y del vendedor se resuelven via JOIN en el endpoint
- * y se pasan como campos de FormatContext (nunca van inline en este tipo).
  */
 export interface OrderRecord {
   id: string;
@@ -44,33 +42,45 @@ export interface OrderEventRecord {
   created_at: string;
 }
 
-/** Contexto extra que el endpoint resuelve antes de formatear (workshop, monto, etc.). */
+/** Contexto extra que el endpoint resuelve antes de formatear. */
 export interface FormatContext {
   order: OrderRecord;
   workshopName: string;
+  /** Número de taller (workshops.taller_number) — para generar deep links. */
+  tallerNumber?: number | null;
   /** Monto total aprobado en ARS (null si no aplica al evento). */
   approvedTotal?: number | null;
   /**
    * Username de Telegram del vendedor asignado, sin @ (ej: 'juan_pereyra').
    * Resuelto desde `profiles.telegram_username` via JOIN en el endpoint.
-   * Si es null/undefined, las menciones caen al nombre real en negrita sin ping.
    */
   vendorTelegramUsername?: string | null;
   /**
    * Nombre real del vendedor asignado (profiles.name).
-   * Resuelto via JOIN en el endpoint — nunca viene inline en OrderRecord.
-   * Se usa como fallback de mención cuando no hay telegram_username.
+   * Fallback de mención cuando no hay telegram_username.
    */
   vendorName?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-function formatOrderLabel(order: OrderRecord): string {
+/** URL base del CRM (configurar en Vercel → Settings → Env Variables). */
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://portal-b2b.vercel.app').replace(/\/$/, '');
+
+function formatOrderLabel(order: OrderRecord, tallerNumber?: number | null): string {
+  if (tallerNumber != null && order.workshop_order_number != null) {
+    return `${String(tallerNumber).padStart(2, '0')}-PED-${String(order.workshop_order_number).padStart(4, '0')}`;
+  }
   if (order.workshop_order_number != null) {
     return `PED-${String(order.workshop_order_number).padStart(4, '0')}`;
   }
   return order.id.replace(/-/g, '').slice(0, 12).toUpperCase();
+}
+
+/** Genera el deep link al detalle del pedido en el CRM (vista vendedor). */
+function orderDeepLink(order: OrderRecord, tallerNumber?: number | null): string {
+  const slug = formatOrderLabel(order, tallerNumber);
+  return `${APP_URL}/vendedor/pedidos/${slug}`;
 }
 
 function formatCurrency(n: number): string {
@@ -83,7 +93,7 @@ function formatCurrency(n: number): string {
 
 /**
  * Devuelve "@username" si tenemos username de Telegram, sino el nombre real
- * en negrita HTML (sin ping). El username debe venir limpio (sin @, sin espacios).
+ * en negrita HTML (sin ping).
  */
 function vendorMention(
   telegramUsername: string | null | undefined,
@@ -101,34 +111,40 @@ function esc(s: string | null | undefined): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function vehicle(order: OrderRecord): string {
+  return `${esc(order.vehicle_brand)} ${esc(order.vehicle_model)} ${order.vehicle_year}`;
+}
+
 // ─── Formatters por acción ────────────────────────────────────────────────
 
 export function formatOrderCreated(ctx: FormatContext): string {
-  const label = formatOrderLabel(ctx.order);
-  const vehicle = `${ctx.order.vehicle_brand} ${ctx.order.vehicle_model} ${ctx.order.vehicle_year}`;
+  const label = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   return [
     `🆕 <b>[NUEVO PEDIDO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <code>#${label}</code>`,
-    `🚗 ${esc(vehicle)}`,
+    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `🚗 ${vehicle(ctx.order)}`,
   ].join('\n');
 }
 
 export function formatOrderTaken(ctx: FormatContext, event: OrderEventRecord): string {
-  const label = formatOrderLabel(ctx.order);
+  const label = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   return [
     `🙋 <b>[TOMADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> tomó el pedido <code>#${label}</code>`,
-    `🏢 ${esc(ctx.workshopName)}`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> tomó <a href="${link}"><code>#${label}</code></a>`,
+    `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
   ].join('\n');
 }
 
 export function formatQuoteSent(ctx: FormatContext, event: OrderEventRecord): string {
-  const label = formatOrderLabel(ctx.order);
+  const label = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   return [
     `📝 <b>[COTIZADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> envió cotización para <code>#${label}</code>`,
-    `🏢 ${esc(ctx.workshopName)}`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> envió cotización para <a href="${link}"><code>#${label}</code></a>`,
+    `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
   ].join('\n');
 }
 
@@ -137,14 +153,16 @@ export function formatQuoteApproved(
   event: OrderEventRecord,
   partial: boolean
 ): string {
-  const label = formatOrderLabel(ctx.order);
+  const label   = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link    = orderDeepLink(ctx.order, ctx.tallerNumber);
   const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
-  const monto = ctx.approvedTotal != null ? formatCurrency(ctx.approvedTotal) : '—';
-  const tag = partial ? '🟡 <b>[APROBADO PARCIAL]</b>' : '🟢 <b>[APROBADO]</b>';
-  const lines = [
+  const monto   = ctx.approvedTotal != null ? formatCurrency(ctx.approvedTotal) : '—';
+  const tag     = partial ? '🟡 <b>[APROBADO PARCIAL]</b>' : '🟢 <b>[APROBADO]</b>';
+  const lines   = [
     tag,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <code>#${label}</code>`,
+    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `🚗 ${vehicle(ctx.order)}`,
     `💰 <b>Monto:</b> ${monto}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);
@@ -153,12 +171,14 @@ export function formatQuoteApproved(
 }
 
 export function formatQuoteRejected(ctx: FormatContext, event: OrderEventRecord): string {
-  const label = formatOrderLabel(ctx.order);
+  const label   = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link    = orderDeepLink(ctx.order, ctx.tallerNumber);
   const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
-  const lines = [
+  const lines   = [
     `🔴 <b>[RECHAZADO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <code>#${label}</code>`,
+    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `🚗 ${vehicle(ctx.order)}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);
   lines.push('', `🔔 ${mention}, el taller rechazó tu cotización.`);
@@ -166,33 +186,37 @@ export function formatQuoteRejected(ctx: FormatContext, event: OrderEventRecord)
 }
 
 export function formatOrderMarkedPaid(ctx: FormatContext, event: OrderEventRecord): string {
-  const label = formatOrderLabel(ctx.order);
+  const label = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   return [
     `💰 <b>[PAGO REGISTRADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> registró el pago de <code>#${label}</code>`,
-    `🏢 ${esc(ctx.workshopName)}`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> registró el pago de <a href="${link}"><code>#${label}</code></a>`,
+    `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
     `⏳ Mercadería pendiente de entrega.`,
   ].join('\n');
 }
 
 export function formatOrderDelivered(ctx: FormatContext, event: OrderEventRecord): string {
-  const label = formatOrderLabel(ctx.order);
+  const label = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   const monto = ctx.approvedTotal != null ? formatCurrency(ctx.approvedTotal) : '—';
   return [
     `📦 <b>[ENTREGADO Y COBRADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> entregó <code>#${label}</code>`,
-    `🏢 ${esc(ctx.workshopName)}`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> entregó <a href="${link}"><code>#${label}</code></a>`,
+    `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
     `✅ <b>Total facturado:</b> ${monto}`,
   ].join('\n');
 }
 
 export function formatClaimInitiated(ctx: FormatContext, event: OrderEventRecord): string {
-  const label = formatOrderLabel(ctx.order);
+  const label   = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link    = orderDeepLink(ctx.order, ctx.tallerNumber);
   const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
-  const lines = [
+  const lines   = [
     `⚠️ <b>[CONFLICTO INICIADO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <code>#${label}</code>`,
+    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `🚗 ${vehicle(ctx.order)}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);
   lines.push('', `🔔 ${mention}, el taller inició un reclamo. Requiere atención inmediata.`);
@@ -200,25 +224,23 @@ export function formatClaimInitiated(ctx: FormatContext, event: OrderEventRecord
 }
 
 export function formatConflictResolved(ctx: FormatContext, event: OrderEventRecord): string {
-  const label = formatOrderLabel(ctx.order);
+  const label = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   const lines = [
     `🤝 <b>[CONFLICTO RESUELTO]</b>`,
-    `👤 <b>${esc(event.user_name ?? "Usuario")}</b> resolvió <code>#${label}</code>`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> resolvió <a href="${link}"><code>#${label}</code></a>`,
     `🏢 ${esc(ctx.workshopName)}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);
   return lines.join('\n');
 }
 
-/**
- * Mention puro: cuando el taller modifica un pedido ya asignado y queremos
- * pingear al vendedor sin un evento estructurado.
- */
 export function formatVendorMention(ctx: FormatContext, accion: string): string {
-  const label = formatOrderLabel(ctx.order);
+  const label   = formatOrderLabel(ctx.order, ctx.tallerNumber);
+  const link    = orderDeepLink(ctx.order, ctx.tallerNumber);
   const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
   return [
-    `🔔 ${mention}, el taller modificó <code>#${label}</code>`,
+    `🔔 ${mention}, el taller modificó <a href="${link}"><code>#${label}</code></a>`,
     `🏢 ${esc(ctx.workshopName)} · ${esc(accion)}`,
     `Esperando tu respuesta.`,
   ].join('\n');
@@ -226,10 +248,6 @@ export function formatVendorMention(ctx: FormatContext, accion: string): string 
 
 // ─── Dispatcher central ───────────────────────────────────────────────────
 
-/**
- * Dada una acción de evento, devuelve el mensaje formateado para el grupo
- * o `null` si no corresponde notificar.
- */
 export function formatEventForGroup(
   event: OrderEventRecord,
   ctx: FormatContext
@@ -246,7 +264,6 @@ export function formatEventForGroup(
     case 'pedido_pagado':                return formatOrderDelivered(ctx, event);
     case 'reclamo_iniciado':             return formatClaimInitiated(ctx, event);
     case 'conflicto_resuelto':           return formatConflictResolved(ctx, event);
-    // Eventos silenciados para no spamear:
     case 'pedido_en_revision':
     case 'pedido_liberado':
     case 'pedido_cerrado':
@@ -258,33 +275,150 @@ export function formatEventForGroup(
 
 // ─── Métricas privadas para el admin ──────────────────────────────────────
 
-export interface AdminMetricsSnapshot {
-  /** Etiqueta del período (ej: 'Hoy', 'Últimos 7 días', 'Mayo 2026'). */
-  periodo: string;
-  /** Monto total facturado en ARS (suma de pedidos cerrado_pagado). */
-  facturado: number;
-  /** Cantidad de pedidos entregados (cerrado_pagado). */
+export interface VendorStat {
+  name: string;
   entregados: number;
-  /** Cantidad de pedidos pendientes (status pendiente + en_revision). */
+  facturado: number;
+}
+
+export interface BottleneckOrder {
+  label: string;
+  horasEstancado: number;
+  workshopName: string;
+}
+
+export interface AdminMetricsSnapshot {
+  periodo: string;
+  facturado: number;
+  entregados: number;
   pendientes: number;
-  /** Cantidad de pedidos en conflicto. */
   enConflicto: number;
-  /** Ticket promedio (facturado / entregados). */
   ticketPromedio?: number;
+  /** Monto del período anterior para comparación (opcional). */
+  facturadoAnterior?: number;
+  /** Entregados período anterior (opcional). */
+  entregadosAnterior?: number;
+  /** Top vendedor del período (opcional). */
+  topVendedor?: VendorStat;
+  /** Pedidos atascados >48h en en_revision (opcional). */
+  bottlenecks?: BottleneckOrder[];
+}
+
+function diffArrow(current: number, previous: number): string {
+  if (previous === 0) return '';
+  const pct = Math.round(((current - previous) / previous) * 100);
+  if (pct > 0)  return ` ▲${pct}%`;
+  if (pct < 0)  return ` ▼${Math.abs(pct)}%`;
+  return ' →0%';
 }
 
 /**
- * Reporte simple para el chat privado de Juan.
+ * Reporte agresivo para el chat privado de Juan.
+ * Incluye comparativa MoM, top vendedor y alertas de cuellos de botella.
  */
 export function formatAdminMetrics(snap: AdminMetricsSnapshot): string {
   const ticket = snap.ticketPromedio ?? (snap.entregados > 0 ? snap.facturado / snap.entregados : 0);
-  return [
+
+  const facturadoCmp = snap.facturadoAnterior != null
+    ? diffArrow(snap.facturado, snap.facturadoAnterior)
+    : '';
+  const entregadosCmp = snap.entregadosAnterior != null
+    ? diffArrow(snap.entregados, snap.entregadosAnterior)
+    : '';
+
+  const lines = [
     `📊 <b>Métricas — ${esc(snap.periodo)}</b>`,
     ``,
-    `💰 <b>Facturado:</b> ${formatCurrency(snap.facturado)}`,
-    `✅ <b>Entregados:</b> ${snap.entregados}`,
+    `💰 <b>Facturado:</b> ${formatCurrency(snap.facturado)}${facturadoCmp}`,
+    `✅ <b>Entregados:</b> ${snap.entregados}${entregadosCmp}`,
     `📊 <b>Ticket promedio:</b> ${formatCurrency(ticket)}`,
     `⏳ <b>Pendientes:</b> ${snap.pendientes}`,
     `⚠️ <b>En conflicto:</b> ${snap.enConflicto}`,
+  ];
+
+  if (snap.topVendedor) {
+    const tv = snap.topVendedor;
+    lines.push('');
+    lines.push(`🏆 <b>Top vendedor:</b> ${esc(tv.name)} — ${tv.entregados} ent. · ${formatCurrency(tv.facturado)}`);
+  }
+
+  if (snap.bottlenecks && snap.bottlenecks.length > 0) {
+    lines.push('');
+    lines.push(`🚨 <b>Cuellos de botella (&gt;48h sin respuesta):</b>`);
+    snap.bottlenecks.slice(0, 5).forEach(b => {
+      lines.push(`  · <code>${esc(b.label)}</code> — ${esc(b.workshopName)} (${b.horasEstancado}h)`);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+// ─── Slash commands ───────────────────────────────────────────────────────
+
+export interface HoySnapshot {
+  fecha: string;
+  facturadoHoy: number;
+  entregadosHoy: number;
+  nuevosHoy: number;
+  pendientesTotal: number;
+  enConflictoTotal: number;
+}
+
+export function formatSlashHoy(snap: HoySnapshot): string {
+  return [
+    `📅 <b>Hoy · ${esc(snap.fecha)}</b>`,
+    ``,
+    `💰 <b>Facturado hoy:</b> ${formatCurrency(snap.facturadoHoy)}`,
+    `📦 <b>Entregados hoy:</b> ${snap.entregadosHoy}`,
+    `🆕 <b>Nuevos hoy:</b> ${snap.nuevosHoy}`,
+    ``,
+    `⏳ <b>Pendientes (total):</b> ${snap.pendientesTotal}`,
+    `⚠️ <b>En conflicto:</b> ${snap.enConflictoTotal}`,
   ].join('\n');
+}
+
+export interface VendorLeaderboard {
+  vendedores: VendorStat[];
+  periodo: string;
+}
+
+export function formatSlashVendedores(data: VendorLeaderboard): string {
+  if (data.vendedores.length === 0) {
+    return `👥 <b>Vendedores — ${esc(data.periodo)}</b>\n\nSin actividad registrada.`;
+  }
+  const medals = ['🥇', '🥈', '🥉'];
+  const rows = data.vendedores.slice(0, 8).map((v, i) => {
+    const medal = medals[i] ?? `${i + 1}.`;
+    return `${medal} <b>${esc(v.name)}</b> — ${v.entregados} ent. · ${formatCurrency(v.facturado)}`;
+  });
+  return [`👥 <b>Ranking vendedores — ${esc(data.periodo)}</b>`, '', ...rows].join('\n');
+}
+
+export interface AlertasSnapshot {
+  bottlenecks: BottleneckOrder[];
+  enConflicto: number;
+  sinAsignar: number;
+}
+
+export function formatSlashAlertas(data: AlertasSnapshot): string {
+  const lines: string[] = [`🚨 <b>Alertas activas</b>`, ``];
+
+  if (data.sinAsignar > 0) {
+    lines.push(`📭 <b>${data.sinAsignar} pedido${data.sinAsignar !== 1 ? 's' : ''} sin vendedor asignado</b>`);
+  }
+  if (data.enConflicto > 0) {
+    lines.push(`⚠️ <b>${data.enConflicto} pedido${data.enConflicto !== 1 ? 's' : ''} en conflicto activo</b>`);
+  }
+  if (data.bottlenecks.length > 0) {
+    lines.push(``, `⏱ <b>Atascados &gt;48h en revisión:</b>`);
+    data.bottlenecks.slice(0, 10).forEach(b => {
+      lines.push(`  · <code>${esc(b.label)}</code> — ${esc(b.workshopName)} (${b.horasEstancado}h)`);
+    });
+  }
+
+  if (data.sinAsignar === 0 && data.enConflicto === 0 && data.bottlenecks.length === 0) {
+    lines.push(`✅ Todo en orden. No hay alertas activas.`);
+  }
+
+  return lines.join('\n');
 }

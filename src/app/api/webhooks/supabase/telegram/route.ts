@@ -81,6 +81,8 @@ function getServiceClient(): SupabaseClient {
 interface OrderQueryResult {
   order: OrderRecord;
   workshopName: string;
+  /** Número secuencial del taller (workshops.taller_number). */
+  tallerNumber: number | null;
   /** Username de Telegram sin @ ni espacios. Null si el vendedor no tiene. */
   vendorTelegramUsername: string | null;
   /** Nombre real del vendedor (profiles.name). Null si no hay vendedor asignado. */
@@ -113,7 +115,7 @@ async function lookupOrder(orderId: string): Promise<OrderQueryResult | null> {
        vehicle_year,
        created_at,
        updated_at,
-       workshop:workshops(name),
+       workshop:workshops(name, taller_number),
        vendor:profiles!assigned_vendor_id(name, telegram_username)`
     )
     .eq('id', orderId)
@@ -137,7 +139,7 @@ async function lookupOrder(orderId: string): Promise<OrderQueryResult | null> {
     vehicle_year: number;
     created_at: string;
     updated_at: string;
-    workshop: { name: string } | null;
+    workshop: { name: string; taller_number: number | null } | null;
     vendor: { name: string; telegram_username: string | null } | null;
   };
 
@@ -162,6 +164,7 @@ async function lookupOrder(orderId: string): Promise<OrderQueryResult | null> {
   return {
     order,
     workshopName: row.workshop?.name ?? 'Taller',
+    tallerNumber: row.workshop?.taller_number ?? null,
     vendorTelegramUsername,
     vendorName: row.vendor?.name ?? null,
   };
@@ -232,7 +235,7 @@ async function handleOrderEventInsert(event: OrderEventRecord): Promise<HandleRe
     return { ok: false, reason: 'order_not_found' };
   }
 
-  const { order, workshopName, vendorTelegramUsername, vendorName } = result;
+  const { order, workshopName, tallerNumber, vendorTelegramUsername, vendorName } = result;
 
   // lookupApprovedTotal y lookupUserName siguen siendo queries separadas
   // porque no tienen FK directa desde orders.
@@ -243,6 +246,7 @@ async function handleOrderEventInsert(event: OrderEventRecord): Promise<HandleRe
 
   log('info', 'context resolved:', {
     workshop: workshopName,
+    tallerNumber,
     vendor: vendorTelegramUsername,
     vendorName,
     total: approvedTotal,
@@ -251,7 +255,7 @@ async function handleOrderEventInsert(event: OrderEventRecord): Promise<HandleRe
 
   // Inyectar user_name resuelto desde profiles
   const enrichedEvent: OrderEventRecord = { ...event, user_name: actorName };
-  const ctx: FormatContext = { order, workshopName, vendorTelegramUsername, vendorName, approvedTotal };
+  const ctx: FormatContext = { order, workshopName, tallerNumber, vendorTelegramUsername, vendorName, approvedTotal };
   const msg = formatEventForGroup(enrichedEvent, ctx);
   if (!msg) {
     log('info', 'evento silenciado por formatter:', event.action);
@@ -290,8 +294,8 @@ async function handleOrderUpdate(oldRow: OrderRecord, newRow: OrderRecord): Prom
     return { ok: false, reason: 'order_not_found' };
   }
 
-  const { order, workshopName, vendorTelegramUsername, vendorName } = result;
-  const ctx: FormatContext = { order, workshopName, vendorTelegramUsername, vendorName };
+  const { order, workshopName, tallerNumber, vendorTelegramUsername, vendorName } = result;
+  const ctx: FormatContext = { order, workshopName, tallerNumber, vendorTelegramUsername, vendorName };
   const msg = formatVendorMention(ctx, 'editó datos del vehículo');
   const send = await sendToGroup(msg);
   if (!send.ok) {
@@ -339,6 +343,7 @@ async function handleTestMode(body: { test: string }): Promise<NextResponse> {
     const ctx: FormatContext = {
       order: mockOrder,
       workshopName: 'Taller QA',
+      tallerNumber: 1,
       vendorTelegramUsername: 'Franco_San_Martin',
       vendorName: 'Lucas Pereyra',   // resuelto via JOIN en producción
       approvedTotal: 125000,

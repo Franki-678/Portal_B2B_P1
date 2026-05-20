@@ -19,7 +19,7 @@ interface PageProps {
 export default function TallerPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderById, approveQuote, rejectQuote, approveQuotePartial, deleteOrder, initiateClaim } = useDataStore();
+  const { getOrderBySlug, approveQuote, rejectQuote, approveQuotePartial, deleteOrder, initiateClaim } = useDataStore();
   const router = useRouter();
 
   const [rejecting, setRejecting] = useState(false);
@@ -35,7 +35,8 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'efectivo'>('transferencia');
   const lightbox = useImageLightbox();
 
-  const order = getOrderById(id);
+  // Soporta tanto UUID (legacy) como slug "PED-XXXX"
+  const order = getOrderBySlug(id, user?.workshopId);
 
   if (!order) {
     return (

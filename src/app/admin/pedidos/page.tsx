@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Order, OrderStatus } from '@/lib/types';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { fetchDeletedOrders } from '@/lib/supabase/queries';
-import { formatDate, formatVendorOrderLabel } from '@/lib/utils';
+import { formatDate, formatVendorOrderLabel, matchesOrderSearch } from '@/lib/utils';
 
 const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
   { value: 'todos', label: 'Todos' },
@@ -39,14 +39,7 @@ export default function AdminPedidosPage() {
   const filtered = useMemo(() => {
     let rows = filter === 'todos' ? all : all.filter(order => order.status === filter);
     if (!search.trim()) return rows;
-
-    const query = search.toLowerCase();
-    return rows.filter(order =>
-      order.items.some(item => item.partName.toLowerCase().includes(query)) ||
-      order.vehicleBrand.toLowerCase().includes(query) ||
-      order.vehicleModel.toLowerCase().includes(query) ||
-      (order.workshop?.name.toLowerCase().includes(query) ?? false)
-    );
+    return rows.filter(order => matchesOrderSearch(order, search));
   }, [all, filter, search]);
 
   const loadDeleted = useCallback(async () => {
@@ -112,7 +105,7 @@ export default function AdminPedidosPage() {
                   type="text"
                   value={search}
                   onChange={event => setSearch(event.target.value)}
-                  placeholder="Buscar por repuesto, vehículo o taller..."
+                  placeholder="Buscar por repuesto, vehículo, taller o PED-0142..."
                   className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-700 focus:outline-none lg:max-w-md"
                 />
                 <div className="flex flex-wrap gap-2">
@@ -147,7 +140,8 @@ export default function AdminPedidosPage() {
               />
             ) : (
               <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-zinc-950/70">
                     <tr className="border-b border-zinc-800 text-left">
                       <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">ID</th>
@@ -169,6 +163,7 @@ export default function AdminPedidosPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </>
@@ -194,7 +189,8 @@ export default function AdminPedidosPage() {
                 <p className="text-sm text-zinc-500">No hay pedidos eliminados.</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b border-zinc-800 bg-zinc-950/40">
                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-zinc-500">Pedido</th>
@@ -233,6 +229,7 @@ export default function AdminPedidosPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}

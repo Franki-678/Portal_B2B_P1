@@ -37,7 +37,7 @@ interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved' |
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderById, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder, markOrderPaidByVendor, markOrderDelivered, resolveConflict } = useDataStore();
+  const { getOrderBySlug, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder, markOrderPaidByVendor, markOrderDelivered, resolveConflict } = useDataStore();
   const router = useRouter();
 
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -55,7 +55,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [conflictLoading, setConflictLoading] = useState(false);
   const lightbox = useImageLightbox();
 
-  const order = getOrderById(id);
+  // Soporta UUID (legacy) y slug "NN-PED-XXXX" / "PED-XXXX"
+  const order = getOrderBySlug(id);
 
   // Inicializar los ítems cuando se abre o detecta el pedido
   useEffect(() => {

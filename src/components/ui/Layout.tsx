@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { cn, getTallerDisplayName } from '@/lib/utils';
+import { cn, getTallerDisplayName, PED_SLUG_REGEX } from '@/lib/utils';
 import { Button } from './Button';
 
 interface NavItem {
@@ -34,12 +34,20 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 function buildBreadcrumbs(pathname: string, orderLabel?: string) {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return [{ href: '/', label: 'Inicio' }];
-  return segments.map((segment, index) => ({
-    href: `/${segments.slice(0, index + 1).join('/')}`,
-    label: UUID_REGEX.test(segment)
-      ? (orderLabel ?? 'Pedido')
-      : toTitleCase(decodeURIComponent(segment)),
-  }));
+  return segments.map((segment, index) => {
+    const decoded = decodeURIComponent(segment);
+    let label: string;
+    if (UUID_REGEX.test(decoded) || PED_SLUG_REGEX.test(decoded)) {
+      // UUID o slug de pedido: mostrar la etiqueta friendly si está disponible
+      label = orderLabel ?? `#${decoded.toUpperCase()}`;
+    } else {
+      label = toTitleCase(decoded);
+    }
+    return {
+      href: `/${segments.slice(0, index + 1).join('/')}`,
+      label,
+    };
+  });
 }
 
 /** Sidebar interior reutilizable */

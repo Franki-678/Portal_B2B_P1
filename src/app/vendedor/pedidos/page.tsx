@@ -4,12 +4,13 @@ import { useDataStore } from '@/contexts/DataStoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
-import { OrderDrawer } from '@/components/orders/OrderDrawer';
 import { useSearchParams } from 'next/navigation';
 import { useState, Suspense } from 'react';
-import { Order, OrderStatus } from '@/lib/types';
+import { OrderStatus } from '@/lib/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { Button } from '@/components/ui/Button';
+import { matchesOrderSearch, formatOrderSlug } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
   { value: 'todos', label: 'Todos' },
@@ -26,23 +27,16 @@ function PedidosContent() {
   const { getAllOrders } = useDataStore();
   const { user } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialStatus = (searchParams.get('status') as OrderStatus | null) || 'todos';
   const [filter, setFilter] = useState<'todos' | OrderStatus>(initialStatus as 'todos' | OrderStatus);
   const [search, setSearch] = useState('');
-  const [drawerOrder, setDrawerOrder] = useState<Order | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // "Mis pedidos" = asignados a mí (no la cola general)
   const all = getAllOrders().filter(o => o.assignedVendorId === user?.id || (user?.role === 'admin'));
   let filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
   if (search.trim()) {
-    const q = search.toLowerCase();
-    filtered = filtered.filter(o =>
-      o.items.some(i => i.partName.toLowerCase().includes(q)) ||
-      o.vehicleBrand.toLowerCase().includes(q) ||
-      o.vehicleModel.toLowerCase().includes(q) ||
-      (o.workshop?.name.toLowerCase().includes(q) ?? false)
-    );
+    filtered = filtered.filter(o => matchesOrderSearch(o, search));
   }
 
   return (
@@ -58,7 +52,7 @@ function PedidosContent() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="🔍 Buscar por repuesto, vehículo, taller..."
+            placeholder="🔍 Buscar por repuesto, vehículo, taller o PED-0142..."
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
@@ -99,7 +93,8 @@ function PedidosContent() {
           />
         ) : (
           <div className="bg-[#1A1D27] border border-white/8 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[600px] text-sm">
               <thead>
                 <tr className="text-left border-b border-white/8">
                   <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">ID</th>
@@ -116,23 +111,15 @@ function PedidosContent() {
                     key={order.id}
                     order={order}
                     role="vendedor"
-                    onClick={() => {
-                      setDrawerOrder(order);
-                      setDrawerOpen(true);
-                    }}
+                    onClick={() => router.push(`/vendedor/pedidos/${formatOrderSlug(order, 'vendedor')}`)}
                   />
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
-      <OrderDrawer
-        order={drawerOrder}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        role="vendedor"
-      />
     </>
   );
 }
