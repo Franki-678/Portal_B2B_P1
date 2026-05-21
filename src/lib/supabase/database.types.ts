@@ -45,9 +45,18 @@ export type Database = {
           workshop_id: string | null;
           assigned_workshops: string[] | null;
           phone: string | null;
+          /** Campos legacy — presentes en DB pero no usados en el frontend. */
           company_name: string | null;
           company_address: string | null;
           created_at: string;
+          /** Email de contacto del usuario (sincronizado desde auth.users). */
+          email: string | null;
+          /** Handle de Telegram opcional para notificaciones directas. */
+          telegram_username: string | null;
+          /** Si es true, el usuario debe cambiar su contraseña al próximo login. */
+          must_change_password: boolean;
+          /** Soft-delete: fecha en que la cuenta fue desactivada. */
+          deleted_at: string | null;
         };
         Insert: {
           id: string;
@@ -59,6 +68,10 @@ export type Database = {
           company_name?: string | null;
           company_address?: string | null;
           created_at?: string;
+          email?: string | null;
+          telegram_username?: string | null;
+          must_change_password?: boolean;
+          deleted_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
       };
@@ -80,8 +93,12 @@ export type Database = {
             | 'cotizado'
             | 'aprobado_parcial'
             | 'aprobado'
+            | 'pagado'
             | 'rechazado'
-            | 'cerrado';
+            | 'cerrado'
+            | 'cerrado_pagado'
+            | 'en_conflicto'
+            | 'cancelado';
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -90,6 +107,8 @@ export type Database = {
           adjustment_amount: number | null;
           adjustment_note: string | null;
           is_urgent: boolean;
+          /** URL pública de la cédula del vehículo (Storage bucket: vehicle_documents). */
+          cedula_url: string | null;
         };
         Insert: {
           id?: string;
@@ -111,6 +130,7 @@ export type Database = {
           adjustment_amount?: number | null;
           adjustment_note?: string | null;
           is_urgent?: boolean;
+          cedula_url?: string | null;
         };
         Update: Partial<Database['public']['Tables']['orders']['Insert']>;
       };

@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { DataStoreProvider } from '@/contexts/DataStoreContext';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,6 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </DataStoreProvider>
         </AuthProvider>
+        {/* Telemetría Vercel — carga diferida, no bloquea rendering */}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
