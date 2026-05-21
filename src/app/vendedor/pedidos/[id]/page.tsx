@@ -128,6 +128,11 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const isMyOrder = order.assignedVendorId === user?.id || user?.role === 'admin';
   const isUnassigned = !order.assignedVendorId;
 
+  // Motivo del rechazo: extraído del último evento 'cotizacion_rechazada'
+  const rejectionComment = order.status === 'rechazado'
+    ? (order.events.filter(e => e.action === 'cotizacion_rechazada').at(-1)?.comment ?? null)
+    : null;
+
   const handleSetInReview = async () => {
     setActionLoading(true);
     await setOrderInReview(order.id, user!.id, user!.name, 'Pedido tomado para revisión.');
@@ -384,6 +389,21 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           </div>
         )}
 
+        {/* Motivo del Rechazo */}
+        {order.status === 'rechazado' && (
+          <div className="flex items-start gap-4 rounded-2xl border border-rose-500/30 bg-rose-600/8 px-5 py-5 shadow-sm">
+            <span className="shrink-0 text-2xl leading-none">❌</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-rose-300 text-sm mb-1.5">Motivo del rechazo:</p>
+              {rejectionComment ? (
+                <p className="text-sm text-rose-200/80 leading-relaxed whitespace-pre-line">{rejectionComment}</p>
+              ) : (
+                <p className="text-sm text-zinc-500 italic">Sin comentarios adicionales</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Header Detalle Pedido */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-5">
@@ -415,16 +435,6 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               <h2 className="text-2xl font-extrabold text-zinc-100 tracking-tight">Pedido del Taller</h2>
               <p className="text-sm font-medium text-zinc-400 mt-1">
                 &#x1F697; {order.vehicleBrand} {order.vehicleModel} <span className="text-sky-400 font-bold">{order.vehicleVersion}</span> &#x2022; {order.vehicleYear}
-              </p>
-              <p className="text-sm font-semibold text-orange-500 mt-2 bg-orange-500/10 inline-flex items-center gap-2 flex-wrap px-2 py-1 rounded-md border border-orange-500/20">
-                &#x1F3ED; {order.workshop?.name}
-                {order.workshop?.phone && (
-                  <WhatsAppLink
-                    phone={order.workshop.phone}
-                    message={`Hola, te contacto por el pedido ${formatVendorOrderLabel(order)}`}
-                    className="!px-2 !py-0.5"
-                  />
-                )}
               </p>
             </div>
             <div className="flex flex-col sm:items-end gap-1 text-xs font-medium text-zinc-500">
