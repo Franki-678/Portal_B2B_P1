@@ -94,6 +94,7 @@ export default function NuevoPedidoPage() {
   const [items, setItems] = useState<NewOrderItemForm[]>([emptyItem()]);
 
   const [isUrgent, setIsUrgent] = useState(false);
+  const [cedulaFile, setCedulaFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -187,6 +188,23 @@ export default function NuevoPedidoPage() {
     const timer = setTimeout(() => setShowSlowMessage(true), 10_000);
 
     try {
+      // Subir cédula si fue seleccionada
+      let cedulaUrl: string | undefined;
+      if (cedulaFile) {
+        const sb = getSupabaseClient();
+        const ext = cedulaFile.name.split('.').pop() ?? 'jpg';
+        const path = `${user?.workshopId ?? 'unknown'}/${Date.now()}.${ext}`;
+        const { error: uploadError } = await sb.storage
+          .from('vehicle_documents')
+          .upload(path, cedulaFile, { upsert: false });
+        if (uploadError) {
+          console.error('[Storage] Error subiendo cédula:', uploadError.message);
+        } else {
+          const { data: urlData } = sb.storage.from('vehicle_documents').getPublicUrl(path);
+          cedulaUrl = urlData.publicUrl;
+        }
+      }
+
       const newOrder = await createOrder({
         workshopId: user?.workshopId || '',
         vehicleBrand:   isUniversal ? 'Universal' : vehicleBrand,
@@ -195,6 +213,7 @@ export default function NuevoPedidoPage() {
         vehicleYear:    isUniversal ? 0            : (parseInt(vehicleYear) || 0),
         internalOrderNumber: internalOrderNumber.trim() || undefined,
         isUrgent,
+        cedulaUrl,
         items: items.map(i => ({
           partName: i.partName,
           description: i.description,
@@ -404,7 +423,7 @@ export default function NuevoPedidoPage() {
                 {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Marca"
-                    required
+                    required={!isUniversal}
                     value={vehicleBrand}
                     onChange={e => handleBrandChange(e.target.value)}
                     options={marcaOptions}
@@ -415,7 +434,7 @@ export default function NuevoPedidoPage() {
                 ) : (
                   <Input
                     label="Marca"
-                    required
+                    required={!isUniversal}
                     value={vehicleBrand}
                     onChange={e => {
                       setVehicleBrand(e.target.value);
@@ -430,7 +449,7 @@ export default function NuevoPedidoPage() {
                 {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Modelo"
-                    required
+                    required={!isUniversal}
                     value={vehicleModel}
                     onChange={e => handleModelChange(e.target.value)}
                     options={modeloOptions}
@@ -441,7 +460,7 @@ export default function NuevoPedidoPage() {
                 ) : (
                   <Input
                     label="Modelo"
-                    required
+                    required={!isUniversal}
                     value={vehicleModel}
                     onChange={e => {
                       setVehicleModel(e.target.value);
@@ -456,7 +475,7 @@ export default function NuevoPedidoPage() {
                 {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Año"
-                    required
+                    required={!isUniversal}
                     value={vehicleYear}
                     onChange={e => handleYearChange(e.target.value)}
                     options={yearOptions}
@@ -473,7 +492,7 @@ export default function NuevoPedidoPage() {
                 ) : (
                   <Select
                     label="Año del vehículo"
-                    required
+                    required={!isUniversal}
                     value={vehicleYear}
                     onChange={e => setVehicleYear(e.target.value)}
                     options={YEARS_FALLBACK}
@@ -486,7 +505,7 @@ export default function NuevoPedidoPage() {
                 {marcaOptions.length > 0 && !vehicleNotInList ? (
                   <Select
                     label="Versión"
-                    required={versionOptions.length > 0}
+                    required={!isUniversal && versionOptions.length > 0}
                     value={vehicleVersion}
                     onChange={e => handleVersionChange(e.target.value)}
                     options={versionOptions}
@@ -516,6 +535,48 @@ export default function NuevoPedidoPage() {
                   onChange={e => setInternalOrderNumber(e.target.value)}
                   placeholder="Uso interno del taller"
                 />
+
+                {/* ── Cédula del Vehículo ── */}
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="block text-xs font-semibold text-zinc-300 tracking-wide">
+                    Cédula del Vehículo <span className="text-zinc-500 font-normal">(opcional)</span>
+                  </label>
+                  <label className={[
+                    'flex items-center gap-3 w-full px-4 py-3 rounded-xl border cursor-pointer transition-all duration-200',
+                    cedulaFile
+                      ? 'bg-emerald-950/30 border-emerald-500/30 hover:border-emerald-500/50'
+                      : 'bg-zinc-950/50 border-zinc-800 hover:border-zinc-600',
+                  ].join(' ')}>
+                    <span className="text-lg">{cedulaFile ? '📄' : '📎'}</span>
+                    <div className="flex-1 min-w-0">
+                      {cedulaFile ? (
+                        <p className="text-sm text-emerald-400 font-medium truncate">{cedulaFile.name}</p>
+                      ) : (
+                        <p className="text-sm text-zinc-400">Subir imagen o PDF</p>
+                      )}
+                    </div>
+                    {cedulaFile && (
+                      <button
+                        type="button"
+                        onClick={e => { e.preventDefault(); setCedulaFile(null); }}
+                        className="text-xs text-zinc-500 hover:text-rose-400 transition-colors px-2 py-1 shrink-0"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="sr-only"
+                      onChange={e => {
+                        const file = e.target.files?.[0] ?? null;
+                        setCedulaFile(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  <p className="text-[11px] text-zinc-500">Foto o PDF de la cédula verde o azul del vehículo.</p>
+                </div>
 
               </div>
             </div>

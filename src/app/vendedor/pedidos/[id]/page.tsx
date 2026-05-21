@@ -466,6 +466,20 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               <div className="text-[11px] font-medium text-zinc-400">&#x1F4DE; {order.workshop?.phone || 'Sin teléfono'}</div>
               <div className="text-[11px] font-medium text-zinc-400">&#x1F4CD; {order.workshop?.address || 'Sin dirección'}</div>
             </div>
+            {order.cedulaUrl && (
+              <div className="mt-4 flex items-center gap-3 rounded-xl border border-zinc-800/60 bg-zinc-950/40 px-4 py-3">
+                <span className="text-lg">📄</span>
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex-1">Cédula del Vehículo</p>
+                <a
+                  href={order.cedulaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-xs font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-3 py-1.5 rounded-lg hover:bg-sky-500/20 transition-colors"
+                >
+                  Ver / Descargar →
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Listado de ítems pedidos por el taller */}

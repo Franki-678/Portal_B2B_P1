@@ -140,5 +140,6 @@ export function mapOrder(
     adjustmentAmount: (row as any).adjustment_amount != null ? Number((row as any).adjustment_amount) : null,
     adjustmentNote: (row as any).adjustment_note ?? null,
     isUrgent: (row as any).is_urgent ?? false,
+    cedulaUrl: (row as any).cedula_url ?? undefined,
   };
 }

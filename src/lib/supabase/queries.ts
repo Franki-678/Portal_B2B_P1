@@ -148,7 +148,7 @@ export async function fetchAllOrders(
 
   let ordersQuery = (sb as any)
     .from('orders')
-    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, deleted_at, payment_method, adjustment_amount, adjustment_note, is_urgent')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, deleted_at, payment_method, adjustment_amount, adjustment_note, is_urgent, cedula_url')
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(200);
@@ -334,6 +334,7 @@ export async function createOrderInDB(
       images: File[];
     }[];
     isUrgent?: boolean;
+    cedulaUrl?: string;
   },
   userId: string
 ): Promise<string | null> {
@@ -348,6 +349,7 @@ export async function createOrderInDB(
       internal_order_number: data.internalOrderNumber ?? null,
       status: 'pendiente',
       is_urgent: data.isUrgent ?? false,
+      cedula_url: data.cedulaUrl ?? null,
     })
     .select('id')
     .single();
@@ -682,7 +684,7 @@ export async function insertEvent(
 export async function fetchOrderById(sb: SupabaseClientType, orderId: string): Promise<Order | null> {
   const { data: rows, error } = await (sb as any)
     .from('orders')
-    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, payment_method, adjustment_amount, adjustment_note, is_urgent')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, payment_method, adjustment_amount, adjustment_note, is_urgent, cedula_url')
     .eq('id', orderId)
     .limit(1);
 
@@ -713,7 +715,7 @@ async function fetchAllOrdersForIds(
 ): Promise<Order[]> {
   const { data: rows, error } = await (sb as any)
     .from('orders')
-    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, payment_method, adjustment_amount, adjustment_note, is_urgent')
+    .select('id, workshop_id, vehicle_brand, vehicle_model, vehicle_version, vehicle_year, internal_order_number, order_number, workshop_order_number, assigned_vendor_id, status, created_at, updated_at, payment_method, adjustment_amount, adjustment_note, is_urgent, cedula_url')
     .in('id', orderIds);
 
   if (error) {

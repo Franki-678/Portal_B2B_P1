@@ -181,6 +181,24 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
             <p className="text-sm text-zinc-400 mt-0.5">{order.vehicleYear}</p>
           </div>
 
+          {/* Cédula del Vehículo */}
+          {order.cedulaUrl && (
+            <div className="border-b border-zinc-800/60 px-5 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span>📄</span>
+                <p className="text-xs font-semibold text-zinc-400">Cédula del Vehículo</p>
+              </div>
+              <a
+                href={order.cedulaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-3 py-1.5 rounded-lg hover:bg-sky-500/20 transition-colors"
+              >
+                Ver →
+              </a>
+            </div>
+          )}
+
           {/* Vendedor a cargo — visible para todos */}
           {role !== 'taller' && (
             <div className="border-b border-zinc-800/60 px-5 py-4">

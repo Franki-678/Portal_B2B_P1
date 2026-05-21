@@ -94,6 +94,8 @@ export interface Order {
   adjustmentNote?: string | null;
   /** Pedido marcado como urgente por el taller. */
   isUrgent?: boolean;
+  /** URL de la cédula del vehículo subida por el taller (opcional). */
+  cedulaUrl?: string;
 }
 
 export interface OrderItem {
