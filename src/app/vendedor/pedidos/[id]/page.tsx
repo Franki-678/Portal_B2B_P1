@@ -37,7 +37,7 @@ interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved' |
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderBySlug, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder, markOrderPaidByVendor, markOrderDelivered, resolveConflict } = useDataStore();
+  const { getOrderBySlug, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder, markOrderPaidByVendor, markOrderDelivered, resolveConflict, recotizarOrder } = useDataStore();
   const router = useRouter();
 
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -55,6 +55,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [conflictLoading, setConflictLoading] = useState(false);
   const [conflictAdjustmentType, setConflictAdjustmentType] = useState<'monto' | 'porcentaje'>('monto');
   const [conflictAdjustmentValue, setConflictAdjustmentValue] = useState('');
+  const [showRecotizarModal, setShowRecotizarModal] = useState(false);
+  const [recotizarLoading, setRecotizarLoading] = useState(false);
   const lightbox = useImageLightbox();
 
   // Soporta UUID (legacy) y slug "NN-PED-XXXX" / "PED-XXXX"
@@ -142,6 +144,17 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setActionLoading(true);
     await markOrderDelivered(order.id);
     setActionLoading(false);
+  };
+
+  const handleRecotizar = async () => {
+    setRecotizarLoading(true);
+    const ok = await recotizarOrder(order.id);
+    setRecotizarLoading(false);
+    if (ok) {
+      setShowRecotizarModal(false);
+    } else {
+      alert('No se pudo iniciar la re-cotización. Verificá que el pedido esté en estado "rechazado".');
+    }
   };
 
   const handleResolveConflict = async () => {
@@ -553,6 +566,17 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 {(order.status === 'pendiente' || order.status === 'en_revision') && (
                   <Button size="sm" variant="danger" onClick={() => setShowDeleteModal(true)} loading={actionLoading}>
                     🗑️ Eliminar pedido
+                  </Button>
+                )}
+                {/* Re-cotizar (cotización rechazada por el taller, preacordado fuera del portal) */}
+                {order.status === 'rechazado' && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowRecotizarModal(true)}
+                    loading={actionLoading}
+                    className="bg-sky-600/20 border border-sky-500/40 text-sky-300 hover:bg-sky-600/30"
+                  >
+                    🔄 Re-cotizar (Preacordado)
                   </Button>
                 )}
               </>
@@ -1044,6 +1068,16 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         </div>
       )}
 
+      <ConfirmModal
+        open={showRecotizarModal}
+        title="🔄 Re-cotizar (Preacordado)"
+        description="Esta acción descarta la cotización rechazada y vuelve el pedido a estado 'En revisión' para que puedas armar una nueva cotización. Usá esta opción solo si ya acordaste con el taller por fuera del portal."
+        cancelLabel="Cancelar"
+        confirmLabel="Sí, re-cotizar"
+        onCancel={() => setShowRecotizarModal(false)}
+        onConfirm={handleRecotizar}
+        loading={recotizarLoading}
+      />
       <ConfirmModal
         open={showCloseModal}
         title="&#x00BF;Cerrar este pedido?"

@@ -59,6 +59,7 @@ export const EVENT_ACTION_LABELS: Record<EventAction, string> = {
   pedido_entregado:            'Mercadería entregada',
   reclamo_iniciado:            'Reclamo iniciado',
   conflicto_resuelto:          'Conflicto resuelto',
+  recotizacion_preacordada:    'Re-cotización preacordada',
   comentario:                  'Comentario',
 };
 
@@ -77,6 +78,7 @@ export const EVENT_ACTION_ICONS: Record<EventAction, string> = {
   pedido_entregado:            '📦',
   reclamo_iniciado:            '⚠️',
   conflicto_resuelto:          '🤝',
+  recotizacion_preacordada:    '🔄',
   comentario:                  '💬',
 };
 

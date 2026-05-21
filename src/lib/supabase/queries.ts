@@ -1350,6 +1350,50 @@ export async function resolveConflictInDB(
 }
 
 /**
+ * Vendedor descarta la cotización rechazada y resetea el pedido a 'en_revision'
+ * para poder re-cotizar (preacordado con el taller por fuera del portal).
+ * Elimina quote_items + quote del pedido antes de resetear el estado.
+ */
+export async function recotizarOrderInDB(
+  sb: SupabaseClientType,
+  orderId: string,
+  userId: string
+): Promise<boolean> {
+  // 1. Buscar la cotización existente
+  const { data: quoteRow } = await (sb as any)
+    .from('quotes')
+    .select('id')
+    .eq('order_id', orderId)
+    .maybeSingle();
+
+  // 2. Eliminar ítems de cotización y cotización
+  if (quoteRow?.id) {
+    await (sb as any).from('quote_items').delete().eq('quote_id', quoteRow.id);
+    await (sb as any).from('quotes').delete().eq('id', quoteRow.id);
+  }
+
+  // 3. Resetear estado del pedido
+  const { error } = await (sb as any)
+    .from('orders')
+    .update({ status: 'en_revision', updated_at: new Date().toISOString() })
+    .eq('id', orderId);
+
+  if (error) {
+    console.error('[Supabase] Error en recotizarOrderInDB:', error.message);
+    return false;
+  }
+
+  await insertEvent(
+    sb,
+    orderId,
+    userId,
+    'recotizacion_preacordada',
+    'Cotización anterior descartada. Re-cotización preacordada con el taller.'
+  );
+  return true;
+}
+
+/**
  * Taller inicia un reclamo en un pedido cerrado (cerrado → en_conflicto).
  * El motivo del reclamo se guarda como comentario en el evento.
  * imageFiles: imágenes de evidencia (opcionales) subidas al bucket claim_evidence.

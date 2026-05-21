@@ -237,15 +237,12 @@ function LoginForm() {
                 </Button>
               </form>
 
-              <div className="mt-6 pt-5 border-t border-zinc-800/60 space-y-3">
+              <div className="mt-6 pt-5 border-t border-zinc-800/60">
                 <p className="text-xs text-zinc-600 text-center">
                   ¿Sos un taller nuevo?{' '}
                   <Link href="/registro" className="text-orange-400 hover:text-orange-300 font-semibold transition-colors">
                     Crear cuenta de Taller →
                   </Link>
-                </p>
-                <p className="text-[11px] text-zinc-700 text-center">
-                  Los accesos de vendedor son creados por el administrador.
                 </p>
               </div>
             </>

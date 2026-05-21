@@ -7,7 +7,7 @@ import { DataStoreProvider } from '@/contexts/DataStoreContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Portal B2B Autopartes | Prototipo 1.1',
+  title: 'Portal B2B | RC Repuestos',
   description: 'Sistema B2B para talleres de chapa y pintura. Gestión de pedidos, cotizaciones y repuestos.',
 };
 

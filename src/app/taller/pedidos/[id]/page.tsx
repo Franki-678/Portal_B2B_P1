@@ -174,7 +174,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
       <TopBar
         title={`Pedido ${order.workshopOrderNumber ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}` : order.id.split('-')[0].toUpperCase()}`}
         subtitle={`${order.vehicleBrand} ${order.vehicleModel} ${order.vehicleYear}`}
-        orderLabel={formatVendorOrderLabel(order)}
+        orderLabel={order.workshopOrderNumber ? `PED-${String(order.workshopOrderNumber).padStart(4, '0')}` : order.id.split('-')[0].toUpperCase()}
         action={
           <Button variant="ghost" onClick={() => router.push('/taller/pedidos')}>
             ← Mis pedidos

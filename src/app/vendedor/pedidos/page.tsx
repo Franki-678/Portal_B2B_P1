@@ -38,6 +38,10 @@ function PedidosContent() {
   if (search.trim()) {
     filtered = filtered.filter(o => matchesOrderSearch(o, search));
   }
+  // Siempre mostrar el más reciente primero
+  const sorted = [...filtered].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
 
   return (
     <>
@@ -80,7 +84,7 @@ function PedidosContent() {
         </div>
 
         {/* Table */}
-        {filtered.length === 0 ? (
+        {sorted.length === 0 ? (
           <EmptyState
             icon="📭"
             title="Sin pedidos"
@@ -106,7 +110,7 @@ function PedidosContent() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(order => (
+                {sorted.map(order => (
                   <OrderTableRow
                     key={order.id}
                     order={order}

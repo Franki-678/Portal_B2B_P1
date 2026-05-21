@@ -30,6 +30,7 @@ import {
   markOrderDeliveredInDB,
   initiateClaimInDB,
   resolveConflictInDB,
+  recotizarOrderInDB,
 } from '@/lib/supabase/queries';
 
 // ============================================================
@@ -113,6 +114,11 @@ interface DataStoreContextType {
   initiateClaim: (orderId: string, reason: string, imageFiles?: File[]) => Promise<boolean>;
   /** Admin/Vendedor resuelve un conflicto con resultado y detalle. */
   resolveConflict: (orderId: string, outcome: string, detail: string, adjustmentAmount?: number | null, adjustmentNote?: string) => Promise<boolean>;
+  /**
+   * Vendedor descarta cotización rechazada y resetea el pedido a en_revision
+   * para poder armar una nueva cotización preacordada con el taller.
+   */
+  recotizarOrder: (orderId: string) => Promise<boolean>;
   /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
   refreshData: (opts?: { forceWorkshops?: boolean; silent?: boolean }) => Promise<void>;
   /** Fuerza recarga de pedidos y talleres (botón Reintentar). */
@@ -675,6 +681,25 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     [user, updateLocalOrder, refreshData]
   );
 
+  const recotizarOrder = useCallback(
+    async (orderId: string): Promise<boolean> => {
+      if (!user) return false;
+      const sb = getSupabaseClient();
+      const ok = await recotizarOrderInDB(sb, orderId, user.id);
+      if (ok) {
+        // Limpiar la cotización del estado local y resetear estado del pedido
+        updateLocalOrder(orderId, order => ({
+          ...order,
+          status: 'en_revision' as OrderStatus,
+          quote: undefined,
+        }));
+        void refreshData({ silent: true });
+      }
+      return ok;
+    },
+    [user, updateLocalOrder, refreshData]
+  );
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -730,6 +755,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         markOrderDelivered,
         initiateClaim,
         resolveConflict,
+        recotizarOrder,
         refreshData,
         refreshOrders,
       }}
