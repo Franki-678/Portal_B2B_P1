@@ -111,7 +111,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
 
-  const { login, mustChangePassword } = useAuth();
+  const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -130,8 +130,9 @@ function LoginForm() {
     try {
       const result = await withTimeout(login(email.trim(), password), FORM_TIMEOUT_MS);
       if (result.success && result.role) {
-        // Si el vendedor debe cambiar contraseña, redirigir primero
-        if (mustChangePassword) {
+        // Usar el valor devuelto por login() — el estado de contexto aún no
+        // se propagó (React no re-renderizó), así que leer la closure sería stale.
+        if (result.mustChangePassword) {
           router.replace('/cambiar-password');
           return;
         }

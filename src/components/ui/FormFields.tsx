@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, forwardRef } from 'react';
+import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode, forwardRef } from 'react';
 
 const NO_AUTOFILL = {
   autoComplete: 'off' as const,
@@ -14,9 +14,15 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
+  /**
+   * Optional element rendered inside the input on the right side.
+   * Useful for password-toggle buttons, search icons, etc.
+   * When provided, extra right-padding is added automatically.
+   */
+  rightElement?: ReactNode;
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(({ label, error, hint, className, id, ...props }, ref) => {
+export const Input = forwardRef<HTMLInputElement, InputProps>(({ label, error, hint, rightElement, className, id, ...props }, ref) => {
   const inputId = id || label?.toLowerCase().replace(/\s/g, '-');
   return (
     <div className="space-y-1.5 w-full">
@@ -25,18 +31,26 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({ label, error, h
           {label} {props.required && <span className="text-orange-500">*</span>}
         </label>
       )}
-      <input
-        ref={ref}
-        id={inputId}
-        {...NO_AUTOFILL}
-        className={cn(
-          'w-full px-4 py-2.5 bg-zinc-950/50 border rounded-xl text-sm text-zinc-100 placeholder-zinc-600',
-          'focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-200 shadow-sm',
-          error ? 'border-rose-500/50 focus:ring-rose-500/50 focus:border-rose-500/50' : 'border-zinc-800 hover:border-zinc-700',
-          className,
+      <div className="relative">
+        <input
+          ref={ref}
+          id={inputId}
+          {...NO_AUTOFILL}
+          className={cn(
+            'w-full px-4 py-2.5 bg-zinc-950/50 border rounded-xl text-sm text-zinc-100 placeholder-zinc-600',
+            'focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all duration-200 shadow-sm',
+            error ? 'border-rose-500/50 focus:ring-rose-500/50 focus:border-rose-500/50' : 'border-zinc-800 hover:border-zinc-700',
+            rightElement != null ? 'pr-10' : undefined,
+            className,
+          )}
+          {...props}
+        />
+        {rightElement && (
+          <div className="absolute inset-y-0 right-0 flex items-center pr-2.5">
+            {rightElement}
+          </div>
         )}
-        {...props}
-      />
+      </div>
       {error && <p className="text-xs font-medium text-rose-500">{error}</p>}
       {hint && !error && <p className="text-xs text-zinc-500">{hint}</p>}
     </div>

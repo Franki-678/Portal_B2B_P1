@@ -60,7 +60,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   mustChangePassword: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; role?: UserRole; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; role?: UserRole; mustChangePassword?: boolean; error?: string }>;
   registerTaller: (data: RegisterTallerData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   /** Envía email de recuperación de contraseña. */
@@ -87,8 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const initialized = useRef(false);
 
-  const hydrateUser = useCallback(async (supabaseUser: SupabaseUser): Promise<User | null> => {
-    if (!isSupabaseConfigured()) return null;
+  const hydrateUser = useCallback(async (supabaseUser: SupabaseUser): Promise<{ user: User | null; mustChangePassword: boolean }> => {
+    if (!isSupabaseConfigured()) return { user: null, mustChangePassword: false };
     const supabase = getSupabaseClient();
     const userId = supabaseUser.id;
     const email = supabaseUser.email ?? '';
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await sleep(HYDRATE_RETRY_MS);
             continue;
           }
-          return null;
+          return { user: null, mustChangePassword: false };
         }
 
         const row = data as {
@@ -120,7 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           assigned_workshops: string[] | null;
           must_change_password: boolean | null;
         };
-        setMustChangePassword(!!row.must_change_password);
+        const mcp = !!row.must_change_password;
+        setMustChangePassword(mcp);
         let workshopName: string | undefined;
         if (row.workshop_id) {
           const wsRes = (await withHydrateTimeout(
@@ -130,20 +131,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         return {
-          id: userId,
-          email,
-          name: row.name,
-          role: row.role,
-          workshopId: row.workshop_id ?? undefined,
-          workshopName,
-          assignedWorkshops: row.assigned_workshops ?? undefined,
+          user: {
+            id: userId,
+            email,
+            name: row.name,
+            role: row.role,
+            workshopId: row.workshop_id ?? undefined,
+            workshopName,
+            assignedWorkshops: row.assigned_workshops ?? undefined,
+          },
+          mustChangePassword: mcp,
         };
       } catch (e) {
         console.error('[Auth] hydrateUser intento', i + 1, e);
         if (i < PROFILE_ATTEMPTS - 1) await sleep(HYDRATE_RETRY_MS);
       }
     }
-    return null;
+    return { user: null, mustChangePassword: false };
   }, []);
 
   const persistUserCache = useCallback((nextUser: User | null) => {
@@ -189,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         if (session?.user) {
-          const loaded = await hydrateUser(session.user);
+          const { user: loaded } = await hydrateUser(session.user);
           if (!unsubscribed) {
             setUser(loaded);
             persistUserCache(loaded);
@@ -230,7 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (event === 'SIGNED_IN' && session?.user) {
-        const loaded = await hydrateUser(session.user);
+        const { user: loaded } = await hydrateUser(session.user);
         if (loaded) {
           setUser(loaded);
           persistUserCache(loaded);
@@ -239,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (event === 'USER_UPDATED' && session?.user) {
-        const loaded = await hydrateUser(session.user);
+        const { user: loaded } = await hydrateUser(session.user);
         if (loaded) {
           setUser(loaded);
           persistUserCache(loaded);
@@ -257,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       email: string,
       password: string
-    ): Promise<{ success: boolean; role?: UserRole; error?: string }> => {
+    ): Promise<{ success: boolean; role?: UserRole; mustChangePassword?: boolean; error?: string }> => {
       if (!isSupabaseConfigured()) {
         return { success: false, error: 'Supabase no está configurado.' };
       }
@@ -290,7 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { success: false, error: 'Error inesperado al iniciar sesión.' };
         }
 
-        const loaded = await hydrateUser(data.user);
+        const { user: loaded, mustChangePassword: mcp } = await hydrateUser(data.user);
         if (!loaded) {
           await supabase.auth.signOut().catch(() => undefined);
           setUser(null);
@@ -303,7 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(loaded);
         persistUserCache(loaded);
-        return { success: true, role: loaded.role };
+        return { success: true, role: loaded.role, mustChangePassword: mcp };
       } catch (e) {
         if (e instanceof Error && e.message === 'timeout') {
           return { success: false, error: TIMEOUT_MESSAGE };
