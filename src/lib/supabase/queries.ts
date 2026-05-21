@@ -83,9 +83,13 @@ async function resolveVisibleWorkshopIds(
     };
   }
 
+  // Vendedor: si no tiene workshops específicamente asignados (null o array vacío)
+  // comparte la cartera global, igual que el admin.
+  // Solo se restringe cuando assigned_workshops contiene IDs explícitos.
+  const assigned = profile.assigned_workshops;
   return {
     role: profile.role,
-    workshopIds: profile.assigned_workshops ?? [],
+    workshopIds: assigned && assigned.length > 0 ? assigned : null,
   };
 }
 
