@@ -132,6 +132,10 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
 
   const quoteItems = quote?.items ?? [];
   const lineAmt = (i: (typeof quoteItems)[0]) => quoteLineTotal(i);
+
+  const rejectionComment = order.status === 'rechazado'
+    ? (order.events.filter(e => e.action === 'cotizacion_rechazada').at(-1)?.comment ?? null)
+    : null;
   const subtotalOriginal = quoteItems.reduce((acc, item) => acc + lineAmt(item), 0);
 
   const isClosed = order.status === 'cerrado' || order.status === 'cerrado_pagado' || order.status === 'en_conflicto' || order.status === 'pagado' || order.status === 'cancelado';
@@ -209,6 +213,21 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
             </div>
           </div>
         </div>
+
+        {/* Motivo del rechazo */}
+        {order.status === 'rechazado' && (
+          <div className="flex items-start gap-4 rounded-2xl border border-rose-500/30 bg-rose-600/8 px-5 py-5 shadow-sm">
+            <span className="shrink-0 text-2xl leading-none">❌</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-rose-300 text-sm mb-1.5">Motivo del rechazo:</p>
+              {rejectionComment ? (
+                <p className="text-sm text-rose-200/80 leading-relaxed whitespace-pre-line">{rejectionComment}</p>
+              ) : (
+                <p className="text-sm text-zinc-500 italic">Sin comentarios adicionales</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* COMPARATIVA Y COTIZACIÓN */}
         {quote && (

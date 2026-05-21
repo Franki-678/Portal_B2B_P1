@@ -7,6 +7,7 @@ import { TopBar } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
 import { Button } from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
+import { formatOrderSlug } from '@/lib/utils';
 
 export default function VendedorDashboard() {
   const { user } = useAuth();
@@ -106,7 +107,7 @@ export default function VendedorDashboard() {
                 return (
                   <div
                     key={order.id}
-                    onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
+                    onClick={() => router.push(`/vendedor/pedidos/${formatOrderSlug(order, 'vendedor')}`)}
                     className="flex items-center justify-between bg-zinc-950/50 rounded-xl px-5 py-3.5 border border-amber-500/20 hover:border-amber-500/40 hover:bg-zinc-900/80 cursor-pointer transition-all duration-200 shadow-sm group"
                   >
                     <div className="flex flex-col">
@@ -153,7 +154,7 @@ export default function VendedorDashboard() {
                     key={order.id}
                     order={order}
                     role="vendedor"
-                    onClick={() => router.push(`/vendedor/pedidos/${order.id}`)}
+                    onClick={() => router.push(`/vendedor/pedidos/${formatOrderSlug(order, 'vendedor')}`)}
                   />
                 ))}
               </tbody>
