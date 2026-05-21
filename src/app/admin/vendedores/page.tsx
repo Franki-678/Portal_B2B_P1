@@ -353,12 +353,18 @@ export default function AdminVendedoresPage() {
     setDeleteLoading(true);
     try {
       const sb = getSupabaseClient();
-      const { error } = await (sb as any)
+      // .select('id') makes Supabase return the affected rows — if the array
+      // is empty the UPDATE was silently blocked (e.g. RLS), not a JS error.
+      const { data: updated, error } = await (sb as any)
         .from('profiles')
         .update({ deleted_at: new Date().toISOString() })
-        .eq('id', selectedVendorId);
+        .eq('id', selectedVendorId)
+        .select('id');
 
       if (error) throw new Error(error.message);
+      if (!updated || updated.length === 0) {
+        throw new Error('Sin efecto en la base de datos — verificá permisos RLS.');
+      }
 
       // Actualizar estado local
       setProfiles(prev => prev.filter(p => p.id !== selectedVendorId));
