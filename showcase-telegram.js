@@ -60,7 +60,7 @@ if (!BOT_TOKEN || !GROUP_ID || !ADMIN_ID) {
 
 // ─── 3. Helpers ──────────────────────────────────────────────────────────────
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://portal-b2b.vercel.app').replace(/\/$/, '');
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://rcrepuestos.vercel.app').replace(/\/$/, '');
 
 function esc(s) {
   if (!s) return '';

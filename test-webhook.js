@@ -25,8 +25,7 @@
 
 // ─── Config ───────────────────────────────────────────────────────────────
 
-const PROD_BASE_URL =
-  'https://portal-b2-b-p1-git-master-fransanmartinies-1066s-projects.vercel.app';
+const PROD_BASE_URL = 'https://rcrepuestos.vercel.app';
 const LOCAL_BASE_URL = 'http://localhost:3000';
 const ENDPOINT_PATH = '/api/webhooks/supabase/telegram';
 
