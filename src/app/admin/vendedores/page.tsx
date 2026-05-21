@@ -106,6 +106,10 @@ export default function AdminVendedoresPage() {
   const [creating, setCreating] = useState(false);
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  // Modal: Baja lógica de vendedor
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   // ── Carga inicial ─────────────────────────────────────────
 
   const load = useCallback(async () => {
@@ -120,6 +124,7 @@ export default function AdminVendedoresPage() {
           .from('profiles')
           .select('id, name, role, phone, email, telegram_username, assigned_workshops')
           .in('role', ['vendedor', 'admin'])
+          .is('deleted_at', null)
           .order('name', { ascending: true })
           .then(({ data }: any) => (data ?? []) as VendorProfile[]),
       ]);
@@ -338,6 +343,32 @@ export default function AdminVendedoresPage() {
       alert('Error al guardar: ' + (e instanceof Error ? e.message : 'desconocido'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Baja lógica de vendedor ────────────────────────────────
+
+  const handleDeleteVendor = async () => {
+    if (!selectedVendorId) return;
+    setDeleteLoading(true);
+    try {
+      const sb = getSupabaseClient();
+      const { error } = await (sb as any)
+        .from('profiles')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', selectedVendorId);
+
+      if (error) throw new Error(error.message);
+
+      // Actualizar estado local
+      setProfiles(prev => prev.filter(p => p.id !== selectedVendorId));
+      setMetrics(prev => prev.filter(m => m.vendorId !== selectedVendorId));
+      setSelectedVendorId(null);
+      setShowDeleteModal(false);
+    } catch (e) {
+      alert('Error al dar de baja: ' + (e instanceof Error ? e.message : 'desconocido'));
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -618,19 +649,29 @@ export default function AdminVendedoresPage() {
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setEditingId(selectedVendorId);
-                        setEditName(selectedProfile?.name || selectedMetric?.vendorName || '');
-                        setEditPhone(selectedProfile?.phone || '');
-                        setEditTelegram(selectedProfile?.telegramUsername || '');
-                      }}
-                      className="text-xs"
-                    >
-                      ✏️ Editar
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingId(selectedVendorId);
+                          setEditName(selectedProfile?.name || selectedMetric?.vendorName || '');
+                          setEditPhone(selectedProfile?.phone || '');
+                          setEditTelegram(selectedProfile?.telegramUsername || '');
+                        }}
+                        className="text-xs"
+                      >
+                        ✏️ Editar
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteModal(true)}
+                        className="h-8 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all"
+                        title="Dar de baja este vendedor"
+                      >
+                        🗑 Baja
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"
@@ -829,6 +870,68 @@ export default function AdminVendedoresPage() {
           </div>
         )}
       </div>
+
+      {/* ── Modal: Confirmar baja lógica ── */}
+      {showDeleteModal && selectedProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl border border-rose-500/20 bg-zinc-900 shadow-2xl shadow-black/60 p-6 space-y-5">
+            {/* Header */}
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-rose-500/30 bg-rose-500/10 text-2xl">
+                ⚠️
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-zinc-100">¿Dar de baja a este vendedor?</h2>
+                <p className="text-sm text-zinc-400 mt-1">
+                  Se ocultará del sistema, pero se <span className="font-semibold text-zinc-200">conservará su historial de ventas y auditoría</span> completo.
+                </p>
+              </div>
+            </div>
+
+            {/* Perfil afectado */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-sm font-bold text-zinc-300">
+                {(selectedProfile.name[0] || 'V').toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-zinc-100">{selectedProfile.name}</p>
+                <p className="text-xs text-zinc-500">{selectedProfile.email ?? 'Sin email'}</p>
+              </div>
+            </div>
+
+            {/* Advertencia */}
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-xs text-amber-300 space-y-1">
+              <p>📋 Sus pedidos históricos y eventos seguirán visibles con su nombre.</p>
+              <p>📊 Sus KPIs no se descontarán de los rankings ni métricas.</p>
+              <p>🔒 No podrá iniciar sesión ni aparecer en el selector de vendedores.</p>
+            </div>
+
+            {/* Acciones */}
+            <div className="flex gap-2 justify-end pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleteLoading}
+              >
+                Cancelar
+              </Button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteVendor()}
+                disabled={deleteLoading}
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/15 px-4 py-2 text-sm font-bold text-rose-300 hover:bg-rose-500/25 hover:border-rose-500/60 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleteLoading ? (
+                  <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-rose-400 border-t-transparent" />Procesando…</>
+                ) : (
+                  <>🗑 Confirmar baja</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

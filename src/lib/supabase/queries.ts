@@ -829,7 +829,9 @@ async function fetchAllOrdersForIds(
 // ADMIN: MÉTRICAS Y ASIGNACIÓN
 // ============================================================
 
-/** Lista de vendedores (y admins) activos, para el selector de asignación. */
+/** Lista de vendedores (y admins) activos, para el selector de asignación.
+ *  Filtra deleted_at IS NULL para excluir cuentas dadas de baja lógicamente.
+ */
 export async function fetchVendors(
   sb: SupabaseClientType
 ): Promise<Array<{ id: string; name: string; role: 'vendedor' | 'admin' }>> {
@@ -837,6 +839,7 @@ export async function fetchVendors(
     .from('profiles')
     .select('id, name, role')
     .in('role', ['vendedor', 'admin'])
+    .is('deleted_at', null)
     .order('name', { ascending: true });
 
   if (error) {

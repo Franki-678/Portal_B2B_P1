@@ -115,19 +115,22 @@ function AdminPedidosContent() {
             onClick={() => setTab('activos')}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
               tab === 'activos'
-                ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                : 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                ? 'bg-orange-500/10 text-orange-400 border-orange-500/20 shadow-sm shadow-orange-500/5'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
             }`}
           >
-            Activos ({all.length})
+            Activos
+            <span className={`ml-2 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${tab === 'activos' ? 'bg-orange-500/20 text-orange-300' : 'bg-zinc-800 text-zinc-500'}`}>
+              {all.length}
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setTab('eliminados')}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
               tab === 'eliminados'
-                ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                : 'bg-zinc-900/70 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                ? 'bg-red-500/10 text-red-400 border-red-500/20 shadow-sm shadow-red-500/5'
+                : 'bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
             }`}
           >
             🗑 Eliminados
@@ -137,31 +140,34 @@ function AdminPedidosContent() {
         {/* ── Tab: Activos ── */}
         {tab === 'activos' && (
           <>
-            <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <input
-                  type="text"
-                  value={search}
-                  onChange={event => setSearch(event.target.value)}
-                  placeholder="Buscar por repuesto, vehículo, taller o PED-0142..."
-                  className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-zinc-700 focus:outline-none lg:max-w-md"
-                />
-                <div className="flex flex-wrap gap-2">
-                  {STATUS_FILTERS.map(item => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      onClick={() => setFilter(item.value)}
-                      className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                        filter === item.value
-                          ? 'border-orange-500/20 bg-orange-500/10 text-orange-400'
-                          : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+            {/* Barra de búsqueda + filtros de estado */}
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                placeholder="🔍 Buscar por repuesto, vehículo, taller o PED-0142..."
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                className="w-full max-w-lg rounded-xl border border-zinc-700/60 bg-zinc-900/80 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-orange-500/40 focus:outline-none transition-colors"
+              />
+              <div className="flex flex-wrap gap-2">
+                {STATUS_FILTERS.map(item => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => setFilter(item.value)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                      filter === item.value
+                        ? 'border-orange-500/20 bg-orange-500/10 text-orange-400'
+                        : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -177,16 +183,16 @@ function AdminPedidosContent() {
                 }
               />
             ) : (
-              <div className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70">
+              <div className="overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-900/50 shadow-sm">
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
-                  <thead className="bg-zinc-950/70">
-                    <tr className="border-b border-zinc-800 text-left select-none">
-                      <th onClick={() => toggleSort('num')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">ID{sortIcon('num')}</th>
-                      <th onClick={() => toggleSort('part')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Pedido{sortIcon('part')}</th>
-                      <th onClick={() => toggleSort('workshop')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Taller{sortIcon('workshop')}</th>
-                      <th onClick={() => toggleSort('status')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Estado{sortIcon('status')}</th>
-                      <th onClick={() => toggleSort('updatedAt')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Actualizado{sortIcon('updatedAt')}</th>
+                  <thead className="bg-zinc-950/60">
+                    <tr className="border-b border-zinc-800/80 text-left select-none">
+                      <th onClick={() => toggleSort('num')} className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">ID{sortIcon('num')}</th>
+                      <th onClick={() => toggleSort('part')} className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Pedido{sortIcon('part')}</th>
+                      <th onClick={() => toggleSort('workshop')} className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Taller{sortIcon('workshop')}</th>
+                      <th onClick={() => toggleSort('status')} className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Estado{sortIcon('status')}</th>
+                      <th onClick={() => toggleSort('updatedAt')} className="px-5 py-3.5 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Actualizado{sortIcon('updatedAt')}</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -55,61 +55,85 @@ export default function AdminClientesPage() {
         subtitle={`${workshops.length} talleres visibles en la operación`}
       />
 
-      <div className="grid gap-5 p-6 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
         {workshops.map(workshop => {
           const last: Order | undefined = workshop.lastOrder;
           const lastTotal = last ? orderTotal(last) : 0;
+          const isSelected = selectedWorkshopId === workshop.id;
 
           return (
             <div
               key={workshop.id}
               onClick={() => setSelectedWorkshopId(workshop.id)}
-              className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5 shadow-sm cursor-pointer hover:border-zinc-700 hover:bg-zinc-900 transition-all"
+              className={`group rounded-2xl border bg-zinc-900/60 p-5 cursor-pointer transition-all duration-200 ${
+                isSelected
+                  ? 'border-orange-500/30 bg-orange-500/5 shadow-md shadow-orange-500/5'
+                  : 'border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/90 hover:shadow-md hover:shadow-black/20'
+              }`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="mb-2 flex items-center gap-2">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-xl">
-                      🏭
-                    </div>
-                    <div>
-                      <h2 className="font-semibold text-zinc-100">{workshop.name}</h2>
-                      <p className="text-xs text-zinc-500">{workshop.contact_name || 'Sin contacto'}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-sm text-zinc-400">
-                    <p>📍 {workshop.address || 'Sin dirección'}</p>
-                    <p className="flex items-center gap-2">
-                      <span>📞 {workshop.phone || 'Sin teléfono'}</span>
-                      {digitsOnlyPhone(workshop.phone || '').length >= 8 && (
-                        <WhatsAppLink phone={workshop.phone} message="Hola, te contacto desde administración." />
-                      )}
-                    </p>
-                    <p>📧 {workshop.email || 'Sin email'}</p>
-                  </div>
+              {/* Header: ícono + nombre + badge número */}
+              <div className="flex items-start gap-3 mb-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-lg group-hover:border-zinc-700 transition-colors">
+                  🏭
                 </div>
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-right">
-                  <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Alta</div>
-                  <div className="text-xs text-zinc-300">{formatDate(workshop.created_at)}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="font-bold text-zinc-100 text-sm truncate group-hover:text-white transition-colors">
+                      {workshop.name}
+                    </h2>
+                    {workshop.taller_number && (
+                      <span className="shrink-0 rounded-md border border-zinc-700/60 bg-zinc-800/80 px-1.5 py-0.5 text-[10px] font-mono font-bold text-zinc-400 uppercase">
+                        #{String(workshop.taller_number).padStart(2, '0')}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5">{workshop.contact_name || 'Sin contacto'}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Alta</div>
+                  <div className="text-[11px] text-zinc-400 font-medium">{formatDate(workshop.created_at)}</div>
                 </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-3 gap-3 border-t border-zinc-800 pt-4">
+              {/* Info de contacto */}
+              <div className="space-y-1 text-[12px] text-zinc-500 mb-4">
+                {workshop.address && (
+                  <p className="truncate">📍 {workshop.address}</p>
+                )}
+                <p className="flex items-center gap-1.5">
+                  <span className="truncate">📞 {workshop.phone || 'Sin teléfono'}</span>
+                  {digitsOnlyPhone(workshop.phone || '').length >= 8 && (
+                    <WhatsAppLink phone={workshop.phone} message="Hola, te contacto desde administración." />
+                  )}
+                </p>
+                {workshop.email && (
+                  <p className="truncate">📧 {workshop.email}</p>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-2 border-t border-zinc-800/60 pt-3 mb-3">
                 <Stat label="Total" value={workshop.totalOrders} />
                 <Stat label="Activos" value={workshop.activeOrders} tone="text-amber-300" />
-                <Stat label="Aprob." value={workshop.approvedOrders} tone="text-emerald-300" />
+                <Stat label="Aprobados" value={workshop.approvedOrders} tone="text-emerald-300" />
               </div>
 
-              {last && (
-                <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-xs text-zinc-400 flex items-center gap-2 flex-wrap">
-                  <span>Último pedido:</span>
-                  <span className="font-mono font-bold text-zinc-200">
+              {/* Último pedido */}
+              {last ? (
+                <div className="flex items-center gap-2 flex-wrap rounded-xl border border-zinc-800/60 bg-zinc-950/50 px-3 py-2 text-[11px] text-zinc-500">
+                  <span className="font-mono font-bold text-orange-400/80 shrink-0">
                     #{formatVendorOrderLabel(last)}
                   </span>
                   {lastTotal > 0 && (
-                    <span className="text-zinc-300 font-medium">— {formatCurrency(lastTotal)}</span>
+                    <span className="text-zinc-300 font-semibold shrink-0">{formatCurrency(lastTotal)}</span>
                   )}
-                  <StatusBadge status={last.status} />
+                  <div className="ml-auto shrink-0">
+                    <StatusBadge status={last.status} />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center rounded-xl border border-dashed border-zinc-800/60 px-3 py-2 text-[11px] text-zinc-600">
+                  Sin pedidos registrados
                 </div>
               )}
             </div>
@@ -224,9 +248,9 @@ export default function AdminClientesPage() {
 
 function Stat({ label, value, tone = 'text-zinc-100' }: { label: string; value: number; tone?: string }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 px-3 py-3 text-center">
-      <div className={`text-lg font-bold ${tone}`}>{value}</div>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+    <div className="rounded-xl border border-zinc-800/60 bg-zinc-950/60 px-2 py-2.5 text-center">
+      <div className={`text-base font-black tabular-nums ${tone}`}>{value}</div>
+      <div className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mt-0.5">{label}</div>
     </div>
   );
 }
