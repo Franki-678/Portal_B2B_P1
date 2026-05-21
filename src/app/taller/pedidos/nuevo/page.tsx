@@ -45,7 +45,6 @@ type FormErrors = Partial<Record<string, string>>;
 const emptyItem = (): NewOrderItemForm => ({
   tempId: generateId(),
   partName: '',
-  codigoCatalogo: null,
   description: '',
   quality: 'media',
   quantity: 1,
@@ -196,7 +195,6 @@ export default function NuevoPedidoPage() {
         internalOrderNumber: internalOrderNumber.trim() || undefined,
         items: items.map(i => ({
           partName: i.partName,
-          codigoCatalogo: i.codigoCatalogo ?? null,
           description: i.description,
           quality: i.quality,
           quantity: i.quantity,
@@ -551,7 +549,6 @@ export default function NuevoPedidoPage() {
                           value={item.partName}
                           onChange={(val) => {
                             updateItem(item.tempId, 'partName', val);
-                            updateItem(item.tempId, 'codigoCatalogo', null);
                           }}
                           error={errors[`item_${item.tempId}_partName`]}
                           placeholder={isUniversal

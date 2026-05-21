@@ -251,11 +251,6 @@ export function OrderDrawer({ order, open, onClose, role, onTook }: OrderDrawerP
                       <span className="text-[11px] font-medium text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
                         Cant: {item.quantity}
                       </span>
-                      {item.codigoCatalogo && (
-                        <span className="text-[10px] font-mono text-zinc-500">
-                          Ref: {item.codigoCatalogo}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>

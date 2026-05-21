@@ -120,7 +120,6 @@ export type Database = {
           description: string | null;
           quality: 'alta' | 'media' | 'baja';
           quantity: number;
-          codigo_catalogo: string | null;
           created_at: string;
         };
         Insert: {
@@ -130,7 +129,6 @@ export type Database = {
           description?: string | null;
           quality?: 'alta' | 'media' | 'baja';
           quantity?: number;
-          codigo_catalogo?: string | null;
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>;

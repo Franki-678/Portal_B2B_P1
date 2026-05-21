@@ -465,16 +465,11 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
               {order.items.map((it, idx) => (
                  <div key={it.id} className="p-5 flex flex-col md:flex-row gap-5">
                    <div className="flex-1 min-w-0">
-                     <div className="flex items-center gap-3 mb-1">
+                     <div className="flex items-center gap-3 mb-2">
                        <span className="text-xs font-bold bg-sky-500/10 text-sky-400 px-2 rounded">#{idx+1}</span>
                        <h4 className="font-bold text-zinc-100 text-lg">{it.partName}</h4>
                      </div>
-                     {it.codigoCatalogo && (
-                       <p className="text-xs text-zinc-500 mt-0.5 font-medium">
-                          Ref. catálogo: <span className="font-mono text-zinc-400">{it.codigoCatalogo}</span>
-                       </p>
-                     )}
-                     <div className="flex items-center gap-2 mt-2">
+                     <div className="flex items-center gap-2">
                        <QualityBadge quality={it.quality} />
                        <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold">Cant: {it.quantity}</span>
                      </div>

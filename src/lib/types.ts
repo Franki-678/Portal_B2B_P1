@@ -102,7 +102,6 @@ export interface OrderItem {
   quality: OrderQuality;
   quantity: number;
   images: OrderImage[];
-  codigoCatalogo?: string | null;
 }
 
 export interface OrderImage {
@@ -185,7 +184,6 @@ export interface NewOrderForm {
 export interface NewOrderItemForm {
   tempId: string;
   partName: string;
-  codigoCatalogo?: string | null;
   description: string;
   quality: OrderQuality;
   quantity: number;

@@ -175,7 +175,7 @@ export async function fetchAllOrders(
       : (sb as any).from('workshops').select('id, name, address, phone, contact_name, email, taller_number, created_at').in('id', workshopIds),
     !orderIds || orderIds.length === 0
       ? Promise.resolve({ data: [] })
-      : (sb as any).from('order_items').select('id, order_id, part_name, description, quality, quantity, codigo_catalogo, created_at').in('order_id', orderIds),
+      : (sb as any).from('order_items').select('id, order_id, part_name, description, quality, quantity, created_at').in('order_id', orderIds),
     !orderIds || orderIds.length === 0
       ? Promise.resolve({ data: [] })
       : (sb as any).from('quotes').select('id, order_id, vendor_id, notes, status, sent_at, created_at').in('order_id', orderIds),
@@ -324,7 +324,6 @@ export async function createOrderInDB(
     internalOrderNumber?: string;
     items: {
       partName: string;
-      codigoCatalogo?: string | null;
       description: string;
       quality: 'alta' | 'media' | 'baja';
       quantity: number;
@@ -361,7 +360,6 @@ export async function createOrderInDB(
       description: item.description,
       quality: item.quality,
       quantity: item.quantity,
-      codigo_catalogo: item.codigoCatalogo ?? null,
     }).select('id').single();
 
     if (itemError) {
@@ -723,7 +721,7 @@ async function fetchAllOrdersForIds(
 
   const [workshopsRes, itemsRes, quotesRes, eventsRes] = await Promise.all([
     (sb as any).from('workshops').select('id, name, address, phone, contact_name, email, taller_number, created_at').in('id', workshopIds),
-    (sb as any).from('order_items').select('id, order_id, part_name, description, quality, quantity, codigo_catalogo, created_at').in('order_id', orderIds),
+    (sb as any).from('order_items').select('id, order_id, part_name, description, quality, quantity, created_at').in('order_id', orderIds),
     (sb as any).from('quotes').select('id, order_id, vendor_id, notes, status, sent_at, created_at').in('order_id', orderIds),
     (sb as any).from('order_events').select('id, order_id, user_id, action, comment, created_at').in('order_id', orderIds).order('created_at', { ascending: true }),
   ]);

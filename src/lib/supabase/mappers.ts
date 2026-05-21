@@ -121,7 +121,6 @@ export function mapOrder(
       description: i.description ?? '',
       quality: i.quality,
       quantity: i.quantity,
-      codigoCatalogo: i.codigo_catalogo ?? null,
       images: images
         .filter((img) => img.order_item_id === i.id)
         .map((img) => ({
