@@ -267,6 +267,7 @@ export function formatEventForGroup(
     case 'pedido_en_revision':
     case 'pedido_liberado':
     case 'pedido_cerrado':
+    case 'recotizacion_preacordada':
     case 'comentario':
     default:
       return null;
@@ -355,47 +356,116 @@ export function formatAdminMetrics(snap: AdminMetricsSnapshot): string {
 
 // ─── Slash commands ───────────────────────────────────────────────────────
 
+/** Genera deep link para cualquier slug de pedido (usado en slash commands). */
+function slugDeepLink(slug: string): string {
+  return `${APP_URL}/vendedor/pedidos/${encodeURIComponent(slug)}`;
+}
+
+// ── /hoy ──────────────────────────────────────────────────────────────────
+
 export interface HoySnapshot {
   fecha: string;
+  /** Hora actual en formato "HH:MM" (zona local del servidor). */
+  horaActual: string;
   facturadoHoy: number;
   entregadosHoy: number;
   nuevosHoy: number;
   pendientesTotal: number;
   enConflictoTotal: number;
+  /** Mismo día de ayer para comparación. */
+  facturadoAyer: number;
+  entregadosAyer: number;
+  nuevosAyer: number;
 }
 
 export function formatSlashHoy(snap: HoySnapshot): string {
+  const facturadoCmp   = diffArrow(snap.facturadoHoy,   snap.facturadoAyer);
+  const entregadosCmp  = diffArrow(snap.entregadosHoy,  snap.entregadosAyer);
+  const nuevosCmp      = diffArrow(snap.nuevosHoy,       snap.nuevosAyer);
+
   return [
-    `📅 <b>Hoy · ${esc(snap.fecha)}</b>`,
+    `📅 <b>Hoy · ${esc(snap.fecha)} · ${esc(snap.horaActual)}</b>`,
     ``,
-    `💰 <b>Facturado hoy:</b> ${formatCurrency(snap.facturadoHoy)}`,
-    `📦 <b>Entregados hoy:</b> ${snap.entregadosHoy}`,
-    `🆕 <b>Nuevos hoy:</b> ${snap.nuevosHoy}`,
+    `💰 <b>Facturado:</b> ${formatCurrency(snap.facturadoHoy)}${facturadoCmp}`,
+    `📦 <b>Entregados:</b> ${snap.entregadosHoy}${entregadosCmp}`,
+    `🆕 <b>Nuevos:</b> ${snap.nuevosHoy}${nuevosCmp}`,
     ``,
     `⏳ <b>Pendientes (total):</b> ${snap.pendientesTotal}`,
     `⚠️ <b>En conflicto:</b> ${snap.enConflictoTotal}`,
+    ``,
+    `<i>Comparación vs. ayer — facturado ${formatCurrency(snap.facturadoAyer)}, ${snap.entregadosAyer} ent., ${snap.nuevosAyer} nuevos</i>`,
   ].join('\n');
 }
 
+// ── /vendedores ───────────────────────────────────────────────────────────
+
 export interface VendorLeaderboard {
   vendedores: VendorStat[];
+  /** Mes en curso, ej: "mayo 2026" */
   periodo: string;
+  totalFacturadoMes: number;
+  totalEntregadosMes: number;
+  /** Mes anterior para cálculo de crecimiento. */
+  facturadoMesAnterior?: number;
+  entregadosMesAnterior?: number;
+  periodoAnterior?: string;
+  /** Facturación de la semana en curso (lunes→hoy). */
+  facturadoSemana?: number;
+  entregadosSemana?: number;
 }
 
 export function formatSlashVendedores(data: VendorLeaderboard): string {
-  if (data.vendedores.length === 0) {
-    return `👥 <b>Vendedores — ${esc(data.periodo)}</b>\n\nSin actividad registrada.`;
+  const lines: string[] = [];
+
+  // ── Cabecera mensual ──
+  const facturadoCmp  = (data.facturadoMesAnterior  != null) ? diffArrow(data.totalFacturadoMes,  data.facturadoMesAnterior)  : '';
+  const entregadosCmp = (data.entregadosMesAnterior != null) ? diffArrow(data.totalEntregadosMes, data.entregadosMesAnterior) : '';
+
+  lines.push(`👥 <b>Vendedores — ${esc(data.periodo)}</b>`);
+  lines.push('');
+  lines.push(`💰 <b>Facturado del mes:</b> ${formatCurrency(data.totalFacturadoMes)}${facturadoCmp}`);
+  lines.push(`✅ <b>Entregados del mes:</b> ${data.totalEntregadosMes}${entregadosCmp}`);
+
+  if (data.periodoAnterior && data.facturadoMesAnterior != null) {
+    lines.push(`<i>vs. ${esc(data.periodoAnterior)}: ${formatCurrency(data.facturadoMesAnterior)}</i>`);
   }
+
+  // ── Semana en curso ──
+  if (data.facturadoSemana != null) {
+    lines.push('');
+    lines.push(`📆 <b>Esta semana:</b> ${formatCurrency(data.facturadoSemana)} · ${data.entregadosSemana ?? 0} ent.`);
+  }
+
+  // ── Ranking ──
+  if (data.vendedores.length === 0) {
+    lines.push('', 'Sin actividad registrada este mes.');
+    return lines.join('\n');
+  }
+
+  lines.push('', `🏆 <b>Ranking del mes:</b>`);
   const medals = ['🥇', '🥈', '🥉'];
-  const rows = data.vendedores.slice(0, 8).map((v, i) => {
+  data.vendedores.slice(0, 8).forEach((v, i) => {
     const medal = medals[i] ?? `${i + 1}.`;
-    return `${medal} <b>${esc(v.name)}</b> — ${v.entregados} ent. · ${formatCurrency(v.facturado)}`;
+    const ticket = v.entregados > 0 ? ` · ticket ${formatCurrency(Math.round(v.facturado / v.entregados))}` : '';
+    lines.push(`${medal} <b>${esc(v.name)}</b> — ${v.entregados} ent. · ${formatCurrency(v.facturado)}${ticket}`);
   });
-  return [`👥 <b>Ranking vendedores — ${esc(data.periodo)}</b>`, '', ...rows].join('\n');
+
+  return lines.join('\n');
+}
+
+// ── /alertas ──────────────────────────────────────────────────────────────
+
+/** Pedido en conflicto activo con deep link. */
+export interface ConflictOrder {
+  label: string;
+  workshopName: string;
+  horasEnConflicto: number;
 }
 
 export interface AlertasSnapshot {
   bottlenecks: BottleneckOrder[];
+  /** Lista real de pedidos en conflicto (max 10). */
+  conflictOrders: ConflictOrder[];
   enConflicto: number;
   sinAsignar: number;
 }
@@ -403,16 +473,26 @@ export interface AlertasSnapshot {
 export function formatSlashAlertas(data: AlertasSnapshot): string {
   const lines: string[] = [`🚨 <b>Alertas activas</b>`, ``];
 
+  // ── Sin asignar ──
   if (data.sinAsignar > 0) {
     lines.push(`📭 <b>${data.sinAsignar} pedido${data.sinAsignar !== 1 ? 's' : ''} sin vendedor asignado</b>`);
   }
+
+  // ── Conflictos con deep links ──
   if (data.enConflicto > 0) {
-    lines.push(`⚠️ <b>${data.enConflicto} pedido${data.enConflicto !== 1 ? 's' : ''} en conflicto activo</b>`);
+    lines.push(``, `⚠️ <b>${data.enConflicto} pedido${data.enConflicto !== 1 ? 's' : ''} en conflicto activo:</b>`);
+    data.conflictOrders.slice(0, 8).forEach(c => {
+      const link = slugDeepLink(c.label);
+      lines.push(`  · <a href="${link}"><code>${esc(c.label)}</code></a> — ${esc(c.workshopName)} (${c.horasEnConflicto}h)`);
+    });
   }
+
+  // ── Atascados >48h con deep links ──
   if (data.bottlenecks.length > 0) {
     lines.push(``, `⏱ <b>Atascados &gt;48h en revisión:</b>`);
     data.bottlenecks.slice(0, 10).forEach(b => {
-      lines.push(`  · <code>${esc(b.label)}</code> — ${esc(b.workshopName)} (${b.horasEstancado}h)`);
+      const link = slugDeepLink(b.label);
+      lines.push(`  · <a href="${link}"><code>${esc(b.label)}</code></a> — ${esc(b.workshopName)} (${b.horasEstancado}h)`);
     });
   }
 
