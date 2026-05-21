@@ -92,21 +92,21 @@ function PedidosContent() {
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            className="w-full max-w-md rounded-xl border border-white/10 bg-[#1A1D27] px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:border-orange-500/40 focus:outline-none"
+            className="w-full max-w-lg rounded-xl border border-zinc-700/60 bg-zinc-900/80 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-orange-500/40 focus:outline-none transition-colors"
           />
           <div className="flex items-center gap-2 flex-wrap">
             {STATUS_FILTERS.map(f => (
               <button
                 key={f.value}
                 onClick={() => setFilter(f.value)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
                   filter === f.value
                     ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                    : 'bg-[#1A1D27] text-zinc-400 border-white/8 hover:text-white hover:border-white/20'
+                    : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
                 }`}
               >
                 {f.label}
-                <span className="ml-1.5 text-zinc-500">
+                <span className="ml-1.5 text-zinc-600">
                   ({f.value === 'todos' ? all.length : all.filter(o => o.status === f.value).length})
                 </span>
               </button>
@@ -127,16 +127,16 @@ function PedidosContent() {
             }
           />
         ) : (
-          <div className="bg-[#1A1D27] border border-white/8 rounded-xl overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-zinc-800/80 bg-zinc-900/50 shadow-sm">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[600px] text-sm">
-              <thead>
-                <tr className="text-left border-b border-white/8 select-none">
-                  <th onClick={() => toggleSort('num')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">ID{sortIcon('num')}</th>
-                  <th onClick={() => toggleSort('part')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Repuesto / Vehículo{sortIcon('part')}</th>
-                  <th onClick={() => toggleSort('workshop')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Taller{sortIcon('workshop')}</th>
-                  <th onClick={() => toggleSort('status')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Estado{sortIcon('status')}</th>
-                  <th onClick={() => toggleSort('updatedAt')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Actualizado{sortIcon('updatedAt')}</th>
+              <thead className="bg-zinc-950/60">
+                <tr className="text-left border-b border-zinc-800/80 select-none">
+                  <th onClick={() => toggleSort('num')} className="px-5 py-3.5 text-xs font-bold text-zinc-500 uppercase tracking-[0.18em] cursor-pointer hover:text-zinc-300 transition-colors">ID{sortIcon('num')}</th>
+                  <th onClick={() => toggleSort('part')} className="px-5 py-3.5 text-xs font-bold text-zinc-500 uppercase tracking-[0.18em] cursor-pointer hover:text-zinc-300 transition-colors">Repuesto / Vehículo{sortIcon('part')}</th>
+                  <th onClick={() => toggleSort('workshop')} className="px-5 py-3.5 text-xs font-bold text-zinc-500 uppercase tracking-[0.18em] cursor-pointer hover:text-zinc-300 transition-colors">Taller{sortIcon('workshop')}</th>
+                  <th onClick={() => toggleSort('status')} className="px-5 py-3.5 text-xs font-bold text-zinc-500 uppercase tracking-[0.18em] cursor-pointer hover:text-zinc-300 transition-colors">Estado{sortIcon('status')}</th>
+                  <th onClick={() => toggleSort('updatedAt')} className="px-5 py-3.5 text-xs font-bold text-zinc-500 uppercase tracking-[0.18em] cursor-pointer hover:text-zinc-300 transition-colors">Actualizado{sortIcon('updatedAt')}</th>
                 </tr>
               </thead>
               <tbody>
