@@ -139,5 +139,6 @@ export function mapOrder(
     paymentMethod: (row as any).payment_method ?? null,
     adjustmentAmount: (row as any).adjustment_amount != null ? Number((row as any).adjustment_amount) : null,
     adjustmentNote: (row as any).adjustment_note ?? null,
+    isUrgent: (row as any).is_urgent ?? false,
   };
 }

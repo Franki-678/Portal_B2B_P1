@@ -92,6 +92,8 @@ export interface Order {
   adjustmentAmount?: number | null;
   /** Nota descriptiva del ajuste por conflicto. */
   adjustmentNote?: string | null;
+  /** Pedido marcado como urgente por el taller. */
+  isUrgent?: boolean;
 }
 
 export interface OrderItem {

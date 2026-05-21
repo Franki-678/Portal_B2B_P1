@@ -155,21 +155,15 @@ export function OrderTableRow({ order, onClick, role, actions }: OrderRowProps) 
         <StatusBadge status={order.status} />
       </td>
 
-      {/* Columna: Actualizado + calidad */}
+      {/* Columna: Actualizado + urgencia */}
       <td className="px-5 py-4">
         <span className="text-sm font-semibold text-zinc-500 uppercase tracking-widest whitespace-nowrap">
           {formatRelativeTime(order.updatedAt)}
         </span>
-        {firstItem?.quality && (
+        {order.isUrgent && (
           <div className="mt-1.5">
-            <span className={`inline-block text-xs font-bold px-1.5 py-0.5 rounded border ${
-              firstItem.quality === 'alta'
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                : firstItem.quality === 'media'
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
-            }`}>
-              {firstItem.quality === 'alta' ? 'Alta' : firstItem.quality === 'media' ? 'Media' : 'Económica'}
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded border bg-red-500/10 text-red-400 border-red-500/25 whitespace-nowrap">
+              🚨 Urgente
             </span>
           </div>
         )}

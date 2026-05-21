@@ -7,21 +7,25 @@ import { OrderTableRow } from '@/components/orders/OrderCard';
 import { OrderDrawer } from '@/components/orders/OrderDrawer';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Order, OrderStatus } from '@/lib/types';
+import { type Order, OrderStatus } from '@/lib/types';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { fetchDeletedOrders } from '@/lib/supabase/queries';
 import { formatDate, formatVendorOrderLabel, matchesOrderSearch } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 
 const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'pendiente', label: 'Pendientes' },
-  { value: 'en_revision', label: 'En revisión' },
-  { value: 'cotizado', label: 'Cotizados' },
-  { value: 'aprobado', label: 'Aprobados' },
-  { value: 'aprobado_parcial', label: 'Aprobado parcial' },
-  { value: 'rechazado', label: 'Rechazados' },
-  { value: 'cerrado', label: 'Cerrados' },
+  { value: 'todos',           label: 'Todos' },
+  { value: 'pendiente',       label: 'Pendientes' },
+  { value: 'en_revision',     label: 'En revisión' },
+  { value: 'cotizado',        label: 'Cotizados' },
+  { value: 'aprobado',        label: 'Aprobados' },
+  { value: 'aprobado_parcial',label: 'Aprobado parcial' },
+  { value: 'pagado',          label: 'Pagados' },
+  { value: 'rechazado',       label: 'Rechazados' },
+  { value: 'cerrado',         label: 'Cerrados' },
+  { value: 'cerrado_pagado',  label: 'Cerrado · Pagado' },
+  { value: 'en_conflicto',    label: 'En conflicto' },
+  { value: 'cancelado',       label: 'Cancelados' },
 ];
 
 function AdminPedidosContent() {
@@ -38,12 +42,43 @@ function AdminPedidosContent() {
   const [deletedOrders, setDeletedOrders] = useState<Order[]>([]);
   const [loadingDeleted, setLoadingDeleted] = useState(false);
 
+  type SortKey = 'num' | 'part' | 'workshop' | 'status' | 'updatedAt';
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
+
+  const toggleSort = (key: SortKey) =>
+    setSortConfig(prev =>
+      prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+    );
+
+  const sortIcon = (k: SortKey) =>
+    sortConfig?.key === k
+      ? <span className="ml-1 text-orange-400">{sortConfig.dir === 'asc' ? '▲' : '▼'}</span>
+      : <span className="ml-1 text-zinc-700">⇅</span>;
+
   const all = getAllOrders();
   const filtered = useMemo(() => {
     let rows = filter === 'todos' ? all : all.filter(order => order.status === filter);
     if (search.trim()) rows = rows.filter(order => matchesOrderSearch(order, search));
-    return [...rows].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [all, filter, search]);
+    const arr = [...rows];
+    if (sortConfig) {
+      arr.sort((a: Order, b: Order) => {
+        let av: string | number = '';
+        let bv: string | number = '';
+        switch (sortConfig.key) {
+          case 'num':      av = a.workshopOrderNumber ?? 0;   bv = b.workshopOrderNumber ?? 0; break;
+          case 'part':     av = a.items?.[0]?.partName ?? ''; bv = b.items?.[0]?.partName ?? ''; break;
+          case 'workshop': av = a.workshop?.name ?? '';        bv = b.workshop?.name ?? ''; break;
+          case 'status':   av = a.status;                      bv = b.status; break;
+          case 'updatedAt':av = a.updatedAt;                   bv = b.updatedAt; break;
+        }
+        const cmp = typeof av === 'number' ? av - (bv as number) : String(av).localeCompare(String(bv));
+        return sortConfig.dir === 'asc' ? cmp : -cmp;
+      });
+    } else {
+      arr.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    }
+    return arr;
+  }, [all, filter, search, sortConfig]);
 
   const loadDeleted = useCallback(async () => {
     setLoadingDeleted(true);
@@ -146,12 +181,12 @@ function AdminPedidosContent() {
                 <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-zinc-950/70">
-                    <tr className="border-b border-zinc-800 text-left">
-                      <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">ID</th>
-                      <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Pedido</th>
-                      <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Taller</th>
-                      <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Estado</th>
-                      <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Actualizado</th>
+                    <tr className="border-b border-zinc-800 text-left select-none">
+                      <th onClick={() => toggleSort('num')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">ID{sortIcon('num')}</th>
+                      <th onClick={() => toggleSort('part')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Pedido{sortIcon('part')}</th>
+                      <th onClick={() => toggleSort('workshop')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Taller{sortIcon('workshop')}</th>
+                      <th onClick={() => toggleSort('status')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Estado{sortIcon('status')}</th>
+                      <th onClick={() => toggleSort('updatedAt')} className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors">Actualizado{sortIcon('updatedAt')}</th>
                     </tr>
                   </thead>
                   <tbody>

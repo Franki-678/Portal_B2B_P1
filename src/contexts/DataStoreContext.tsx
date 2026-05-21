@@ -66,6 +66,7 @@ interface DataStoreContextType {
     vehicleVersion: string;
     vehicleYear: number;
     internalOrderNumber?: string;
+    isUrgent?: boolean;
     items: {
       partName: string;
       description: string;
@@ -352,6 +353,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
         vehicleVersion: string;
         vehicleYear: number;
         internalOrderNumber?: string;
+        isUrgent?: boolean;
         items: {
           partName: string;
           description: string;
@@ -376,6 +378,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
           vehicleVersion: data.vehicleVersion,
           vehicleYear: data.vehicleYear,
           internalOrderNumber: data.internalOrderNumber,
+          isUrgent: data.isUrgent ?? false,
           items: data.items.map(i => ({
             partName: i.partName,
             description: i.description,

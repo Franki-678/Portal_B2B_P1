@@ -5,22 +5,26 @@ import { useAuth } from '@/contexts/AuthContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
 import { useSearchParams } from 'next/navigation';
-import { useState, Suspense } from 'react';
-import { OrderStatus } from '@/lib/types';
+import { useState, useMemo, Suspense } from 'react';
+import { Order, OrderStatus } from '@/lib/types';
 import { ORDER_STATUS_LABELS } from '@/lib/constants';
 import { Button } from '@/components/ui/Button';
 import { matchesOrderSearch, formatOrderSlug } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
 const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'pendiente', label: 'Pendientes' },
-  { value: 'en_revision', label: 'En revisión' },
-  { value: 'cotizado', label: 'Cotizados' },
-  { value: 'aprobado', label: 'Aprobados' },
-  { value: 'aprobado_parcial', label: 'Aprobado parcial' },
-  { value: 'rechazado', label: 'Rechazados' },
-  { value: 'cerrado', label: 'Cerrados' },
+  { value: 'todos',           label: 'Todos' },
+  { value: 'pendiente',       label: 'Pendientes' },
+  { value: 'en_revision',     label: 'En revisión' },
+  { value: 'cotizado',        label: 'Cotizados' },
+  { value: 'aprobado',        label: 'Aprobados' },
+  { value: 'aprobado_parcial',label: 'Aprobado parcial' },
+  { value: 'pagado',          label: 'Pagados' },
+  { value: 'rechazado',       label: 'Rechazados' },
+  { value: 'cerrado',         label: 'Cerrados' },
+  { value: 'cerrado_pagado',  label: 'Cerrado · Pagado' },
+  { value: 'en_conflicto',    label: 'En conflicto' },
+  { value: 'cancelado',       label: 'Cancelados' },
 ];
 
 function PedidosContent() {
@@ -31,17 +35,44 @@ function PedidosContent() {
   const initialStatus = (searchParams.get('status') as OrderStatus | null) || 'todos';
   const [filter, setFilter] = useState<'todos' | OrderStatus>(initialStatus as 'todos' | OrderStatus);
   const [search, setSearch] = useState('');
+  type SortKey = 'num' | 'part' | 'workshop' | 'status' | 'updatedAt';
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
 
-  // "Mis pedidos" = asignados a mí (no la cola general)
+  const toggleSort = (key: SortKey) =>
+    setSortConfig(prev =>
+      prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
+    );
+
   const all = getAllOrders().filter(o => o.assignedVendorId === user?.id || (user?.role === 'admin'));
-  let filtered = filter === 'todos' ? all : all.filter(o => o.status === filter);
-  if (search.trim()) {
-    filtered = filtered.filter(o => matchesOrderSearch(o, search));
-  }
-  // Siempre mostrar el más reciente primero
-  const sorted = [...filtered].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-  );
+
+  const sorted = useMemo(() => {
+    let rows = filter === 'todos' ? all : all.filter(o => o.status === filter);
+    if (search.trim()) rows = rows.filter(o => matchesOrderSearch(o, search));
+    const arr = [...rows];
+    if (sortConfig) {
+      arr.sort((a: Order, b: Order) => {
+        let av: string | number = '';
+        let bv: string | number = '';
+        switch (sortConfig.key) {
+          case 'num':      av = a.workshopOrderNumber ?? 0;   bv = b.workshopOrderNumber ?? 0; break;
+          case 'part':     av = a.items?.[0]?.partName ?? ''; bv = b.items?.[0]?.partName ?? ''; break;
+          case 'workshop': av = a.workshop?.name ?? '';        bv = b.workshop?.name ?? ''; break;
+          case 'status':   av = a.status;                      bv = b.status; break;
+          case 'updatedAt':av = a.updatedAt;                   bv = b.updatedAt; break;
+        }
+        const cmp = typeof av === 'number' ? av - (bv as number) : String(av).localeCompare(String(bv));
+        return sortConfig.dir === 'asc' ? cmp : -cmp;
+      });
+    } else {
+      arr.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    }
+    return arr;
+  }, [all, filter, search, sortConfig]);
+
+  const sortIcon = (k: SortKey) =>
+    sortConfig?.key === k
+      ? <span className="ml-1 text-orange-400">{sortConfig.dir === 'asc' ? '▲' : '▼'}</span>
+      : <span className="ml-1 text-zinc-700">⇅</span>;
 
   return (
     <>
@@ -100,12 +131,12 @@ function PedidosContent() {
             <div className="overflow-x-auto">
             <table className="w-full min-w-[600px] text-sm">
               <thead>
-                <tr className="text-left border-b border-white/8">
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">ID</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Repuesto / Vehículo</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Taller</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Estado</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Actualizado</th>
+                <tr className="text-left border-b border-white/8 select-none">
+                  <th onClick={() => toggleSort('num')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">ID{sortIcon('num')}</th>
+                  <th onClick={() => toggleSort('part')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Repuesto / Vehículo{sortIcon('part')}</th>
+                  <th onClick={() => toggleSort('workshop')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Taller{sortIcon('workshop')}</th>
+                  <th onClick={() => toggleSort('status')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Estado{sortIcon('status')}</th>
+                  <th onClick={() => toggleSort('updatedAt')} className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer hover:text-zinc-300 transition-colors">Actualizado{sortIcon('updatedAt')}</th>
                 </tr>
               </thead>
               <tbody>

@@ -89,6 +89,7 @@ export type Database = {
           payment_method: 'transferencia' | 'efectivo' | null;
           adjustment_amount: number | null;
           adjustment_note: string | null;
+          is_urgent: boolean;
         };
         Insert: {
           id?: string;
@@ -109,6 +110,7 @@ export type Database = {
           payment_method?: 'transferencia' | 'efectivo' | null;
           adjustment_amount?: number | null;
           adjustment_note?: string | null;
+          is_urgent?: boolean;
         };
         Update: Partial<Database['public']['Tables']['orders']['Insert']>;
       };

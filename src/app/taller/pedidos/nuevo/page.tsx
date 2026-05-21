@@ -93,6 +93,7 @@ export default function NuevoPedidoPage() {
   const [internalOrderNumber, setInternalOrderNumber] = useState('');
   const [items, setItems] = useState<NewOrderItemForm[]>([emptyItem()]);
 
+  const [isUrgent, setIsUrgent] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -193,6 +194,7 @@ export default function NuevoPedidoPage() {
         vehicleVersion: isUniversal ? '-'         : vehicleVersion,
         vehicleYear:    isUniversal ? 0            : (parseInt(vehicleYear) || 0),
         internalOrderNumber: internalOrderNumber.trim() || undefined,
+        isUrgent,
         items: items.map(i => ({
           partName: i.partName,
           description: i.description,
@@ -677,7 +679,36 @@ export default function NuevoPedidoPage() {
             </div>
 
             {/* ── Submit ── */}
-            <div className="flex items-center gap-3 justify-end pt-6">
+            {/* Toggle urgente */}
+            <button
+              type="button"
+              onClick={() => setIsUrgent(v => !v)}
+              className={`w-full flex items-center justify-between gap-4 rounded-2xl border px-5 py-4 transition-all duration-200 ${
+                isUrgent
+                  ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                  : 'border-zinc-700/60 bg-zinc-900/40 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300'
+              }`}
+            >
+              <div className="flex items-center gap-3 text-left">
+                <span className="text-2xl leading-none">{isUrgent ? '🚨' : '⏱️'}</span>
+                <div>
+                  <p className={`text-sm font-bold ${isUrgent ? 'text-red-300' : 'text-zinc-300'}`}>
+                    Marcar como Urgente
+                  </p>
+                  <p className={`text-xs mt-0.5 ${isUrgent ? 'text-red-400/70' : 'text-zinc-500'}`}>
+                    {isUrgent
+                      ? 'Este pedido será destacado como urgente para el vendedor.'
+                      : 'Activá si necesitás respuesta prioritaria.'}
+                  </p>
+                </div>
+              </div>
+              {/* Toggle pill */}
+              <div className={`relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 ${isUrgent ? 'bg-red-500' : 'bg-zinc-700'}`}>
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${isUrgent ? 'translate-x-5' : 'translate-x-0'}`} />
+              </div>
+            </button>
+
+            <div className="flex items-center gap-3 justify-end pt-2">
               {loading && showSlowMessage && (
                 <span className="text-xs text-zinc-400 mr-auto">
                   Procesando... esto puede tardar unos segundos.
