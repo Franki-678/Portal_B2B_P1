@@ -144,7 +144,6 @@ export default function VendedorDashboard() {
                   <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Repuesto</th>
                   <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Taller</th>
                   <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Estado</th>
-                  <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Calidad</th>
                   <th className="px-5 py-4 text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">Actualizado</th>
                 </tr>
               </thead>
