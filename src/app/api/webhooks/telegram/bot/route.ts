@@ -5,9 +5,11 @@
  *   curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://TU_DOMINIO/api/webhooks/telegram/bot&secret_token=<últimos-20-chars-del-token>"
  *
  * Comandos disponibles (solo desde TELEGRAM_ADMIN_ID):
- *   /hoy        — Resumen del día actual vs. ayer
- *   /vendedores — Ranking mensual + comparativa MoM + semana
- *   /alertas    — Pedidos estancados >48h + conflictos sin resolver con deep links
+ *   /hoy        — Resumen del día vs. ayer
+ *   /semana     — Facturación de la semana actual vs. mismos días de la semana pasada (WoW)
+ *   /mes        — Facturación desde el día 1 del mes vs. mismo período del mes anterior (MoM)
+ *   /vendedores — Ranking puro del mes en curso: quién vendió más y cuántos pedidos cerró
+ *   /alertas    — Pedidos estancados >48h + conflictos con deep links
  *
  * SEGURIDAD: Solo TELEGRAM_ADMIN_ID puede ejecutar comandos.
  * Cualquier otro chat recibe silencio absoluto (sin respuesta).
@@ -18,9 +20,13 @@ import { createClient } from '@supabase/supabase-js';
 import { getTelegramConfig } from '@/lib/telegram/config';
 import {
   formatSlashHoy,
+  formatSlashSemana,
+  formatSlashMes,
   formatSlashVendedores,
   formatSlashAlertas,
   type HoySnapshot,
+  type SemanaSnapshot,
+  type MesSnapshot,
   type VendorLeaderboard,
   type AlertasSnapshot,
   type VendorStat,
@@ -57,6 +63,7 @@ async function sendReply(chatId: number, text: string): Promise<void> {
 
 // ─── Date range helpers ───────────────────────────────────────────────────
 
+/** Rango de un día específico (daysAgo=0 → hoy, 1 → ayer). */
 function dayRange(daysAgo = 0): { start: string; end: string } {
   const now   = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo);
@@ -64,7 +71,8 @@ function dayRange(daysAgo = 0): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-function monthRange(monthOffset = 0): { start: string; end: string } {
+/** Rango completo de un mes calendario (mes actual u offset). */
+function fullMonthRange(monthOffset = 0): { start: string; end: string } {
   const now   = new Date();
   const m     = now.getMonth() + monthOffset;
   const y     = now.getFullYear() + Math.floor(m / 12);
@@ -74,21 +82,97 @@ function monthRange(monthOffset = 0): { start: string; end: string } {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-/** Lunes de la semana actual */
-function weekRange(): { start: string; end: string } {
-  const now     = new Date();
-  const day     = now.getDay(); // 0=dom
-  const monday  = new Date(now);
-  monday.setDate(now.getDate() - ((day + 6) % 7));
-  monday.setHours(0, 0, 0, 0);
-  const end     = new Date(monday.getTime() + 7 * 86_400_000);
-  return { start: monday.toISOString(), end: end.toISOString() };
-}
-
+/** Nombre legible de un mes (ej: "mayo 2026"). */
 function monthName(offset = 0): string {
   const d = new Date();
   d.setMonth(d.getMonth() + offset, 1);
   return d.toLocaleString('es-AR', { month: 'long', year: 'numeric' });
+}
+
+// ── Rangos para WoW ──────────────────────────────────────────────────────
+
+/**
+ * Semana actual: desde el lunes de esta semana 00:00 hasta ahora.
+ * Semana anterior: misma ventana pero 7 días antes.
+ *
+ * Ejemplo (hoy = martes):
+ *   cur:  lun 00:00 → mar 15:30
+ *   prev: lun-7 00:00 → mar-7 15:30
+ */
+function weekComparisionRanges(): {
+  cur:  { start: string; end: string };
+  prev: { start: string; end: string };
+  labelCur:  string;
+  labelPrev: string;
+  daysElapsed: number;
+} {
+  const now = new Date();
+  const dayOfWeek   = now.getDay(); // 0=Dom 1=Lun … 6=Sab
+  const daysFromMon = (dayOfWeek + 6) % 7; // Lun=0, Mar=1, … Dom=6
+
+  const thisMonday = new Date(
+    now.getFullYear(), now.getMonth(), now.getDate() - daysFromMon, 0, 0, 0, 0
+  );
+  const lastMonday = new Date(thisMonday.getTime() - 7 * 86_400_000);
+  // "Ahora - 7 días" = mismo instante de la semana pasada
+  const nowMinus7  = new Date(now.getTime()      - 7 * 86_400_000);
+
+  const fmt = (d: Date) =>
+    d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' });
+
+  return {
+    cur:  { start: thisMonday.toISOString(), end: now.toISOString() },
+    prev: { start: lastMonday.toISOString(), end: nowMinus7.toISOString() },
+    labelCur:    `${fmt(thisMonday)} → ${fmt(now)}`,
+    labelPrev:   `${fmt(lastMonday)} → ${fmt(nowMinus7)}`,
+    daysElapsed: daysFromMon + 1,
+  };
+}
+
+// ── Rangos para MoM ──────────────────────────────────────────────────────
+
+/**
+ * Mes actual: desde el día 1 del mes en curso 00:00 hasta ahora.
+ * Mes anterior: desde el día 1 del mes pasado 00:00 hasta el mismo día del mes pasado.
+ *
+ * Si el mes anterior tiene menos días (ej: feb), se limita al último día disponible.
+ *
+ * Ejemplo (hoy = 20 de mayo):
+ *   cur:  1 may 00:00 → 20 may 15:30
+ *   prev: 1 abr 00:00 → 20 abr 15:30
+ */
+function monthComparisonRanges(): {
+  cur:  { start: string; end: string };
+  prev: { start: string; end: string };
+  diaActual:      number;
+  diaComparacion: number;
+  mesActual:      string;
+  mesAnterior:    string;
+} {
+  const now = new Date();
+
+  const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+  // Último día del mes anterior
+  const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  const endDay           = Math.min(now.getDate(), lastDayPrevMonth);
+
+  const firstOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+  const endOfPrevPeriod  = new Date(
+    now.getFullYear(),
+    now.getMonth() - 1,
+    endDay,
+    now.getHours(), now.getMinutes(), now.getSeconds(), 999
+  );
+
+  return {
+    cur:  { start: firstOfThisMonth.toISOString(), end: now.toISOString() },
+    prev: { start: firstOfPrevMonth.toISOString(), end: endOfPrevPeriod.toISOString() },
+    diaActual:      now.getDate(),
+    diaComparacion: endDay,
+    mesActual:      monthName(0),
+    mesAnterior:    monthName(-1),
+  };
 }
 
 // ─── Helpers para calcular montos facturados ──────────────────────────────
@@ -117,7 +201,7 @@ async function buildHoySnapshot(): Promise<HoySnapshot> {
   const ayer  = dayRange(1);
   const now   = new Date();
 
-  const fecha     = now.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const fecha      = now.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
   const horaActual = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   const [deliveredHoy, deliveredAyer, newHoy, newAyer, allOrders] = await Promise.all([
@@ -132,8 +216,8 @@ async function buildHoySnapshot(): Promise<HoySnapshot> {
   const deliveredIdsAyer = (deliveredAyer.data ?? []).map((r: any) => r.id);
 
   const all = (allOrders.data ?? []) as any[];
-  const pendientesTotal   = all.filter(r => r.status === 'pendiente' || r.status === 'en_revision').length;
-  const enConflictoTotal  = all.filter(r => r.status === 'en_conflicto').length;
+  const pendientesTotal  = all.filter(r => r.status === 'pendiente' || r.status === 'en_revision').length;
+  const enConflictoTotal = all.filter(r => r.status === 'en_conflicto').length;
 
   const [facturadoHoy, facturadoAyer] = await Promise.all([
     calcFacturado(sb, deliveredIdsHoy),
@@ -154,46 +238,113 @@ async function buildHoySnapshot(): Promise<HoySnapshot> {
   };
 }
 
-// ─── /vendedores ──────────────────────────────────────────────────────────
+// ─── /semana (Week-over-Week) ─────────────────────────────────────────────
+
+async function buildSemanaSnapshot(): Promise<SemanaSnapshot> {
+  const sb     = getServiceClient();
+  const ranges = weekComparisionRanges();
+
+  const [ordersCur, ordersPrev] = await Promise.all([
+    sb.from('orders').select('id')
+      .eq('status', 'cerrado_pagado')
+      .gte('updated_at', ranges.cur.start)
+      .lte('updated_at', ranges.cur.end),
+    sb.from('orders').select('id')
+      .eq('status', 'cerrado_pagado')
+      .gte('updated_at', ranges.prev.start)
+      .lte('updated_at', ranges.prev.end),
+  ]);
+
+  const curIds  = (ordersCur.data  ?? []).map((o: any) => o.id);
+  const prevIds = (ordersPrev.data ?? []).map((o: any) => o.id);
+
+  const [facturadoCur, facturadoPrev] = await Promise.all([
+    calcFacturado(sb, curIds),
+    calcFacturado(sb, prevIds),
+  ]);
+
+  return {
+    labelCur:      ranges.labelCur,
+    labelPrev:     ranges.labelPrev,
+    facturadoCur,
+    entregadosCur: curIds.length,
+    facturadoPrev,
+    entregadosPrev: prevIds.length,
+    daysElapsed:   ranges.daysElapsed,
+  };
+}
+
+// ─── /mes (Month-over-Month) ──────────────────────────────────────────────
+
+async function buildMesSnapshot(): Promise<MesSnapshot> {
+  const sb     = getServiceClient();
+  const ranges = monthComparisonRanges();
+
+  const [ordersCur, ordersPrev] = await Promise.all([
+    sb.from('orders').select('id')
+      .eq('status', 'cerrado_pagado')
+      .gte('updated_at', ranges.cur.start)
+      .lte('updated_at', ranges.cur.end),
+    sb.from('orders').select('id')
+      .eq('status', 'cerrado_pagado')
+      .gte('updated_at', ranges.prev.start)
+      .lte('updated_at', ranges.prev.end),
+  ]);
+
+  const curIds  = (ordersCur.data  ?? []).map((o: any) => o.id);
+  const prevIds = (ordersPrev.data ?? []).map((o: any) => o.id);
+
+  const [facturadoCur, facturadoPrev] = await Promise.all([
+    calcFacturado(sb, curIds),
+    calcFacturado(sb, prevIds),
+  ]);
+
+  return {
+    mesActual:      ranges.mesActual,
+    mesAnterior:    ranges.mesAnterior,
+    diaActual:      ranges.diaActual,
+    diaComparacion: ranges.diaComparacion,
+    facturadoCur,
+    entregadosCur:  curIds.length,
+    facturadoPrev,
+    entregadosPrev: prevIds.length,
+  };
+}
+
+// ─── /vendedores (ranking puro del mes en curso) ──────────────────────────
 
 async function buildVendedoresSnapshot(): Promise<VendorLeaderboard> {
   const sb       = getServiceClient();
-  const curMonth = monthRange(0);
-  const prevMonth = monthRange(-1);
-  const week     = weekRange();
+  const curMonth = fullMonthRange(0);
 
-  const [ordersCur, ordersPrev, ordersWeek] = await Promise.all([
-    sb.from('orders').select('id, assigned_vendor_id').eq('status', 'cerrado_pagado')
-      .gte('updated_at', curMonth.start).lt('updated_at', curMonth.end),
-    sb.from('orders').select('id').eq('status', 'cerrado_pagado')
-      .gte('updated_at', prevMonth.start).lt('updated_at', prevMonth.end),
-    sb.from('orders').select('id').eq('status', 'cerrado_pagado')
-      .gte('updated_at', week.start).lt('updated_at', week.end),
-  ]);
+  const { data: rawOrders } = await sb
+    .from('orders')
+    .select('id, assigned_vendor_id')
+    .eq('status', 'cerrado_pagado')
+    .gte('updated_at', curMonth.start)
+    .lt('updated_at', curMonth.end);
 
-  const curOrders  = (ordersCur.data  ?? []) as any[];
-  const prevOrders = (ordersPrev.data ?? []) as any[];
-  const weekOrders = (ordersWeek.data ?? []) as any[];
+  const curOrders = (rawOrders ?? []) as any[];
+  const curIds    = curOrders.map(o => o.id);
 
-  const curIds   = curOrders.map(o => o.id);
-  const prevIds  = prevOrders.map(o => o.id);
-  const weekIds  = weekOrders.map(o => o.id);
+  const vendorIds = [...new Set(
+    curOrders.map(o => o.assigned_vendor_id).filter(Boolean)
+  )] as string[];
 
-  const vendorIds = [...new Set(curOrders.map(o => o.assigned_vendor_id).filter(Boolean))];
-
-  const [profiles, qCur, qPrev, qWeek] = await Promise.all([
+  // Perfiles + total facturado del mes en paralelo
+  const [profiles, totalFacturadoMes] = await Promise.all([
     vendorIds.length > 0
       ? sb.from('profiles').select('id, name').in('id', vendorIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     calcFacturado(sb, curIds),
-    calcFacturado(sb, prevIds),
-    calcFacturado(sb, weekIds),
   ]);
 
   const profileMap: Record<string, string> = {};
-  ((profiles as any).data ?? []).forEach((p: any) => { profileMap[p.id] = p.name ?? 'Vendedor'; });
+  ((profiles as any).data ?? []).forEach((p: any) => {
+    profileMap[p.id] = p.name ?? 'Vendedor';
+  });
 
-  // Ranking por vendedor (mes actual)
+  // Mapa de conteo por vendedor
   const statsMap: Record<string, { entregados: number; facturado: number }> = {};
   curOrders.forEach(o => {
     const vid = o.assigned_vendor_id;
@@ -202,8 +353,7 @@ async function buildVendedoresSnapshot(): Promise<VendorLeaderboard> {
     statsMap[vid].entregados++;
   });
 
-  // Para facturado individual necesitamos los quote_items por vendedor
-  // Usamos la misma query pero filtrando por order_id del vendedor
+  // Facturado individual por vendedor desde quote_items
   if (curIds.length > 0) {
     const { data: qItems } = await sb
       .from('quote_items')
@@ -219,7 +369,8 @@ async function buildVendedoresSnapshot(): Promise<VendorLeaderboard> {
       if (!orderId) return;
       const vid = orderVendorMap[orderId];
       if (!vid || !statsMap[vid]) return;
-      statsMap[vid].facturado += (Number(qi.price) || 0) * (Number(qi.quantity_offered) || 1);
+      statsMap[vid].facturado +=
+        (Number(qi.price) || 0) * (Number(qi.quantity_offered) || 1);
     });
   }
 
@@ -229,14 +380,9 @@ async function buildVendedoresSnapshot(): Promise<VendorLeaderboard> {
 
   return {
     vendedores,
-    periodo:              monthName(0),
-    totalFacturadoMes:   qCur,
-    totalEntregadosMes:  curOrders.length,
-    facturadoMesAnterior:  qPrev,
-    entregadosMesAnterior: prevOrders.length,
-    periodoAnterior:       monthName(-1),
-    facturadoSemana:       qWeek,
-    entregadosSemana:      weekOrders.length,
+    periodo:            monthName(0),
+    totalFacturadoMes,
+    totalEntregadosMes: curOrders.length,
   };
 }
 
@@ -259,38 +405,42 @@ async function buildAlertasSnapshot(): Promise<AlertasSnapshot> {
 
   const all = (orders ?? []) as any[];
 
-  const sinAsignar = all.filter(o => o.status === 'pendiente' && !o.assigned_vendor_id).length;
+  const sinAsignar = all.filter(
+    o => o.status === 'pendiente' && !o.assigned_vendor_id
+  ).length;
 
-  // Conflictos activos (con deep links generados via label)
+  const buildLabel = (o: any): string => {
+    const taller = o.workshop?.taller_number;
+    const orderN = o.workshop_order_number;
+    if (taller != null && orderN != null) {
+      return `${String(taller).padStart(2, '0')}-PED-${String(orderN).padStart(4, '0')}`;
+    }
+    if (orderN != null) {
+      return `PED-${String(orderN).padStart(4, '0')}`;
+    }
+    return o.id.slice(0, 8).toUpperCase();
+  };
+
   const conflictOrders: ConflictOrder[] = all
     .filter(o => o.status === 'en_conflicto')
-    .map(o => {
-      const taller = o.workshop?.taller_number;
-      const orderN = o.workshop_order_number;
-      const label  = taller != null && orderN != null
-        ? `${String(taller).padStart(2, '0')}-PED-${String(orderN).padStart(4, '0')}`
-        : orderN != null
-          ? `PED-${String(orderN).padStart(4, '0')}`
-          : o.id.slice(0, 8).toUpperCase();
-      const horas  = Math.floor((Date.now() - new Date(o.updated_at).getTime()) / 3_600_000);
-      return { label, workshopName: o.workshop?.name ?? '?', horasEnConflicto: horas };
-    })
+    .map(o => ({
+      label:            buildLabel(o),
+      workshopName:     o.workshop?.name ?? '?',
+      horasEnConflicto: Math.floor(
+        (Date.now() - new Date(o.updated_at).getTime()) / 3_600_000
+      ),
+    }))
     .sort((a, b) => b.horasEnConflicto - a.horasEnConflicto);
 
-  // Pedidos estancados >48h en revisión
   const bottlenecks: BottleneckOrder[] = all
     .filter(o => o.status === 'en_revision' && o.updated_at < cutoff)
-    .map(o => {
-      const taller = o.workshop?.taller_number;
-      const orderN = o.workshop_order_number;
-      const label  = taller != null && orderN != null
-        ? `${String(taller).padStart(2, '0')}-PED-${String(orderN).padStart(4, '0')}`
-        : orderN != null
-          ? `PED-${String(orderN).padStart(4, '0')}`
-          : o.id.slice(0, 8).toUpperCase();
-      const horas  = Math.floor((Date.now() - new Date(o.updated_at).getTime()) / 3_600_000);
-      return { label, workshopName: o.workshop?.name ?? '?', horasEstancado: horas };
-    })
+    .map(o => ({
+      label:          buildLabel(o),
+      workshopName:   o.workshop?.name ?? '?',
+      horasEstancado: Math.floor(
+        (Date.now() - new Date(o.updated_at).getTime()) / 3_600_000
+      ),
+    }))
     .sort((a, b) => b.horasEstancado - a.horasEstancado);
 
   return {
@@ -331,10 +481,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   // ── SEGURIDAD: solo TELEGRAM_ADMIN_ID puede usar comandos ───────────────
-  // Comparamos como número para manejar IDs negativos (grupos) y positivos (privados).
   const adminChatId = parseInt(adminId, 10);
   if (chatId !== adminChatId) {
-    // Silencio absoluto — no respondemos ni con error para no revelar que el bot existe
     return NextResponse.json({ ok: true, reason: 'unauthorized_chat' });
   }
 
@@ -342,33 +490,51 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const command = text.split('@')[0].split(' ')[0].toLowerCase();
 
   try {
-    if (command === '/hoy') {
-      const snap = await buildHoySnapshot();
-      await sendReply(chatId, formatSlashHoy(snap));
-
-    } else if (command === '/vendedores') {
-      const data = await buildVendedoresSnapshot();
-      await sendReply(chatId, formatSlashVendedores(data));
-
-    } else if (command === '/alertas') {
-      const data = await buildAlertasSnapshot();
-      await sendReply(chatId, formatSlashAlertas(data));
-
-    } else {
-      await sendReply(
-        chatId,
-        [
+    switch (command) {
+      case '/hoy': {
+        const snap = await buildHoySnapshot();
+        await sendReply(chatId, formatSlashHoy(snap));
+        break;
+      }
+      case '/semana': {
+        const snap = await buildSemanaSnapshot();
+        await sendReply(chatId, formatSlashSemana(snap));
+        break;
+      }
+      case '/mes': {
+        const snap = await buildMesSnapshot();
+        await sendReply(chatId, formatSlashMes(snap));
+        break;
+      }
+      case '/vendedores': {
+        const data = await buildVendedoresSnapshot();
+        await sendReply(chatId, formatSlashVendedores(data));
+        break;
+      }
+      case '/alertas': {
+        const data = await buildAlertasSnapshot();
+        await sendReply(chatId, formatSlashAlertas(data));
+        break;
+      }
+      default: {
+        await sendReply(chatId, [
           `ℹ️ <b>Comandos disponibles:</b>`,
-          `/hoy — resumen del día vs. ayer`,
-          `/vendedores — ranking mensual + crecimiento MoM`,
-          `/alertas — cuellos de botella y conflictos activos`,
-        ].join('\n')
-      );
+          ``,
+          `/hoy       — resumen del día vs. ayer`,
+          `/semana    — facturación de la semana (WoW ▲▼)`,
+          `/mes       — facturación del mes (MoM ▲▼)`,
+          `/vendedores — ranking del mes en curso`,
+          `/alertas   — cuellos de botella y conflictos activos`,
+        ].join('\n'));
+      }
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown';
     console.error('[TG-BOT] Error procesando comando:', command, msg);
-    await sendReply(chatId, `❌ Error interno al procesar <code>${command}</code>. Intentá de nuevo en unos segundos.`);
+    await sendReply(
+      chatId,
+      `❌ Error interno al procesar <code>${command}</code>. Intentá de nuevo en unos segundos.`
+    );
   }
 
   return NextResponse.json({ ok: true });

@@ -314,6 +314,20 @@ function diffArrow(current: number, previous: number): string {
 }
 
 /**
+ * Calcula el crecimiento porcentual con manejo explícito de división por cero.
+ * Devuelve HTML bold para destacar el número en Telegram.
+ */
+function growthStr(current: number, previous: number): string {
+  if (previous === 0) {
+    return current > 0 ? ' <i>(sin datos previos)</i>' : '';
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  if (pct > 0)  return ` <b>▲${pct}%</b>`;
+  if (pct < 0)  return ` <b>▼${Math.abs(pct)}%</b>`;
+  return ' <b>→ sin cambio</b>';
+}
+
+/**
  * Reporte agresivo para el chat privado de Juan.
  * Incluye comparativa MoM, top vendedor y alertas de cuellos de botella.
  */
@@ -397,58 +411,117 @@ export function formatSlashHoy(snap: HoySnapshot): string {
   ].join('\n');
 }
 
+// ── /semana ───────────────────────────────────────────────────────────────
+
+export interface SemanaSnapshot {
+  /** Rango visible para el usuario, ej: "Lun 19 may → Mar 20 may" */
+  labelCur:       string;
+  /** Rango de la semana anterior comparado, ej: "Lun 12 may → Mar 13 may" */
+  labelPrev:      string;
+  facturadoCur:   number;
+  entregadosCur:  number;
+  facturadoPrev:  number;
+  entregadosPrev: number;
+  /** Cantidad de días incluidos en la ventana de comparación (1–7). */
+  daysElapsed:    number;
+}
+
+export function formatSlashSemana(snap: SemanaSnapshot): string {
+  const ticket = snap.entregadosCur > 0
+    ? formatCurrency(Math.round(snap.facturadoCur / snap.entregadosCur))
+    : '—';
+
+  const facGrowth = growthStr(snap.facturadoCur,  snap.facturadoPrev);
+  const entGrowth = growthStr(snap.entregadosCur, snap.entregadosPrev);
+
+  return [
+    `📆 <b>Semana actual · ${esc(snap.labelCur)}</b>`,
+    ``,
+    `💰 <b>Facturado:</b>   ${formatCurrency(snap.facturadoCur)}${facGrowth}`,
+    `📦 <b>Entregados:</b>  ${snap.entregadosCur}${entGrowth}`,
+    `📊 <b>Ticket prom.:</b> ${ticket}`,
+    ``,
+    `<i>vs. ${esc(snap.labelPrev)}:</i>`,
+    `<i>  Facturado ${formatCurrency(snap.facturadoPrev)} · ${snap.entregadosPrev} entregas</i>`,
+  ].join('\n');
+}
+
+// ── /mes ──────────────────────────────────────────────────────────────────
+
+export interface MesSnapshot {
+  /** Nombre del mes actual, ej: "mayo 2026" */
+  mesActual:      string;
+  /** Nombre del mes anterior, ej: "abril 2026" */
+  mesAnterior:    string;
+  /** Día del mes hasta el cual se compara, ej: 20 */
+  diaActual:      number;
+  /** Día de comparación en el mes anterior (puede ser distinto si el mes es más corto) */
+  diaComparacion: number;
+  facturadoCur:   number;
+  entregadosCur:  number;
+  facturadoPrev:  number;
+  entregadosPrev: number;
+}
+
+export function formatSlashMes(snap: MesSnapshot): string {
+  const ticket = snap.entregadosCur > 0
+    ? formatCurrency(Math.round(snap.facturadoCur / snap.entregadosCur))
+    : '—';
+
+  const facGrowth = growthStr(snap.facturadoCur,  snap.facturadoPrev);
+  const entGrowth = growthStr(snap.entregadosCur, snap.entregadosPrev);
+
+  const periodoLabel = `1–${snap.diaActual} de ${esc(snap.mesActual)}`;
+  const prevLabel    = `1–${snap.diaComparacion} de ${esc(snap.mesAnterior)}`;
+
+  return [
+    `📅 <b>Mes actual · ${periodoLabel}</b>`,
+    ``,
+    `💰 <b>Facturado:</b>   ${formatCurrency(snap.facturadoCur)}${facGrowth}`,
+    `📦 <b>Entregados:</b>  ${snap.entregadosCur}${entGrowth}`,
+    `📊 <b>Ticket prom.:</b> ${ticket}`,
+    ``,
+    `<i>vs. mismo período (${prevLabel}):</i>`,
+    `<i>  Facturado ${formatCurrency(snap.facturadoPrev)} · ${snap.entregadosPrev} entregas</i>`,
+  ].join('\n');
+}
+
 // ── /vendedores ───────────────────────────────────────────────────────────
 
 export interface VendorLeaderboard {
-  vendedores: VendorStat[];
+  vendedores:         VendorStat[];
   /** Mes en curso, ej: "mayo 2026" */
-  periodo: string;
-  totalFacturadoMes: number;
+  periodo:            string;
+  totalFacturadoMes:  number;
   totalEntregadosMes: number;
-  /** Mes anterior para cálculo de crecimiento. */
-  facturadoMesAnterior?: number;
-  entregadosMesAnterior?: number;
-  periodoAnterior?: string;
-  /** Facturación de la semana en curso (lunes→hoy). */
-  facturadoSemana?: number;
-  entregadosSemana?: number;
 }
 
 export function formatSlashVendedores(data: VendorLeaderboard): string {
   const lines: string[] = [];
 
-  // ── Cabecera mensual ──
-  const facturadoCmp  = (data.facturadoMesAnterior  != null) ? diffArrow(data.totalFacturadoMes,  data.facturadoMesAnterior)  : '';
-  const entregadosCmp = (data.entregadosMesAnterior != null) ? diffArrow(data.totalEntregadosMes, data.entregadosMesAnterior) : '';
-
-  lines.push(`👥 <b>Vendedores — ${esc(data.periodo)}</b>`);
+  lines.push(`👥 <b>Ranking — ${esc(data.periodo)}</b>`);
   lines.push('');
-  lines.push(`💰 <b>Facturado del mes:</b> ${formatCurrency(data.totalFacturadoMes)}${facturadoCmp}`);
-  lines.push(`✅ <b>Entregados del mes:</b> ${data.totalEntregadosMes}${entregadosCmp}`);
 
-  if (data.periodoAnterior && data.facturadoMesAnterior != null) {
-    lines.push(`<i>vs. ${esc(data.periodoAnterior)}: ${formatCurrency(data.facturadoMesAnterior)}</i>`);
-  }
-
-  // ── Semana en curso ──
-  if (data.facturadoSemana != null) {
-    lines.push('');
-    lines.push(`📆 <b>Esta semana:</b> ${formatCurrency(data.facturadoSemana)} · ${data.entregadosSemana ?? 0} ent.`);
-  }
-
-  // ── Ranking ──
   if (data.vendedores.length === 0) {
-    lines.push('', 'Sin actividad registrada este mes.');
+    lines.push('Sin actividad registrada este mes.');
     return lines.join('\n');
   }
 
-  lines.push('', `🏆 <b>Ranking del mes:</b>`);
   const medals = ['🥇', '🥈', '🥉'];
   data.vendedores.slice(0, 8).forEach((v, i) => {
-    const medal = medals[i] ?? `${i + 1}.`;
-    const ticket = v.entregados > 0 ? ` · ticket ${formatCurrency(Math.round(v.facturado / v.entregados))}` : '';
-    lines.push(`${medal} <b>${esc(v.name)}</b> — ${v.entregados} ent. · ${formatCurrency(v.facturado)}${ticket}`);
+    const medal  = medals[i] ?? `${i + 1}.`;
+    const ticket = v.entregados > 0
+      ? ` · ticket ${formatCurrency(Math.round(v.facturado / v.entregados))}`
+      : '';
+    lines.push(
+      `${medal} <b>${esc(v.name)}</b> — ${v.entregados} ent. · ${formatCurrency(v.facturado)}${ticket}`
+    );
   });
+
+  lines.push('');
+  lines.push(
+    `<i>Total del mes: ${formatCurrency(data.totalFacturadoMes)} · ${data.totalEntregadosMes} entregas</i>`
+  );
 
   return lines.join('\n');
 }
