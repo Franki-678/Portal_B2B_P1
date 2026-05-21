@@ -65,7 +65,7 @@ export interface FormatContext {
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 /** URL base del CRM (configurar en Vercel → Settings → Env Variables). */
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://portal-b2b.vercel.app').replace(/\/$/, '');
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://rcrepuestos.vercel.app').replace(/\/$/, '');
 
 function formatOrderLabel(order: OrderRecord, tallerNumber?: number | null): string {
   if (tallerNumber != null && order.workshop_order_number != null) {
