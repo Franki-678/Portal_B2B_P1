@@ -123,7 +123,7 @@ export function formatOrderCreated(ctx: FormatContext): string {
   return [
     `🆕 <b>[NUEVO PEDIDO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `📦 <b>Pedido:</b> <a href="${link}">#${label}</a>`,
     `🚗 ${vehicle(ctx.order)}`,
   ].join('\n');
 }
@@ -133,7 +133,7 @@ export function formatOrderTaken(ctx: FormatContext, event: OrderEventRecord): s
   const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   return [
     `🙋 <b>[TOMADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> tomó <a href="${link}"><code>#${label}</code></a>`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> tomó <a href="${link}">#${label}</a>`,
     `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
   ].join('\n');
 }
@@ -143,7 +143,7 @@ export function formatQuoteSent(ctx: FormatContext, event: OrderEventRecord): st
   const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   return [
     `📝 <b>[COTIZADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> envió cotización para <a href="${link}"><code>#${label}</code></a>`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> envió cotización para <a href="${link}">#${label}</a>`,
     `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
   ].join('\n');
 }
@@ -161,7 +161,7 @@ export function formatQuoteApproved(
   const lines   = [
     tag,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `📦 <b>Pedido:</b> <a href="${link}">#${label}</a>`,
     `🚗 ${vehicle(ctx.order)}`,
     `💰 <b>Monto:</b> ${monto}`,
   ];
@@ -177,7 +177,7 @@ export function formatQuoteRejected(ctx: FormatContext, event: OrderEventRecord)
   const lines   = [
     `🔴 <b>[RECHAZADO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `📦 <b>Pedido:</b> <a href="${link}">#${label}</a>`,
     `🚗 ${vehicle(ctx.order)}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);
@@ -190,7 +190,7 @@ export function formatOrderMarkedPaid(ctx: FormatContext, event: OrderEventRecor
   const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   return [
     `💰 <b>[PAGO REGISTRADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> registró el pago de <a href="${link}"><code>#${label}</code></a>`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> registró el pago de <a href="${link}">#${label}</a>`,
     `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
     `⏳ Mercadería pendiente de entrega.`,
   ].join('\n');
@@ -202,7 +202,7 @@ export function formatOrderDelivered(ctx: FormatContext, event: OrderEventRecord
   const monto = ctx.approvedTotal != null ? formatCurrency(ctx.approvedTotal) : '—';
   return [
     `📦 <b>[ENTREGADO Y COBRADO]</b>`,
-    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> entregó <a href="${link}"><code>#${label}</code></a>`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> entregó <a href="${link}">#${label}</a>`,
     `🏢 ${esc(ctx.workshopName)} · 🚗 ${vehicle(ctx.order)}`,
     `✅ <b>Total facturado:</b> ${monto}`,
   ].join('\n');
@@ -215,7 +215,7 @@ export function formatClaimInitiated(ctx: FormatContext, event: OrderEventRecord
   const lines   = [
     `⚠️ <b>[CONFLICTO INICIADO]</b>`,
     `🏢 <b>Taller:</b> ${esc(ctx.workshopName)}`,
-    `📦 <b>Pedido:</b> <a href="${link}"><code>#${label}</code></a>`,
+    `📦 <b>Pedido:</b> <a href="${link}">#${label}</a>`,
     `🚗 ${vehicle(ctx.order)}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);
@@ -228,7 +228,7 @@ export function formatConflictResolved(ctx: FormatContext, event: OrderEventReco
   const link  = orderDeepLink(ctx.order, ctx.tallerNumber);
   const lines = [
     `🤝 <b>[CONFLICTO RESUELTO]</b>`,
-    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> resolvió <a href="${link}"><code>#${label}</code></a>`,
+    `👤 <b>${esc(event.user_name ?? 'Usuario')}</b> resolvió <a href="${link}">#${label}</a>`,
     `🏢 ${esc(ctx.workshopName)}`,
   ];
   if (event.comment) lines.push(`💬 <i>${esc(event.comment)}</i>`);
@@ -240,7 +240,7 @@ export function formatVendorMention(ctx: FormatContext, accion: string): string 
   const link    = orderDeepLink(ctx.order, ctx.tallerNumber);
   const mention = vendorMention(ctx.vendorTelegramUsername, ctx.vendorName);
   return [
-    `🔔 ${mention}, el taller modificó <a href="${link}"><code>#${label}</code></a>`,
+    `🔔 ${mention}, el taller modificó <a href="${link}">#${label}</a>`,
     `🏢 ${esc(ctx.workshopName)} · ${esc(accion)}`,
     `Esperando tu respuesta.`,
   ].join('\n');
@@ -556,7 +556,7 @@ export function formatSlashAlertas(data: AlertasSnapshot): string {
     lines.push(``, `⚠️ <b>${data.enConflicto} pedido${data.enConflicto !== 1 ? 's' : ''} en conflicto activo:</b>`);
     data.conflictOrders.slice(0, 8).forEach(c => {
       const link = slugDeepLink(c.label);
-      lines.push(`  · <a href="${link}"><code>${esc(c.label)}</code></a> — ${esc(c.workshopName)} (${c.horasEnConflicto}h)`);
+      lines.push(`  · <a href="${link}">${esc(c.label)}</a> — ${esc(c.workshopName)} (${c.horasEnConflicto}h)`);
     });
   }
 
@@ -565,7 +565,7 @@ export function formatSlashAlertas(data: AlertasSnapshot): string {
     lines.push(``, `⏱ <b>Atascados &gt;48h en revisión:</b>`);
     data.bottlenecks.slice(0, 10).forEach(b => {
       const link = slugDeepLink(b.label);
-      lines.push(`  · <a href="${link}"><code>${esc(b.label)}</code></a> — ${esc(b.workshopName)} (${b.horasEstancado}h)`);
+      lines.push(`  · <a href="${link}">${esc(b.label)}</a> — ${esc(b.workshopName)} (${b.horasEstancado}h)`);
     });
   }
 

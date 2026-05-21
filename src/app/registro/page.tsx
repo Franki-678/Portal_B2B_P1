@@ -216,11 +216,6 @@ export default function RegistroPage() {
             </Link>
           </p>
 
-          <div className="mt-4 pt-4 border-t border-zinc-800/60">
-            <p className="text-[11px] text-zinc-600 text-center leading-relaxed">
-              Los accesos de vendedor son creados por el administrador del sistema.
-            </p>
-          </div>
         </div>
 
         <p className="text-center text-sm font-medium text-zinc-600 mt-6">

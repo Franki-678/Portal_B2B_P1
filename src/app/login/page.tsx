@@ -48,13 +48,10 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
     e.preventDefault();
     if (!email.trim()) { setError('Ingresá tu email.'); return; }
     setLoading(true); setError('');
-    const result = await resetPassword(email.trim());
+    // Siempre disparamos el intento (Supabase no confirma si el mail existe — seguridad).
+    await resetPassword(email.trim());
     setLoading(false);
-    if (!result.success) {
-      setError(result.error ?? 'No se pudo enviar el email.');
-    } else {
-      setSent(true);
-    }
+    setSent(true);
   };
 
   return (
@@ -68,7 +65,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
       {sent ? (
         <div className="space-y-4">
-          <SuccessBanner message="¡Revisá tu bandeja! Te enviamos el enlace de recuperación." />
+          <SuccessBanner message="Si ese correo está registrado, recibirás un enlace para crear una nueva contraseña. Revisá también tu carpeta de spam." />
           <Button variant="ghost" fullWidth onClick={onBack}>
             ← Volver al login
           </Button>

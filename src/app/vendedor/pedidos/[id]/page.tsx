@@ -21,6 +21,7 @@ import { useImageLightbox } from '@/components/ui/ImageLightbox';
 import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, QuoteItem } from '@/lib/types';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -58,6 +59,24 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [showRecotizarModal, setShowRecotizarModal] = useState(false);
   const [recotizarLoading, setRecotizarLoading] = useState(false);
   const lightbox = useImageLightbox();
+
+  // Evidencia del reclamo (claim_images)
+  const [claimImages, setClaimImages] = useState<{ url: string; storage_path: string }[]>([]);
+  useEffect(() => {
+    if (!id) return;
+    const sb = getSupabaseClient();
+    // Fetch by order_id — the id param may be a slug; get the real order first
+    void (async () => {
+      const ord = getOrderBySlug(id);
+      if (!ord) return;
+      const { data } = await sb
+        .from('claim_images')
+        .select('url, storage_path')
+        .eq('order_id', ord.id);
+      if (data && data.length > 0) setClaimImages(data);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // Soporta UUID (legacy) y slug "NN-PED-XXXX" / "PED-XXXX"
   const order = getOrderBySlug(id);
@@ -940,6 +959,35 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         {order.quote && order.quote.items.length === 0 && (
           <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
             El vendedor no tiene stock disponible para ninguno de los ítems solicitados.
+          </div>
+        )}
+
+        {/* Evidencia del Reclamo */}
+        {claimImages.length > 0 && (
+          <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-zinc-100 mb-4 flex items-center gap-2 tracking-tight">
+              📎 Evidencia del Reclamo
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {claimImages.map((img, idx) => (
+                <button
+                  key={img.storage_path}
+                  type="button"
+                  onClick={() => lightbox.open(claimImages.map(i => i.url), idx)}
+                  className="group relative aspect-square rounded-xl overflow-hidden border border-zinc-700/60 hover:border-orange-500/50 transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.url}
+                    alt={`Evidencia ${idx + 1}`}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <span className="text-white text-xl opacity-0 group-hover:opacity-100 transition-opacity">🔍</span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

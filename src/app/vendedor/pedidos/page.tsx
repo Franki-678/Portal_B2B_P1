@@ -105,7 +105,6 @@ function PedidosContent() {
                   <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Repuesto / Vehículo</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Taller</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Estado</th>
-                  <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Calidad</th>
                   <th className="px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Actualizado</th>
                 </tr>
               </thead>

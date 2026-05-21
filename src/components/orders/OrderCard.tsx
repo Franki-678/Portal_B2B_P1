@@ -155,15 +155,40 @@ export function OrderTableRow({ order, onClick, role, actions }: OrderRowProps) 
         <StatusBadge status={order.status} />
       </td>
 
-      {/* Columna: Actualizado */}
-      <td className="px-5 py-4 whitespace-nowrap">
-        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">{formatRelativeTime(order.updatedAt)}</span>
+      {/* Columna: Actualizado + calidad + detalle */}
+      <td className="px-5 py-4">
+        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest whitespace-nowrap">
+          {formatRelativeTime(order.updatedAt)}
+        </span>
+        {firstItem?.quality && (
+          <div className="mt-1">
+            <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+              firstItem.quality === 'alta'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                : firstItem.quality === 'media'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+            }`}>
+              {firstItem.quality === 'alta' ? 'Alta' : firstItem.quality === 'media' ? 'Media' : 'Económica'}
+            </span>
+          </div>
+        )}
+        {order.items?.[0]?.partName && (
+          <div className="text-[11px] text-zinc-600 mt-0.5 max-w-[140px] truncate">
+            {order.items[0].partName}
+            {(order.items?.length ?? 0) > 1 && (
+              <span className="text-zinc-700"> +{order.items!.length - 1}</span>
+            )}
+          </div>
+        )}
       </td>
 
       {/* Columna: Acciones (slot opcional) */}
-      <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
-        {actions ?? null}
-      </td>
+      {actions != null && (
+        <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+          {actions}
+        </td>
+      )}
     </tr>
   );
 }

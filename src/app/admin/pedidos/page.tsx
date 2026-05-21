@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
@@ -11,6 +11,7 @@ import { Order, OrderStatus } from '@/lib/types';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { fetchDeletedOrders } from '@/lib/supabase/queries';
 import { formatDate, formatVendorOrderLabel, matchesOrderSearch } from '@/lib/utils';
+import { useSearchParams } from 'next/navigation';
 
 const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
   { value: 'todos', label: 'Todos' },
@@ -23,9 +24,11 @@ const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
   { value: 'cerrado', label: 'Cerrados' },
 ];
 
-export default function AdminPedidosPage() {
+function AdminPedidosContent() {
   const { getAllOrders } = useDataStore();
-  const [filter, setFilter] = useState<'todos' | OrderStatus>('todos');
+  const searchParams = useSearchParams();
+  const initialStatus = (searchParams.get('status') as OrderStatus | null) || 'todos';
+  const [filter, setFilter] = useState<'todos' | OrderStatus>(initialStatus as 'todos' | OrderStatus);
   const [search, setSearch] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -38,8 +41,8 @@ export default function AdminPedidosPage() {
   const all = getAllOrders();
   const filtered = useMemo(() => {
     let rows = filter === 'todos' ? all : all.filter(order => order.status === filter);
-    if (!search.trim()) return rows;
-    return rows.filter(order => matchesOrderSearch(order, search));
+    if (search.trim()) rows = rows.filter(order => matchesOrderSearch(order, search));
+    return [...rows].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [all, filter, search]);
 
   const loadDeleted = useCallback(async () => {
@@ -148,7 +151,6 @@ export default function AdminPedidosPage() {
                       <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Pedido</th>
                       <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Taller</th>
                       <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Estado</th>
-                      <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Detalle</th>
                       <th className="px-5 py-4 text-xs uppercase tracking-[0.18em] text-zinc-500">Actualizado</th>
                     </tr>
                   </thead>
@@ -243,5 +245,13 @@ export default function AdminPedidosPage() {
         role="admin"
       />
     </>
+  );
+}
+
+export default function AdminPedidosPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-zinc-400">Cargando...</div>}>
+      <AdminPedidosContent />
+    </Suspense>
   );
 }

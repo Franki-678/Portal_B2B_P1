@@ -138,7 +138,7 @@ export default function AdminDashboardPage() {
 
         {/* ── Banner de conflictos activos ── */}
         {conflictCount > 0 && (
-          <Link href="/admin/pedidos" className="block">
+          <Link href="/admin/pedidos?status=en_conflicto" className="block">
             <div className="flex items-center gap-4 rounded-2xl border border-red-500/40 bg-red-600/10 px-5 py-4 text-red-200 hover:bg-red-500/15 transition-colors">
               <span className="text-2xl shrink-0">⚠️</span>
               <div className="min-w-0 flex-1">
