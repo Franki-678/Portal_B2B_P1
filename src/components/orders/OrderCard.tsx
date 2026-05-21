@@ -155,14 +155,14 @@ export function OrderTableRow({ order, onClick, role, actions }: OrderRowProps) 
         <StatusBadge status={order.status} />
       </td>
 
-      {/* Columna: Actualizado + calidad + detalle */}
+      {/* Columna: Actualizado + calidad */}
       <td className="px-5 py-4">
-        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest whitespace-nowrap">
+        <span className="text-sm font-semibold text-zinc-500 uppercase tracking-widest whitespace-nowrap">
           {formatRelativeTime(order.updatedAt)}
         </span>
         {firstItem?.quality && (
-          <div className="mt-1">
-            <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+          <div className="mt-1.5">
+            <span className={`inline-block text-xs font-bold px-1.5 py-0.5 rounded border ${
               firstItem.quality === 'alta'
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                 : firstItem.quality === 'media'
@@ -171,14 +171,6 @@ export function OrderTableRow({ order, onClick, role, actions }: OrderRowProps) 
             }`}>
               {firstItem.quality === 'alta' ? 'Alta' : firstItem.quality === 'media' ? 'Media' : 'Económica'}
             </span>
-          </div>
-        )}
-        {order.items?.[0]?.partName && (
-          <div className="text-[11px] text-zinc-600 mt-0.5 max-w-[140px] truncate">
-            {order.items[0].partName}
-            {(order.items?.length ?? 0) > 1 && (
-              <span className="text-zinc-700"> +{order.items!.length - 1}</span>
-            )}
           </div>
         )}
       </td>
