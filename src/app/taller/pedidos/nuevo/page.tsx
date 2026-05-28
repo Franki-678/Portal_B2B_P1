@@ -99,6 +99,7 @@ export default function NuevoPedidoPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showSlowMessage, setShowSlowMessage] = useState(false);
+  const [pastedItemId, setPastedItemId] = useState<string | null>(null);
 
   // Opciones de modelo para la marca seleccionada
   const modeloOptions = useMemo(() => {
@@ -268,6 +269,20 @@ export default function NuevoPedidoPage() {
         return { ...item, images: newImages, imagePreviews: newPreviews };
       })
     );
+  };
+
+  const handlePasteImage = (tempId: string, e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    e.preventDefault();
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      const newImages = [...item.images, ...files].slice(0, 2);
+      const newPreviews = newImages.map(f => URL.createObjectURL(f));
+      return { ...item, images: newImages, imagePreviews: newPreviews };
+    }));
+    setPastedItemId(tempId);
+    setTimeout(() => setPastedItemId(null), 2000);
   };
 
   const removeImage = (tempId: string, idxToRemove: number) => {
@@ -692,10 +707,22 @@ export default function NuevoPedidoPage() {
                     </div>
 
                     <div className="pt-2">
-                      <p className="block text-sm font-semibold text-zinc-300 mb-2">
-                        Fotos de referencia (opcional — máx. 2)
-                      </p>
-                      <div className="flex items-center gap-4 flex-wrap">
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="block text-sm font-semibold text-zinc-300">
+                          Fotos de referencia (opcional — máx. 2)
+                        </p>
+                        {pastedItemId === item.tempId && (
+                          <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 animate-pulse">
+                            ✅ Imagen pegada
+                          </span>
+                        )}
+                      </div>
+                      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+                      <div
+                        className="flex items-center gap-4 flex-wrap outline-none"
+                        tabIndex={0}
+                        onPaste={e => handlePasteImage(item.tempId, e)}
+                      >
                         {item.imagePreviews.map((preview, i) => (
                           <div key={i} className="relative group/img">
                             <img

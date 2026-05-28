@@ -61,6 +61,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [conflictAdjustmentValue, setConflictAdjustmentValue] = useState('');
   const [showRecotizarModal, setShowRecotizarModal] = useState(false);
   const [recotizarLoading, setRecotizarLoading] = useState(false);
+  const [pastedItemId, setPastedItemId] = useState<string | null>(null);
   // Edit-quote mode
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
@@ -276,6 +277,24 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
       }
       return { ...item, existingImages: item.existingImages.filter((_, i) => i !== idx) };
     }));
+  };
+
+  const handlePasteImage = (tempId: string, e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    e.preventDefault();
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      const room = 5 - item.imageFiles.length - item.existingImages.length;
+      const toAdd = files.slice(0, Math.max(0, room));
+      if (toAdd.length === 0) return item;
+      const newFiles    = [...item.imageFiles, ...toAdd];
+      const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+      item.imagePreviews.forEach(u => URL.revokeObjectURL(u));
+      return { ...item, imageFiles: newFiles, imagePreviews: newPreviews };
+    }));
+    setPastedItemId(tempId);
+    setTimeout(() => setPastedItemId(null), 2000);
   };
 
   const handleOpenEditQuote = async () => {
@@ -885,10 +904,22 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                             </div>
 
                             <div>
-                              <p className="mb-2 block text-sm font-semibold text-zinc-300">
-                                Fotos del repuesto (máx. 5)
-                              </p>
-                              <div className="flex flex-wrap items-start gap-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <p className="block text-sm font-semibold text-zinc-300">
+                                  Fotos del repuesto (máx. 5)
+                                </p>
+                                {pastedItemId === item.tempId && (
+                                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 animate-pulse">
+                                    ✅ Imagen pegada
+                                  </span>
+                                )}
+                              </div>
+                              {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+                              <div
+                                className="flex flex-wrap items-start gap-3 outline-none"
+                                tabIndex={0}
+                                onPaste={e => handlePasteImage(item.tempId, e)}
+                              >
                                 {/* Existing images (edit mode) */}
                                 {item.existingImages.map((img, ei) => (
                                   <div key={`existing-${ei}`} className="group/img relative inline-block">
