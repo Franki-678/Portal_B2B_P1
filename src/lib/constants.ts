@@ -60,6 +60,7 @@ export const EVENT_ACTION_LABELS: Record<EventAction, string> = {
   reclamo_iniciado:            'Reclamo iniciado',
   conflicto_resuelto:          'Conflicto resuelto',
   recotizacion_preacordada:    'Re-cotización preacordada',
+  cotizacion_editada:          'Cotización editada',
   comentario:                  'Comentario',
 };
 
@@ -79,6 +80,7 @@ export const EVENT_ACTION_ICONS: Record<EventAction, string> = {
   reclamo_iniciado:            '⚠️',
   conflicto_resuelto:          '🤝',
   recotizacion_preacordada:    '🔄',
+  cotizacion_editada:          '✏️',
   comentario:                  '💬',
 };
 

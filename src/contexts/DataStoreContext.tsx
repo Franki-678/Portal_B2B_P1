@@ -19,6 +19,7 @@ import {
   createOrderInDB,
   updateOrderStatus,
   createQuoteInDB,
+  updateQuoteInDB,
   updateQuoteItemsApproval,
   fetchAllWorkshops,
   fetchOrderById,
@@ -31,6 +32,7 @@ import {
   initiateClaimInDB,
   resolveConflictInDB,
   recotizarOrderInDB,
+  UpdateQuoteItemPayload,
 } from '@/lib/supabase/queries';
 
 // ============================================================
@@ -120,6 +122,14 @@ interface DataStoreContextType {
    * para poder armar una nueva cotización preacordada con el taller.
    */
   recotizarOrder: (orderId: string) => Promise<boolean>;
+  /** Vendedor edita una cotización ya enviada (transaccional vía RPC). */
+  editQuote: (
+    quoteId: string,
+    orderId: string,
+    notes: string,
+    items: UpdateQuoteItemPayload[],
+    removedStoragePaths: string[]
+  ) => Promise<boolean>;
   /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
   refreshData: (opts?: { forceWorkshops?: boolean; silent?: boolean }) => Promise<void>;
   /** Fuerza recarga de pedidos y talleres (botón Reintentar). */
@@ -703,6 +713,25 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
     [user, updateLocalOrder, refreshData]
   );
 
+  const editQuote = useCallback(
+    async (
+      quoteId: string,
+      orderId: string,
+      notes: string,
+      items: UpdateQuoteItemPayload[],
+      removedStoragePaths: string[]
+    ): Promise<boolean> => {
+      if (!user) return false;
+      const sb = getSupabaseClient();
+      const ok = await updateQuoteInDB(sb, quoteId, orderId, user.id, notes, items, removedStoragePaths);
+      if (ok) {
+        await refreshData();
+      }
+      return ok;
+    },
+    [user, refreshData]
+  );
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -759,6 +788,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
         initiateClaim,
         resolveConflict,
         recotizarOrder,
+        editQuote,
         refreshData,
         refreshOrders,
       }}

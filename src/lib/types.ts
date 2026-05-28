@@ -37,6 +37,7 @@ export type EventAction =
   | 'reclamo_iniciado'            // taller inicia reclamo (en_conflicto)
   | 'conflicto_resuelto'          // admin/vendedor resuelve el conflicto
   | 'recotizacion_preacordada'    // vendedor descarta cotización rechazada para re-cotizar
+  | 'cotizacion_editada'          // vendedor edita una cotización ya enviada
   | 'comentario';
 
 // ============================================================

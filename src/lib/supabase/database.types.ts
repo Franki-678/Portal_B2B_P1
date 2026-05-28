@@ -287,6 +287,7 @@ export type Database = {
             | 'cotizacion_rechazada'
             | 'cotizacion_aprobada_parcial'
             | 'pedido_cerrado'
+            | 'cotizacion_editada'
             | 'comentario';
           comment: string | null;
           created_at: string;
