@@ -307,11 +307,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Registrar último acceso del taller (solo informativo, sin bloqueo)
         if (loaded.role === 'taller' && loaded.workshopId) {
-          await (supabase as any)
-            .from('workshops')
-            .update({ last_active_at: new Date().toISOString() })
-            .eq('id', loaded.workshopId)
-            .catch(() => undefined); // best-effort, no bloquear login si falla
+          try {
+            await (supabase as any)
+              .from('workshops')
+              .update({ last_active_at: new Date().toISOString() })
+              .eq('id', loaded.workshopId);
+          } catch (err) {
+            console.warn('[Auth] Could not update last_active_at:', err);
+          }
         }
 
         setUser(loaded);
