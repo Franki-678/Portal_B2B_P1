@@ -24,6 +24,8 @@ export type Database = {
           email: string | null;
           taller_number: number | null;
           created_at: string;
+          last_active_at: string | null;
+          status: 'active' | 'suspended' | 'pending_reactivation';
         };
         Insert: {
           id?: string;
@@ -34,6 +36,8 @@ export type Database = {
           email?: string | null;
           taller_number?: number | null;
           created_at?: string;
+          last_active_at?: string | null;
+          status?: 'active' | 'suspended' | 'pending_reactivation';
         };
         Update: Partial<Database['public']['Tables']['workshops']['Insert']>;
       };

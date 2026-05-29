@@ -140,6 +140,10 @@ function LoginForm() {
         router.replace(target);
         return;
       }
+      if (result.error === '__ACCOUNT_INACTIVE__') {
+        setError('__ACCOUNT_INACTIVE__');
+        return;
+      }
       setError(result.error ?? 'Error al iniciar sesión.');
     } catch (err) {
       setError(err instanceof Error && err.message === '__FORM_TIMEOUT__' ? TIMEOUT_MSG : TIMEOUT_MSG);
@@ -147,6 +151,34 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  // Pantalla de cuenta bloqueada
+  if (error === '__ACCOUNT_INACTIVE__') {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="text-5xl">🔒</div>
+          <div>
+            <h2 className="text-xl font-extrabold text-zinc-100 tracking-tight">Cuenta inactiva por seguridad</h2>
+            <p className="text-sm text-zinc-400 mt-3 leading-relaxed">
+              Tu cuenta fue suspendida temporalmente por inactividad.<br />
+              Esperando confirmación del vendedor para rehabilitar el acceso.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 px-5 py-4 text-sm text-amber-300">
+            Contactate con RC Repuestos para solicitar la reactivación.
+          </div>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            className="text-xs text-zinc-500 hover:text-zinc-300 underline transition-colors"
+          >
+            Volver al login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">

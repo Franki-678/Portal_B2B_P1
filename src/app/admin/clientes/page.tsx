@@ -1,13 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDataStore } from '@/contexts/DataStoreContext';
 import { TopBar } from '@/components/ui/Layout';
 import { StatusBadge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { formatDate, digitsOnlyPhone, formatCurrency, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
 import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { reactivateWorkshop } from '@/lib/supabase/queries';
 import type { Order } from '@/lib/types';
+
+type WorkshopStatus = 'active' | 'suspended' | 'pending_reactivation';
 
 function orderTotal(order: Order): number {
   const items = order.quote?.items ?? [];
@@ -15,15 +20,30 @@ function orderTotal(order: Order): number {
 }
 
 export default function AdminClientesPage() {
-  const { getAllOrders, getAllWorkshops } = useDataStore();
+  const { getAllOrders, getAllWorkshops, refreshData } = useDataStore();
   const router = useRouter();
   const [selectedWorkshopId, setSelectedWorkshopId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'activos' | 'pendientes'>('activos');
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+
+  const handleReactivate = useCallback(async (workshopId: string) => {
+    setReactivatingId(workshopId);
+    const sb = getSupabaseClient();
+    const ok = await reactivateWorkshop(sb, workshopId);
+    setReactivatingId(null);
+    if (ok) {
+      await refreshData({ forceWorkshops: true, silent: true });
+    } else {
+      alert('No se pudo rehabilitar el acceso. Intentá de nuevo.');
+    }
+  }, [refreshData]);
 
   const orders = getAllOrders();
-  const workshops = getAllWorkshops().map((workshop: any) => {
+  const allWorkshopsRaw = getAllWorkshops().map((workshop: any) => {
     const workshopOrders = orders.filter((order: Order) => order.workshopId === workshop.id);
     return {
       ...workshop,
+      workshopStatus: (workshop.status ?? 'active') as WorkshopStatus,
       totalOrders: workshopOrders.length,
       activeOrders: workshopOrders.filter((order: Order) => ['pendiente', 'en_revision', 'cotizado'].includes(order.status)).length,
       approvedOrders: workshopOrders.filter((order: Order) => order.status === 'aprobado' || order.status === 'aprobado_parcial').length,
@@ -35,6 +55,10 @@ export default function AdminClientesPage() {
       ),
     };
   });
+  const workshops = activeTab === 'activos'
+    ? allWorkshopsRaw.filter(w => w.workshopStatus === 'active')
+    : allWorkshopsRaw.filter(w => w.workshopStatus !== 'active');
+  const pendingCount = allWorkshopsRaw.filter(w => w.workshopStatus !== 'active').length;
 
   const selectedWorkshop = selectedWorkshopId
     ? workshops.find(w => w.id === selectedWorkshopId) ?? null
@@ -52,14 +76,53 @@ export default function AdminClientesPage() {
     <>
       <TopBar
         title="Clientes y talleres"
-        subtitle={`${workshops.length} talleres visibles en la operación`}
+        subtitle={`${allWorkshopsRaw.length} talleres en la operación`}
       />
 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 px-6 pt-4 pb-0">
+        <button
+          type="button"
+          onClick={() => { setActiveTab('activos'); setSelectedWorkshopId(null); }}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+            activeTab === 'activos'
+              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+              : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+          }`}
+        >
+          ✅ Activos ({allWorkshopsRaw.filter(w => w.workshopStatus === 'active').length})
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveTab('pendientes'); setSelectedWorkshopId(null); }}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+            activeTab === 'pendientes'
+              ? 'bg-amber-500/15 border border-amber-500/30 text-amber-300'
+              : 'text-zinc-400 hover:text-zinc-200 border border-transparent'
+          }`}
+        >
+          🔒 Pendientes / Inactivos
+          {pendingCount > 0 && (
+            <span className="ml-2 rounded-full bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-black text-amber-300">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
+        {workshops.length === 0 && (
+          <div className="col-span-full rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/40 px-6 py-10 text-center">
+            <p className="text-sm text-zinc-500">
+              {activeTab === 'activos' ? 'No hay talleres activos.' : 'No hay talleres pendientes de reactivación.'}
+            </p>
+          </div>
+        )}
         {workshops.map(workshop => {
           const last: Order | undefined = workshop.lastOrder;
           const lastTotal = last ? orderTotal(last) : 0;
           const isSelected = selectedWorkshopId === workshop.id;
+          const isPending = workshop.workshopStatus !== 'active';
 
           return (
             <div
@@ -94,6 +157,30 @@ export default function AdminClientesPage() {
                   <div className="text-[11px] text-zinc-400 font-medium">{formatDate(workshop.created_at)}</div>
                 </div>
               </div>
+
+              {/* Badge estado + botón rehabilitar */}
+              {isPending && (
+                <div className="flex items-center justify-between gap-3 mb-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2.5">
+                  <div>
+                    <span className="text-xs font-bold text-amber-300">
+                      {workshop.workshopStatus === 'suspended' ? '⛔ Suspendido' : '⏳ Pendiente de reactivación'}
+                    </span>
+                    {workshop.last_active_at && (
+                      <p className="text-[10px] text-amber-500/60 mt-0.5">
+                        Último acceso: {formatDate(workshop.last_active_at)}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    loading={reactivatingId === workshop.id}
+                    onClick={e => { e.stopPropagation(); void handleReactivate(workshop.id); }}
+                    className="shrink-0 bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25 hover:border-cyan-400/50 font-bold text-xs"
+                  >
+                    ⚡ Rehabilitar acceso
+                  </Button>
+                </div>
+              )}
 
               {/* Info de contacto */}
               <div className="space-y-1 text-[12px] text-zinc-500 mb-4">

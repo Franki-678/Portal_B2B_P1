@@ -119,7 +119,7 @@ export async function fetchAllWorkshops(
 
   let query = (sb as any)
     .from('workshops')
-    .select('id, name, address, phone, contact_name, email, taller_number, created_at')
+    .select('id, name, address, phone, contact_name, email, taller_number, created_at, status, last_active_at')
     .order('name', { ascending: true });
 
   if (scope.workshopIds) {
@@ -1798,3 +1798,43 @@ export async function fetchVehiclesCatalog(
   }
   return catalog;
 }
+
+// ============================================================
+// INACTIVIDAD / REACTIVACIÓN DE TALLERES
+// ============================================================
+
+/**
+ * Llama al RPC check_workshop_activity y retorna el estado resultante.
+ * 'active' → OK, last_active_at actualizado.
+ * 'pending_reactivation' | 'suspended' → bloquear acceso.
+ */
+export async function checkWorkshopActivity(
+  sb: SupabaseClientType,
+  workshopId: string
+): Promise<'active' | 'pending_reactivation' | 'suspended' | 'not_found' | 'error'> {
+  const { data, error } = await (sb as any).rpc('check_workshop_activity', {
+    p_workshop_id: workshopId,
+  });
+  if (error) {
+    console.error('[Supabase] check_workshop_activity:', error.message);
+    return 'error';
+  }
+  return (data as string) as 'active' | 'pending_reactivation' | 'suspended' | 'not_found';
+}
+
+/** Admin reactiva un taller: status = 'active', last_active_at = NOW(). */
+export async function reactivateWorkshop(
+  sb: SupabaseClientType,
+  workshopId: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('workshops')
+    .update({ status: 'active', last_active_at: new Date().toISOString() })
+    .eq('id', workshopId);
+  if (error) {
+    console.error('[Supabase] reactivateWorkshop:', error.message);
+    return false;
+  }
+  return true;
+}
+

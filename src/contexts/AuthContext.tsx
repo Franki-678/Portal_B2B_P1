@@ -305,6 +305,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
 
+        // Check inactividad para talleres (7 días sin actividad → bloquear)
+        if (loaded.role === 'taller' && loaded.workshopId) {
+          const { data: activityStatus } = await (supabase as any).rpc(
+            'check_workshop_activity',
+            { p_workshop_id: loaded.workshopId }
+          );
+          if (activityStatus === 'pending_reactivation' || activityStatus === 'suspended') {
+            await supabase.auth.signOut().catch(() => undefined);
+            setUser(null);
+            persistUserCache(null);
+            return { success: false, error: '__ACCOUNT_INACTIVE__' };
+          }
+        }
+
         setUser(loaded);
         persistUserCache(loaded);
         return { success: true, role: loaded.role, mustChangePassword: mcp };
