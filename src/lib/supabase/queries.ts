@@ -119,7 +119,7 @@ export async function fetchAllWorkshops(
 
   let query = (sb as any)
     .from('workshops')
-    .select('id, name, address, phone, contact_name, email, taller_number, created_at, status, last_active_at')
+    .select('id, name, address, phone, contact_name, email, taller_number, created_at, status, last_active_at, suspended_reason, suspended_by, suspended_at, suspended_by_name')
     .order('name', { ascending: true });
 
   if (scope.workshopIds) {
@@ -1826,17 +1826,49 @@ export async function checkWorkshopActivity(
   return (data as string) as 'active' | 'pending_reactivation' | 'suspended' | 'not_found';
 }
 
-/** Admin reactiva un taller: status = 'active', last_active_at = NOW(). */
+/** Admin reactiva un taller: status = 'active', last_active_at = NOW(), limpia campos suspensión. */
 export async function reactivateWorkshop(
   sb: SupabaseClientType,
   workshopId: string
 ): Promise<boolean> {
   const { error } = await (sb as any)
     .from('workshops')
-    .update({ status: 'active', last_active_at: new Date().toISOString() })
+    .update({
+      status:           'active',
+      last_active_at:   new Date().toISOString(),
+      suspended_reason: null,
+      suspended_by:     null,
+      suspended_at:     null,
+      suspended_by_name: null,
+    })
     .eq('id', workshopId);
   if (error) {
     console.error('[Supabase] reactivateWorkshop:', error.message);
+    return false;
+  }
+  return true;
+}
+
+/** Admin suspende manualmente un taller. */
+export async function suspendWorkshop(
+  sb: SupabaseClientType,
+  workshopId: string,
+  reason: string,
+  suspendedById: string,
+  suspendedByName: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('workshops')
+    .update({
+      status:           'suspended',
+      suspended_reason: reason.trim() || null,
+      suspended_by:     suspendedById,
+      suspended_at:     new Date().toISOString(),
+      suspended_by_name: suspendedByName,
+    })
+    .eq('id', workshopId);
+  if (error) {
+    console.error('[Supabase] suspendWorkshop:', error.message);
     return false;
   }
   return true;

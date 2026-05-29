@@ -3,13 +3,14 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDataStore } from '@/contexts/DataStoreContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { TopBar } from '@/components/ui/Layout';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatDate, digitsOnlyPhone, formatCurrency, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
 import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { reactivateWorkshop } from '@/lib/supabase/queries';
+import { reactivateWorkshop, suspendWorkshop } from '@/lib/supabase/queries';
 import type { Order } from '@/lib/types';
 
 type WorkshopStatus = 'active' | 'suspended' | 'pending_reactivation';
@@ -19,12 +20,26 @@ function orderTotal(order: Order): number {
   return items.reduce((acc, item) => acc + quoteLineTotal(item), 0);
 }
 
+function getDaysInactive(lastActiveAt: string | null | undefined): number | null {
+  if (!lastActiveAt) return null;
+  const diffMs = Date.now() - new Date(lastActiveAt).getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
 export default function AdminClientesPage() {
   const { getAllOrders, getAllWorkshops, refreshData } = useDataStore();
+  const { user } = useAuth();
   const router = useRouter();
+
   const [selectedWorkshopId, setSelectedWorkshopId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'activos' | 'pendientes'>('activos');
   const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+
+  // Suspend modal state
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendTarget, setSuspendTarget] = useState<{ id: string; name: string } | null>(null);
+  const [suspendReason, setSuspendReason] = useState('');
+  const [suspendLoading, setSuspendLoading] = useState(false);
 
   const handleReactivate = useCallback(async (workshopId: string) => {
     setReactivatingId(workshopId);
@@ -38,12 +53,36 @@ export default function AdminClientesPage() {
     }
   }, [refreshData]);
 
+  const openSuspendModal = (id: string, name: string) => {
+    setSuspendTarget({ id, name });
+    setSuspendReason('');
+    setShowSuspendModal(true);
+  };
+
+  const handleConfirmSuspend = async () => {
+    if (!suspendTarget || !user) return;
+    setSuspendLoading(true);
+    const sb = getSupabaseClient();
+    const ok = await suspendWorkshop(sb, suspendTarget.id, suspendReason, user.id, user.name);
+    setSuspendLoading(false);
+    if (ok) {
+      setShowSuspendModal(false);
+      setSuspendTarget(null);
+      setSuspendReason('');
+      await refreshData({ forceWorkshops: true, silent: true });
+    } else {
+      alert('No se pudo inhabilitar el taller. Intentá de nuevo.');
+    }
+  };
+
   const orders = getAllOrders();
   const allWorkshopsRaw = getAllWorkshops().map((workshop: any) => {
     const workshopOrders = orders.filter((order: Order) => order.workshopId === workshop.id);
+    const days = getDaysInactive(workshop.last_active_at);
     return {
       ...workshop,
       workshopStatus: (workshop.status ?? 'active') as WorkshopStatus,
+      daysInactive: days,
       totalOrders: workshopOrders.length,
       activeOrders: workshopOrders.filter((order: Order) => ['pendiente', 'en_revision', 'cotizado'].includes(order.status)).length,
       approvedOrders: workshopOrders.filter((order: Order) => order.status === 'aprobado' || order.status === 'aprobado_parcial').length,
@@ -55,6 +94,7 @@ export default function AdminClientesPage() {
       ),
     };
   });
+
   const workshops = activeTab === 'activos'
     ? allWorkshopsRaw.filter(w => w.workshopStatus === 'active')
     : allWorkshopsRaw.filter(w => w.workshopStatus !== 'active');
@@ -110,6 +150,7 @@ export default function AdminClientesPage() {
         </button>
       </div>
 
+      {/* Grid de talleres */}
       <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-3">
         {workshops.length === 0 && (
           <div className="col-span-full rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/40 px-6 py-10 text-center">
@@ -118,11 +159,15 @@ export default function AdminClientesPage() {
             </p>
           </div>
         )}
+
         {workshops.map(workshop => {
           const last: Order | undefined = workshop.lastOrder;
           const lastTotal = last ? orderTotal(last) : 0;
           const isSelected = selectedWorkshopId === workshop.id;
           const isPending = workshop.workshopStatus !== 'active';
+          const days = workshop.daysInactive as number | null;
+          const showWarning = activeTab === 'activos' && days !== null && days >= 7;
+          const warningIntensity = days !== null && days >= 14 ? 'high' : 'medium';
 
           return (
             <div
@@ -134,6 +179,73 @@ export default function AdminClientesPage() {
                   : 'border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/90 hover:shadow-md hover:shadow-black/20'
               }`}
             >
+              {/* Warning inactividad (tab activos, ≥7 días) */}
+              {showWarning && (
+                <div className={`flex items-center justify-between gap-2 mb-3 rounded-xl border px-3 py-2 ${
+                  warningIntensity === 'high'
+                    ? 'border-red-500/30 bg-red-500/8'
+                    : 'border-amber-500/30 bg-amber-500/8'
+                }`}>
+                  <span className={`text-xs font-bold ${warningIntensity === 'high' ? 'text-red-300' : 'text-amber-300'}`}>
+                    ⚠️ {days} días inactivo
+                  </span>
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); openSuspendModal(workshop.id, workshop.name); }}
+                    className="shrink-0 text-[10px] font-bold px-2 py-1 rounded-lg border border-orange-500/30 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 transition-all"
+                  >
+                    🔒 Inhabilitar
+                  </button>
+                </div>
+              )}
+
+              {/* Badge estado pendientes (tab pendientes) */}
+              {isPending && (
+                <div className={`mb-3 rounded-xl border px-3 py-2.5 space-y-1.5 ${
+                  workshop.workshopStatus === 'suspended'
+                    ? 'border-rose-500/30 bg-rose-500/8'
+                    : 'border-amber-500/25 bg-amber-500/8'
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-xs font-bold ${workshop.workshopStatus === 'suspended' ? 'text-rose-300' : 'text-amber-300'}`}>
+                      {workshop.workshopStatus === 'suspended'
+                        ? '🔒 Inhabilitado manualmente'
+                        : '⏰ Inactivo automático (30+ días)'}
+                    </span>
+                    <Button
+                      size="sm"
+                      loading={reactivatingId === workshop.id}
+                      onClick={e => { e.stopPropagation(); void handleReactivate(workshop.id); }}
+                      className="shrink-0 bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25 hover:border-cyan-400/50 font-bold text-xs"
+                    >
+                      ⚡ Rehabilitar
+                    </Button>
+                  </div>
+
+                  {workshop.workshopStatus === 'suspended' && (
+                    <>
+                      {workshop.suspended_reason && (
+                        <p className="text-[10px] text-rose-400/80 italic">
+                          Motivo: {workshop.suspended_reason}
+                        </p>
+                      )}
+                      {workshop.suspended_by_name && (
+                        <p className="text-[10px] text-rose-500/60">
+                          Por {workshop.suspended_by_name}
+                          {workshop.suspended_at ? ` · ${formatDate(workshop.suspended_at)}` : ''}
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {workshop.workshopStatus === 'pending_reactivation' && workshop.last_active_at && (
+                    <p className="text-[10px] text-amber-500/60">
+                      Último acceso: {formatDate(workshop.last_active_at)}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Header: ícono + nombre + badge número */}
               <div className="flex items-start gap-3 mb-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-lg group-hover:border-zinc-700 transition-colors">
@@ -157,30 +269,6 @@ export default function AdminClientesPage() {
                   <div className="text-[11px] text-zinc-400 font-medium">{formatDate(workshop.created_at)}</div>
                 </div>
               </div>
-
-              {/* Badge estado + botón rehabilitar */}
-              {isPending && (
-                <div className="flex items-center justify-between gap-3 mb-3 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2.5">
-                  <div>
-                    <span className="text-xs font-bold text-amber-300">
-                      {workshop.workshopStatus === 'suspended' ? '⛔ Suspendido' : '⏳ Pendiente de reactivación'}
-                    </span>
-                    {workshop.last_active_at && (
-                      <p className="text-[10px] text-amber-500/60 mt-0.5">
-                        Último acceso: {formatDate(workshop.last_active_at)}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    size="sm"
-                    loading={reactivatingId === workshop.id}
-                    onClick={e => { e.stopPropagation(); void handleReactivate(workshop.id); }}
-                    className="shrink-0 bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25 hover:border-cyan-400/50 font-bold text-xs"
-                  >
-                    ⚡ Rehabilitar acceso
-                  </Button>
-                </div>
-              )}
 
               {/* Info de contacto */}
               <div className="space-y-1 text-[12px] text-zinc-500 mb-4">
@@ -231,15 +319,11 @@ export default function AdminClientesPage() {
       {/* Drawer lateral */}
       {selectedWorkshop && (
         <>
-          {/* Overlay */}
           <div
             className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
             onClick={() => setSelectedWorkshopId(null)}
           />
-
-          {/* Panel */}
           <div className="fixed right-0 top-0 z-50 h-full w-full max-w-lg overflow-y-auto bg-zinc-950 border-l border-zinc-800 shadow-2xl flex flex-col">
-            {/* Header */}
             <div className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800 px-6 py-5 flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -258,7 +342,6 @@ export default function AdminClientesPage() {
             </div>
 
             <div className="flex-1 px-6 py-6 space-y-6">
-              {/* Analytics */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70 mb-1">Total gastado</p>
@@ -272,12 +355,10 @@ export default function AdminClientesPage() {
                 </div>
               </div>
 
-              {/* Historial de pedidos */}
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-3">
                   Historial de pedidos ({drawerOrders.length})
                 </h3>
-
                 {drawerOrders.length === 0 ? (
                   <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 px-4 py-8 text-center">
                     <p className="text-sm text-zinc-500">Este taller no tiene pedidos todavía.</p>
@@ -328,6 +409,55 @@ export default function AdminClientesPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Modal confirmación de suspensión */}
+      {showSuspendModal && suspendTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-7 max-w-md w-full shadow-2xl">
+            <h3 className="text-lg font-extrabold text-zinc-100 mb-1 tracking-tight">
+              🔒 Inhabilitar acceso
+            </h3>
+            <p className="text-sm text-zinc-400 mb-5">
+              ¿Inhabilitar el acceso del taller{' '}
+              <span className="font-bold text-zinc-200">{suspendTarget.name}</span>?
+              El taller no podrá ingresar hasta que lo reactives.
+            </p>
+
+            <div className="mb-5">
+              <label className="block text-sm font-semibold text-zinc-300 mb-2">
+                Motivo de inhabilitación <span className="text-zinc-500 font-normal">(opcional)</span>
+              </label>
+              <textarea
+                value={suspendReason}
+                onChange={e => setSuspendReason(e.target.value)}
+                placeholder="Ej: inactividad prolongada, cuenta en revisión, etc."
+                rows={3}
+                className="w-full resize-y rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-3 text-sm font-medium text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => { setShowSuspendModal(false); setSuspendTarget(null); setSuspendReason(''); }}
+                disabled={suspendLoading}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                loading={suspendLoading}
+                onClick={handleConfirmSuspend}
+                className="flex-1 bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600/30"
+              >
+                🔒 Inhabilitar
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
