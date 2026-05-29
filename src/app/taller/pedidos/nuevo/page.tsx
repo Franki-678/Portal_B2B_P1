@@ -599,9 +599,12 @@ export default function NuevoPedidoPage() {
             {/* ── Sección 2+: Repuestos ── */}
             <div className="space-y-6">
               {items.map((item, idx) => (
+                // eslint-disable-next-line jsx-a11y/no-static-element-interactions
                 <div
                   key={item.tempId}
-                  className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-sm relative group transition-all"
+                  tabIndex={0}
+                  onPaste={e => handlePasteImage(item.tempId, e)}
+                  className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-sm relative group transition-all outline-none focus-within:ring-2 focus-within:ring-cyan-500/20 focus-within:border-cyan-500/20"
                 >
                   <div className="flex items-center justify-between border-b border-zinc-800/50 pb-4 mb-5">
                     <h2 className="text-sm font-bold text-sky-400 bg-sky-400/10 px-3 py-1.5 rounded-lg flex items-center gap-2 tracking-tight uppercase">
@@ -713,16 +716,11 @@ export default function NuevoPedidoPage() {
                         </p>
                         {pastedItemId === item.tempId && (
                           <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 animate-pulse">
-                            ✅ Imagen pegada
+                            ✅ Imagen pegada{item.partName ? ` a ${item.partName}` : ''}
                           </span>
                         )}
                       </div>
-                      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-                      <div
-                        className="flex items-center gap-4 flex-wrap outline-none"
-                        tabIndex={0}
-                        onPaste={e => handlePasteImage(item.tempId, e)}
-                      >
+                      <div className="flex items-center gap-4 flex-wrap">
                         {item.imagePreviews.map((preview, i) => (
                           <div key={i} className="relative group/img">
                             <img

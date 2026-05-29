@@ -128,7 +128,8 @@ interface DataStoreContextType {
     orderId: string,
     notes: string,
     items: UpdateQuoteItemPayload[],
-    removedStoragePaths: string[]
+    removedStoragePaths: string[],
+    motivo?: string
   ) => Promise<boolean>;
   /** Recarga pedidos; talleres solo si venció la caché o forceWorkshops. */
   refreshData: (opts?: { forceWorkshops?: boolean; silent?: boolean }) => Promise<void>;
@@ -719,11 +720,12 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       orderId: string,
       notes: string,
       items: UpdateQuoteItemPayload[],
-      removedStoragePaths: string[]
+      removedStoragePaths: string[],
+      motivo?: string
     ): Promise<boolean> => {
       if (!user) return false;
       const sb = getSupabaseClient();
-      const ok = await updateQuoteInDB(sb, quoteId, orderId, user.id, notes, items, removedStoragePaths);
+      const ok = await updateQuoteInDB(sb, quoteId, orderId, user.id, notes, items, removedStoragePaths, motivo);
       if (ok) {
         await refreshData();
       }

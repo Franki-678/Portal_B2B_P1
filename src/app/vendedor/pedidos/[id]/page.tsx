@@ -66,6 +66,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [removedStoragePaths, setRemovedStoragePaths] = useState<string[]>([]);
+  const [quoteEditMotivo, setQuoteEditMotivo] = useState('');
   const lightbox = useImageLightbox();
 
   // Evidencia del reclamo (claim_images)
@@ -347,6 +348,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setIsEditMode(false);
     setEditingQuoteId(null);
     setRemovedStoragePaths([]);
+    setQuoteEditMotivo('');
     setShowQuoteForm(false);
   };
 
@@ -387,7 +389,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           keptImages:      item.existingImages,
           imageFiles:      item.imageFiles,
         }));
-        const ok = await editQuote(editingQuoteId, order.id, quoteNotes, editItems, removedStoragePaths);
+        const ok = await editQuote(editingQuoteId, order.id, quoteNotes, editItems, removedStoragePaths, quoteEditMotivo.trim());
         if (ok) {
           resetQuoteFormState();
         } else {
@@ -799,12 +801,16 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
                   <div className="space-y-5">
                     {items.map((item, idx) => (
+                      // tabIndex+onPaste aquí: click en cualquier parte del item → Ctrl+V pega imagen
+                      // eslint-disable-next-line jsx-a11y/no-static-element-interactions
                       <div
                         key={item.tempId}
-                        className={`border border-zinc-800/80 rounded-2xl p-6 transition-all ${
+                        tabIndex={0}
+                        onPaste={e => handlePasteImage(item.tempId, e)}
+                        className={`border rounded-2xl p-6 transition-all outline-none focus-within:ring-2 focus-within:ring-cyan-500/20 focus-within:border-cyan-500/20 ${
                           !item.isAvailable
-                            ? 'bg-zinc-950/80 opacity-60 grayscale-[30%]'
-                            : 'bg-zinc-950/40 shadow-sm relative group'
+                            ? 'border-zinc-800/80 bg-zinc-950/80 opacity-60 grayscale-[30%]'
+                            : 'border-zinc-800/80 bg-zinc-950/40 shadow-sm relative group'
                         }`}
                       >
                         <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3 mb-4">
@@ -910,16 +916,11 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                                 </p>
                                 {pastedItemId === item.tempId && (
                                   <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 animate-pulse">
-                                    ✅ Imagen pegada
+                                    ✅ Imagen pegada a {item.partName}
                                   </span>
                                 )}
                               </div>
-                              {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-                              <div
-                                className="flex flex-wrap items-start gap-3 outline-none"
-                                tabIndex={0}
-                                onPaste={e => handlePasteImage(item.tempId, e)}
-                              >
+                              <div className="flex flex-wrap items-start gap-3">
                                 {/* Existing images (edit mode) */}
                                 {item.existingImages.map((img, ei) => (
                                   <div key={`existing-${ei}`} className="group/img relative inline-block">
@@ -977,6 +978,19 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                     ))}
                   </div>
                 </div>
+
+                {/* Motivo edición (solo en modo editar) */}
+                {isEditMode && (
+                  <div className="px-6 pb-2">
+                    <Textarea
+                      label="Motivo de la edición (opcional)"
+                      value={quoteEditMotivo}
+                      onChange={e => setQuoteEditMotivo(e.target.value)}
+                      placeholder="Ej: ajuste de precio por stock nuevo, error en cantidad, etc."
+                      rows={2}
+                    />
+                  </div>
+                )}
 
                 {/* Drawer sticky footer */}
                 <div className="shrink-0 border-t border-zinc-800/80 bg-zinc-950/60 px-6 py-4 space-y-3">

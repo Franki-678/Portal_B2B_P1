@@ -672,7 +672,8 @@ export async function updateQuoteInDB(
   vendorId: string,
   notes: string,
   items: UpdateQuoteItemPayload[],
-  removedStoragePaths: string[]
+  removedStoragePaths: string[],
+  motivo?: string
 ): Promise<boolean> {
   // Build minimal JSONB payload for the RPC (no files — just scalars + ids)
   const rpcItems = items.map(it => ({
@@ -763,7 +764,10 @@ export async function updateQuoteInDB(
     await sb.storage.from('quote-images').remove(pathsToDelete);
   }
 
-  await insertEvent(sb, orderId, vendorId, 'cotizacion_editada', 'Cotización editada por el vendedor.');
+  const eventoComentario = motivo?.trim()
+    ? motivo.trim()
+    : 'Cotización editada por el vendedor.';
+  await insertEvent(sb, orderId, vendorId, 'cotizacion_editada', eventoComentario);
   return true;
 }
 
