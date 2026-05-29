@@ -977,11 +977,9 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                       </div>
                     ))}
                   </div>
-                </div>
 
-                {/* Motivo edición (solo en modo editar) */}
-                {isEditMode && (
-                  <div className="px-6 pb-2">
+                  {/* Motivo edición — dentro del área scrollable */}
+                  {isEditMode && (
                     <Textarea
                       label="Motivo de la edición (opcional)"
                       value={quoteEditMotivo}
@@ -989,8 +987,8 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                       placeholder="Ej: ajuste de precio por stock nuevo, error en cantidad, etc."
                       rows={2}
                     />
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Drawer sticky footer */}
                 <div className="shrink-0 border-t border-zinc-800/80 bg-zinc-950/60 px-6 py-4 space-y-3">
@@ -1025,7 +1023,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                       Cancelar
                     </Button>
                     <Button type="submit" loading={loading} size="lg" className="flex-1">
-                      {isEditMode ? '&#x1F4BE; Guardar cambios' : '&#x1F4E4; Enviar cotización'}
+                      {isEditMode ? '💾 Guardar cambios' : '📤 Enviar cotización'}
                     </Button>
                   </div>
                 </div>

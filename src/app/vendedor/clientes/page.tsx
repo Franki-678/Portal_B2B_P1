@@ -39,7 +39,7 @@ export default function VendedorClientesPage() {
     return {
       id: ws.id,
       name: ws.name,
-      contact_name: ws.contact_name || ws.name,
+      contact_name: ws.contact_name && ws.contact_name !== ws.name ? ws.contact_name : '',
       address: ws.address || '',
       phone: ws.phone || '',
       email: ws.email || '',
