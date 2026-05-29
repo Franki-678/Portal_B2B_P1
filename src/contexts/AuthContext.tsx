@@ -305,6 +305,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
         }
 
+        // Check inactividad para talleres (30 días sin actividad → bloquear)
+        if (loaded.role === 'taller' && loaded.workshopId) {
+          const { data: activityStatus } = await (supabase as any).rpc(
+            'check_workshop_activity',
+            { p_workshop_id: loaded.workshopId }
+          );
+          if (activityStatus === 'pending_reactivation') {
+            await supabase.auth.signOut().catch(() => undefined);
+            setUser(null);
+            persistUserCache(null);
+            return { success: false, error: '__BLOCKED__:pending_reactivation' };
+          }
+          if (activityStatus === 'suspended') {
+            // Fetch suspended_reason para mostrarlo al usuario
+            const { data: ws } = await (supabase as any)
+              .from('workshops')
+              .select('suspended_reason')
+              .eq('id', loaded.workshopId)
+              .maybeSingle();
+            const reason = (ws as any)?.suspended_reason ?? '';
+            await supabase.auth.signOut().catch(() => undefined);
+            setUser(null);
+            persistUserCache(null);
+            return { success: false, error: `__BLOCKED__:suspended:${reason}` };
+          }
+        }
+
         setUser(loaded);
         persistUserCache(loaded);
         return { success: true, role: loaded.role, mustChangePassword: mcp };

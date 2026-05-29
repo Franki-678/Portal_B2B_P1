@@ -22,6 +22,7 @@ import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { QUALITY_OPTIONS } from '@/lib/constants';
 import { OrderQuality, QuoteItem } from '@/lib/types';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { UpdateQuoteItemPayload } from '@/lib/supabase/queries';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -33,12 +34,14 @@ interface QuoteItemDraft extends Omit<QuoteItem, 'id' | 'quoteId' | 'approved' |
   requestedQuantity: number;
   imageFiles: File[];
   imagePreviews: string[];
+  /** Imágenes ya en Storage (sólo en modo edición). */
+  existingImages: { url: string; storagePath: string | null }[];
 }
 
 export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const { id } = use(params);
   const { user } = useAuth();
-  const { getOrderBySlug, setOrderInReview, submitQuote, closeOrder, deleteOrder, takeOrder, releaseOrder, markOrderPaidByVendor, markOrderDelivered, resolveConflict, recotizarOrder } = useDataStore();
+  const { getOrderBySlug, setOrderInReview, submitQuote, editQuote, closeOrder, deleteOrder, takeOrder, releaseOrder, markOrderPaidByVendor, markOrderDelivered, resolveConflict, recotizarOrder } = useDataStore();
   const router = useRouter();
 
   const [showQuoteForm, setShowQuoteForm] = useState(false);
@@ -58,6 +61,12 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [conflictAdjustmentValue, setConflictAdjustmentValue] = useState('');
   const [showRecotizarModal, setShowRecotizarModal] = useState(false);
   const [recotizarLoading, setRecotizarLoading] = useState(false);
+  const [pastedItemId, setPastedItemId] = useState<string | null>(null);
+  // Edit-quote mode
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
+  const [removedStoragePaths, setRemovedStoragePaths] = useState<string[]>([]);
+  const [quoteEditMotivo, setQuoteEditMotivo] = useState('');
   const lightbox = useImageLightbox();
 
   // Evidencia del reclamo (claim_images)
@@ -101,6 +110,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
           isAvailable: true,
           imageFiles: [],
           imagePreviews: [],
+          existingImages: [],
         }))
       );
     }
@@ -240,7 +250,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
     setItems(prev => prev.map(item => {
       if (item.tempId !== tempId) return item;
-      const room = 5 - item.imageFiles.length;
+      const room = 5 - item.imageFiles.length - item.existingImages.length;
       const add = picked.slice(0, Math.max(0, room));
       const newFiles = [...item.imageFiles, ...add];
       const newPreviews = newFiles.map(f => URL.createObjectURL(f));
@@ -257,6 +267,89 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
       URL.revokeObjectURL(item.imagePreviews[idx] ?? '');
       return { ...item, imageFiles: newFiles, imagePreviews: newPreviews };
     }));
+  };
+
+  const removeExistingImageAt = (tempId: string, idx: number) => {
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      const removed = item.existingImages[idx];
+      if (removed?.storagePath) {
+        setRemovedStoragePaths(p => [...p, removed.storagePath!]);
+      }
+      return { ...item, existingImages: item.existingImages.filter((_, i) => i !== idx) };
+    }));
+  };
+
+  const handlePasteImage = (tempId: string, e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    e.preventDefault();
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      const room = 5 - item.imageFiles.length - item.existingImages.length;
+      const toAdd = files.slice(0, Math.max(0, room));
+      if (toAdd.length === 0) return item;
+      const newFiles    = [...item.imageFiles, ...toAdd];
+      const newPreviews = newFiles.map(f => URL.createObjectURL(f));
+      item.imagePreviews.forEach(u => URL.revokeObjectURL(u));
+      return { ...item, imageFiles: newFiles, imagePreviews: newPreviews };
+    }));
+    setPastedItemId(tempId);
+    setTimeout(() => setPastedItemId(null), 2000);
+  };
+
+  const handleOpenEditQuote = async () => {
+    if (!order?.quote) return;
+    const sb = getSupabaseClient();
+    // Fetch existing image rows to get storage_paths
+    const { data: imgRows } = await sb
+      .from('quote_item_images')
+      .select('quote_item_id, url, storage_path')
+      .in('quote_item_id', order.quote.items.map(i => i.id));
+
+    const imgsByItem: Record<string, { url: string; storagePath: string | null }[]> = {};
+    for (const row of imgRows ?? []) {
+      const r = row as { quote_item_id: string; url: string; storage_path: string | null };
+      if (!imgsByItem[r.quote_item_id]) imgsByItem[r.quote_item_id] = [];
+      imgsByItem[r.quote_item_id].push({ url: r.url, storagePath: r.storage_path });
+    }
+
+    setQuoteNotes(order.quote.notes ?? '');
+    setItems(
+      order.items.map(orderItem => {
+        const qi = order.quote!.items.find(q => q.orderItemId === orderItem.id);
+        return {
+          tempId:           orderItem.id,
+          orderItemId:      orderItem.id,
+          partName:         qi?.partName ?? orderItem.partName,
+          description:      qi?.description ?? '',
+          quality:          qi?.quality ?? orderItem.quality,
+          manufacturer:     qi?.manufacturer ?? '',
+          supplier:         qi?.supplier ?? '',
+          price:            qi?.price ?? 0,
+          quantityOffered:  qi?.quantityOffered ?? orderItem.quantity,
+          requestedQuantity: orderItem.quantity,
+          imageUrl:         qi?.imageUrl ?? '',
+          notes:            qi?.notes ?? '',
+          isAvailable:      !!qi,
+          imageFiles:       [],
+          imagePreviews:    [],
+          existingImages:   qi ? (imgsByItem[qi.id] ?? []) : [],
+        };
+      })
+    );
+    setEditingQuoteId(order.quote.id);
+    setRemovedStoragePaths([]);
+    setIsEditMode(true);
+    setShowQuoteForm(true);
+  };
+
+  const resetQuoteFormState = () => {
+    setIsEditMode(false);
+    setEditingQuoteId(null);
+    setRemovedStoragePaths([]);
+    setQuoteEditMotivo('');
+    setShowQuoteForm(false);
   };
 
   const validateQuote = (): boolean => {
@@ -281,23 +374,44 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     const timer = setTimeout(() => setShowSlowMessage(true), 10_000);
 
     try {
-      const finalItems = items.filter(i => i.isAvailable).map(
-        ({ tempId, isAvailable, imagePreviews, requestedQuantity, ...rest }) => ({
-          ...rest,
-          quantityOffered: Math.max(1, Math.floor(Number(rest.quantityOffered) || 1)),
-          imageFiles: rest.imageFiles,
-          approved: null,
-        })
-      );
-        
-      await submitQuote(order.id, {
-        notes: quoteNotes,
-        vendorId: user!.id,
-        vendorName: user!.name,
-        items: finalItems,
-      });
-
-      setShowQuoteForm(false);
+      if (isEditMode && editingQuoteId) {
+        const editItems: UpdateQuoteItemPayload[] = items.filter(i => i.isAvailable).map(item => ({
+          tempId:          item.tempId,
+          orderItemId:     item.orderItemId,
+          partName:        item.partName,
+          description:     item.description,
+          quality:         item.quality,
+          manufacturer:    item.manufacturer,
+          supplier:        item.supplier,
+          price:           Math.max(0, Number(item.price) || 0),
+          quantityOffered: Math.max(1, Math.floor(Number(item.quantityOffered) || 1)),
+          notes:           item.notes,
+          keptImages:      item.existingImages,
+          imageFiles:      item.imageFiles,
+        }));
+        const ok = await editQuote(editingQuoteId, order.id, quoteNotes, editItems, removedStoragePaths, quoteEditMotivo.trim());
+        if (ok) {
+          resetQuoteFormState();
+        } else {
+          alert('Hubo un error al guardar la cotización editada.');
+        }
+      } else {
+        const finalItems = items.filter(i => i.isAvailable).map(
+          ({ tempId, isAvailable, imagePreviews, requestedQuantity, existingImages, ...rest }) => ({
+            ...rest,
+            quantityOffered: Math.max(1, Math.floor(Number(rest.quantityOffered) || 1)),
+            imageFiles: rest.imageFiles,
+            approved: null,
+          })
+        );
+        await submitQuote(order.id, {
+          notes: quoteNotes,
+          vendorId: user!.id,
+          vendorName: user!.name,
+          items: finalItems,
+        });
+        setShowQuoteForm(false);
+      }
     } catch (err: unknown) {
       console.error(err);
       const msg = err instanceof Error ? err.message : 'Error desconocido';
@@ -642,7 +756,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             {/* Backdrop */}
             <div
               className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-              onClick={() => !loading && setShowQuoteForm(false)}
+              onClick={() => !loading && resetQuoteFormState()}
             />
 
             {/* Drawer panel */}
@@ -653,15 +767,15 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-orange-500 to-amber-500 opacity-60" />
                 <div>
                   <h3 className="text-lg font-bold text-orange-100 flex items-center gap-2 tracking-tight">
-                    <span className="text-xl">&#x1F4B0;</span> Nueva cotización
+                    <span className="text-xl">&#x1F4B0;</span> {isEditMode ? 'Editar cotización' : 'Nueva cotización'}
                   </h3>
                   <p className="text-sm font-medium text-orange-400/70 mt-0.5">
-                    Completá los datos de los ítems para cotizarle al taller
+                    {isEditMode ? 'Modificá los datos y guardá para actualizar' : 'Completá los datos de los ítems para cotizarle al taller'}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => !loading && setShowQuoteForm(false)}
+                  onClick={() => !loading && resetQuoteFormState()}
                   disabled={loading}
                   className="rounded-xl border border-zinc-700 bg-zinc-800 p-2 text-zinc-400 hover:text-white hover:border-zinc-600 transition disabled:opacity-40"
                   aria-label="Cerrar"
@@ -687,12 +801,16 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
                   <div className="space-y-5">
                     {items.map((item, idx) => (
+                      // tabIndex+onPaste aquí: click en cualquier parte del item → Ctrl+V pega imagen
+                      // eslint-disable-next-line jsx-a11y/no-static-element-interactions
                       <div
                         key={item.tempId}
-                        className={`border border-zinc-800/80 rounded-2xl p-6 transition-all ${
+                        tabIndex={0}
+                        onPaste={e => handlePasteImage(item.tempId, e)}
+                        className={`border rounded-2xl p-6 transition-all outline-none focus-within:ring-2 focus-within:ring-cyan-500/20 focus-within:border-cyan-500/20 ${
                           !item.isAvailable
-                            ? 'bg-zinc-950/80 opacity-60 grayscale-[30%]'
-                            : 'bg-zinc-950/40 shadow-sm relative group'
+                            ? 'border-zinc-800/80 bg-zinc-950/80 opacity-60 grayscale-[30%]'
+                            : 'border-zinc-800/80 bg-zinc-950/40 shadow-sm relative group'
                         }`}
                       >
                         <div className="flex items-center justify-between border-b border-zinc-800/50 pb-3 mb-4">
@@ -792,12 +910,38 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                             </div>
 
                             <div>
-                              <p className="mb-2 block text-sm font-semibold text-zinc-300">
-                                Fotos del repuesto (máx. 5)
-                              </p>
+                              <div className="flex items-center gap-2 mb-2">
+                                <p className="block text-sm font-semibold text-zinc-300">
+                                  Fotos del repuesto (máx. 5)
+                                </p>
+                                {pastedItemId === item.tempId && (
+                                  <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 animate-pulse">
+                                    ✅ Imagen pegada a {item.partName}
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex flex-wrap items-start gap-3">
+                                {/* Existing images (edit mode) */}
+                                {item.existingImages.map((img, ei) => (
+                                  <div key={`existing-${ei}`} className="group/img relative inline-block">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={img.url}
+                                      alt=""
+                                      className="h-20 w-20 rounded-xl border border-blue-700/50 object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeExistingImageAt(item.tempId, ei)}
+                                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white opacity-0 shadow-lg transition-opacity group-hover/img:opacity-100"
+                                    >
+                                      &#x2715;
+                                    </button>
+                                  </div>
+                                ))}
+                                {/* New file previews */}
                                 {item.imagePreviews.map((preview, pi) => (
-                                  <div key={pi} className="group/img relative inline-block">
+                                  <div key={`new-${pi}`} className="group/img relative inline-block">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                       src={preview}
@@ -813,7 +957,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                                     </button>
                                   </div>
                                 ))}
-                                {item.imageFiles.length < 5 && (
+                                {(item.existingImages.length + item.imageFiles.length) < 5 && (
                                   <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-700/50 bg-zinc-950/30 transition-all hover:border-orange-500/30 hover:bg-zinc-900/50">
                                     <span className="text-2xl text-zinc-500">&#x1F4F7;</span>
                                     <span className="mt-0.5 text-[10px] font-bold uppercase text-zinc-500">Foto</span>
@@ -833,6 +977,17 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                       </div>
                     ))}
                   </div>
+
+                  {/* Motivo edición — dentro del área scrollable */}
+                  {isEditMode && (
+                    <Textarea
+                      label="Motivo de la edición (opcional)"
+                      value={quoteEditMotivo}
+                      onChange={e => setQuoteEditMotivo(e.target.value)}
+                      placeholder="Ej: ajuste de precio por stock nuevo, error en cantidad, etc."
+                      rows={2}
+                    />
+                  )}
                 </div>
 
                 {/* Drawer sticky footer */}
@@ -861,14 +1016,14 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={() => setShowQuoteForm(false)}
+                      onClick={resetQuoteFormState}
                       disabled={loading}
                       className="flex-1"
                     >
                       Cancelar
                     </Button>
                     <Button type="submit" loading={loading} size="lg" className="flex-1">
-                      &#x1F4E4; Enviar cotización
+                      {isEditMode ? '💾 Guardar cambios' : '📤 Enviar cotización'}
                     </Button>
                   </div>
                 </div>
@@ -881,9 +1036,22 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         {order.quote && (
           <div className="bg-zinc-900 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-lg shadow-black/20">
             <div className="p-6 border-b border-zinc-800/80 bg-zinc-900/50">
-              <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
-                <span className="text-xl drop-shadow-sm">&#x1F4B0;</span> Cotización enviada
-              </h3>
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="text-lg font-bold text-zinc-100 flex items-center gap-2 tracking-tight">
+                  <span className="text-xl drop-shadow-sm">&#x1F4B0;</span> Cotización enviada
+                </h3>
+                {/* Botón editar: solo si todos los ítems están pending (ninguno aprobado/rechazado) */}
+                {isMyOrder && order.quote.items.every(i => i.approved === null) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleOpenEditQuote}
+                    className="shrink-0 border border-zinc-700 text-zinc-300 hover:border-orange-500/50 hover:text-orange-300"
+                  >
+                    ✏️ Editar
+                  </Button>
+                )}
+              </div>
               {order.quote.sentAt && (
                 <p className="text-xs font-medium text-zinc-500 mt-1">Enviada el {formatDate(order.quote.sentAt)}</p>
               )}

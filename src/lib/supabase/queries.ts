@@ -119,7 +119,7 @@ export async function fetchAllWorkshops(
 
   let query = (sb as any)
     .from('workshops')
-    .select('id, name, address, phone, contact_name, email, taller_number, created_at')
+    .select('id, name, address, phone, contact_name, email, taller_number, created_at, status, last_active_at, suspended_reason, suspended_by, suspended_at, suspended_by_name')
     .order('name', { ascending: true });
 
   if (scope.workshopIds) {
@@ -638,6 +638,136 @@ export async function createQuoteInDB(
   await (sb as any).from('orders').update(updatePayload).eq('id', orderId);
 
   await insertEvent(sb, orderId, vendorId, 'cotizacion_enviada', 'Cotización enviada al taller.');
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Item payload for updateQuoteInDB
+// ---------------------------------------------------------------------------
+export interface UpdateQuoteItemPayload {
+  tempId: string;
+  orderItemId?: string;
+  partName: string;
+  description?: string;
+  quality: string;
+  manufacturer?: string;
+  supplier?: string;
+  price: number;
+  quantityOffered: number;
+  notes?: string;
+  /** Existing images kept by the user (already in Storage — just re-insert rows). */
+  keptImages: { url: string; storagePath: string | null }[];
+  /** New files to upload. */
+  imageFiles: File[];
+}
+
+/**
+ * Atomically replaces all quote_items for a quote via RPC, then re-attaches
+ * kept images and uploads new ones. Finally cleans up removed storage paths.
+ */
+export async function updateQuoteInDB(
+  sb: SupabaseClientType,
+  quoteId: string,
+  orderId: string,
+  vendorId: string,
+  notes: string,
+  items: UpdateQuoteItemPayload[],
+  removedStoragePaths: string[],
+  motivo?: string
+): Promise<boolean> {
+  // Build minimal JSONB payload for the RPC (no files — just scalars + ids)
+  const rpcItems = items.map(it => ({
+    temp_id:          it.tempId,
+    order_item_id:    it.orderItemId ?? '',
+    part_name:        it.partName,
+    description:      it.description ?? '',
+    quality:          it.quality,
+    manufacturer:     it.manufacturer ?? '',
+    supplier:         it.supplier ?? '',
+    price:            it.price,
+    quantity_offered: it.quantityOffered,
+    notes:            it.notes ?? '',
+  }));
+
+  const { data: rpcResult, error: rpcErr } = await (sb as any).rpc(
+    'update_quote_transactional',
+    { p_quote_id: quoteId, p_notes: notes, p_items: rpcItems }
+  );
+
+  if (rpcErr) {
+    console.error('[Supabase] update_quote_transactional RPC failed:', rpcErr.message);
+    return false;
+  }
+
+  // RPC returns [{tempId, dbId}, ...]
+  const idMap: Record<string, string> = {};
+  for (const row of (rpcResult as { tempId: string; dbId: string }[])) {
+    idMap[row.tempId] = row.dbId;
+  }
+
+  // Per-item: re-attach kept images + upload new ones
+  for (const item of items) {
+    const dbId = idMap[item.tempId];
+    if (!dbId) continue;
+
+    let firstUrl: string | null = null;
+
+    // Re-insert kept image rows (files already in Storage — no upload needed)
+    for (const img of item.keptImages) {
+      await (sb as any).from('quote_item_images').insert({
+        quote_item_id: dbId,
+        url:          img.url,
+        storage_path: img.storagePath,
+      });
+      if (!firstUrl) firstUrl = img.url;
+    }
+
+    // Upload new files
+    if (item.imageFiles.length > 0) {
+      const slots = 5 - item.keptImages.length;
+      const toUpload = item.imageFiles.slice(0, Math.max(0, slots));
+
+      const uploadResults = await Promise.all(
+        toUpload.map(async file => {
+          const ext      = file.name.split('.').pop();
+          const fileName = `${quoteId}-${dbId}-${generateId()}.${ext}`;
+          const { error: upErr } = await sb.storage.from('quote-images').upload(fileName, file);
+          let url: string;
+          if (!upErr) {
+            url = sb.storage.from('quote-images').getPublicUrl(fileName).data.publicUrl;
+          } else {
+            console.warn('[Supabase] quote edit image upload fallback:', upErr.message);
+            url = await fileToBase64(file);
+          }
+          return { url, storagePath: upErr ? null : fileName };
+        })
+      );
+
+      for (const r of uploadResults) {
+        await (sb as any).from('quote_item_images').insert({
+          quote_item_id: dbId,
+          url:          r.url,
+          storage_path: r.storagePath,
+        });
+        if (!firstUrl) firstUrl = r.url;
+      }
+    }
+
+    if (firstUrl) {
+      await (sb as any).from('quote_items').update({ image_url: firstUrl }).eq('id', dbId);
+    }
+  }
+
+  // Delete removed files from Storage (best-effort)
+  const pathsToDelete = removedStoragePaths.filter(Boolean);
+  if (pathsToDelete.length > 0) {
+    await sb.storage.from('quote-images').remove(pathsToDelete);
+  }
+
+  const eventoComentario = motivo?.trim()
+    ? motivo.trim()
+    : 'Cotización editada por el vendedor.';
+  await insertEvent(sb, orderId, vendorId, 'cotizacion_editada', eventoComentario);
   return true;
 }
 
@@ -1672,3 +1802,75 @@ export async function fetchVehiclesCatalog(
   }
   return catalog;
 }
+
+// ============================================================
+// INACTIVIDAD / REACTIVACIÓN DE TALLERES
+// ============================================================
+
+/**
+ * Llama al RPC check_workshop_activity y retorna el estado resultante.
+ * 'active' → OK, last_active_at actualizado.
+ * 'pending_reactivation' | 'suspended' → bloquear acceso.
+ */
+export async function checkWorkshopActivity(
+  sb: SupabaseClientType,
+  workshopId: string
+): Promise<'active' | 'pending_reactivation' | 'suspended' | 'not_found' | 'error'> {
+  const { data, error } = await (sb as any).rpc('check_workshop_activity', {
+    p_workshop_id: workshopId,
+  });
+  if (error) {
+    console.error('[Supabase] check_workshop_activity:', error.message);
+    return 'error';
+  }
+  return (data as string) as 'active' | 'pending_reactivation' | 'suspended' | 'not_found';
+}
+
+/** Admin reactiva un taller: status = 'active', last_active_at = NOW(), limpia campos suspensión. */
+export async function reactivateWorkshop(
+  sb: SupabaseClientType,
+  workshopId: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('workshops')
+    .update({
+      status:           'active',
+      last_active_at:   new Date().toISOString(),
+      suspended_reason: null,
+      suspended_by:     null,
+      suspended_at:     null,
+      suspended_by_name: null,
+    })
+    .eq('id', workshopId);
+  if (error) {
+    console.error('[Supabase] reactivateWorkshop:', error.message);
+    return false;
+  }
+  return true;
+}
+
+/** Admin suspende manualmente un taller. */
+export async function suspendWorkshop(
+  sb: SupabaseClientType,
+  workshopId: string,
+  reason: string,
+  suspendedById: string,
+  suspendedByName: string
+): Promise<boolean> {
+  const { error } = await (sb as any)
+    .from('workshops')
+    .update({
+      status:           'suspended',
+      suspended_reason: reason.trim() || null,
+      suspended_by:     suspendedById,
+      suspended_at:     new Date().toISOString(),
+      suspended_by_name: suspendedByName,
+    })
+    .eq('id', workshopId);
+  if (error) {
+    console.error('[Supabase] suspendWorkshop:', error.message);
+    return false;
+  }
+  return true;
+}
+

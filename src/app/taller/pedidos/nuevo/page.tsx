@@ -99,6 +99,7 @@ export default function NuevoPedidoPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showSlowMessage, setShowSlowMessage] = useState(false);
+  const [pastedItemId, setPastedItemId] = useState<string | null>(null);
 
   // Opciones de modelo para la marca seleccionada
   const modeloOptions = useMemo(() => {
@@ -268,6 +269,20 @@ export default function NuevoPedidoPage() {
         return { ...item, images: newImages, imagePreviews: newPreviews };
       })
     );
+  };
+
+  const handlePasteImage = (tempId: string, e: React.ClipboardEvent) => {
+    const files = Array.from(e.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+    e.preventDefault();
+    setItems(prev => prev.map(item => {
+      if (item.tempId !== tempId) return item;
+      const newImages = [...item.images, ...files].slice(0, 2);
+      const newPreviews = newImages.map(f => URL.createObjectURL(f));
+      return { ...item, images: newImages, imagePreviews: newPreviews };
+    }));
+    setPastedItemId(tempId);
+    setTimeout(() => setPastedItemId(null), 2000);
   };
 
   const removeImage = (tempId: string, idxToRemove: number) => {
@@ -584,9 +599,12 @@ export default function NuevoPedidoPage() {
             {/* ── Sección 2+: Repuestos ── */}
             <div className="space-y-6">
               {items.map((item, idx) => (
+                // eslint-disable-next-line jsx-a11y/no-static-element-interactions
                 <div
                   key={item.tempId}
-                  className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-sm relative group transition-all"
+                  tabIndex={0}
+                  onPaste={e => handlePasteImage(item.tempId, e)}
+                  className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-sm relative group transition-all outline-none focus-within:ring-2 focus-within:ring-cyan-500/20 focus-within:border-cyan-500/20"
                 >
                   <div className="flex items-center justify-between border-b border-zinc-800/50 pb-4 mb-5">
                     <h2 className="text-sm font-bold text-sky-400 bg-sky-400/10 px-3 py-1.5 rounded-lg flex items-center gap-2 tracking-tight uppercase">
@@ -692,9 +710,16 @@ export default function NuevoPedidoPage() {
                     </div>
 
                     <div className="pt-2">
-                      <p className="block text-sm font-semibold text-zinc-300 mb-2">
-                        Fotos de referencia (opcional — máx. 2)
-                      </p>
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="block text-sm font-semibold text-zinc-300">
+                          Fotos de referencia (opcional — máx. 2)
+                        </p>
+                        {pastedItemId === item.tempId && (
+                          <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 animate-pulse">
+                            ✅ Imagen pegada{item.partName ? ` a ${item.partName}` : ''}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-4 flex-wrap">
                         {item.imagePreviews.map((preview, i) => (
                           <div key={i} className="relative group/img">

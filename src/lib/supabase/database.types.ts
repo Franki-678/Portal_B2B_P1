@@ -24,6 +24,12 @@ export type Database = {
           email: string | null;
           taller_number: number | null;
           created_at: string;
+          last_active_at: string | null;
+          status: 'active' | 'suspended' | 'pending_reactivation';
+          suspended_reason: string | null;
+          suspended_by: string | null;
+          suspended_at: string | null;
+          suspended_by_name: string | null;
         };
         Insert: {
           id?: string;
@@ -34,6 +40,12 @@ export type Database = {
           email?: string | null;
           taller_number?: number | null;
           created_at?: string;
+          last_active_at?: string | null;
+          status?: 'active' | 'suspended' | 'pending_reactivation';
+          suspended_reason?: string | null;
+          suspended_by?: string | null;
+          suspended_at?: string | null;
+          suspended_by_name?: string | null;
         };
         Update: Partial<Database['public']['Tables']['workshops']['Insert']>;
       };
@@ -287,6 +299,7 @@ export type Database = {
             | 'cotizacion_rechazada'
             | 'cotizacion_aprobada_parcial'
             | 'pedido_cerrado'
+            | 'cotizacion_editada'
             | 'comentario';
           comment: string | null;
           created_at: string;

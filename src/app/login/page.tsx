@@ -140,6 +140,10 @@ function LoginForm() {
         router.replace(target);
         return;
       }
+      if (result.error?.startsWith('__BLOCKED__:')) {
+        setError(result.error);
+        return;
+      }
       setError(result.error ?? 'Error al iniciar sesión.');
     } catch (err) {
       setError(err instanceof Error && err.message === '__FORM_TIMEOUT__' ? TIMEOUT_MSG : TIMEOUT_MSG);
@@ -147,6 +151,56 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  // Pantalla de cuenta bloqueada
+  if (error?.startsWith('__BLOCKED__:')) {
+    const parts = error.split(':');
+    const blockType = parts[1]; // 'pending_reactivation' | 'suspended'
+    const suspendedReason = parts.slice(2).join(':').trim(); // reason puede tener ':'
+
+    const isSuspended = blockType === 'suspended';
+
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="text-5xl">{isSuspended ? '🚫' : '🔒'}</div>
+          <div>
+            <h2 className="text-xl font-extrabold text-zinc-100 tracking-tight">
+              {isSuspended ? 'Cuenta inhabilitada' : 'Cuenta inactiva por seguridad'}
+            </h2>
+            <p className="text-sm text-zinc-400 mt-3 leading-relaxed">
+              {isSuspended
+                ? 'Tu acceso fue inhabilitado manualmente por el administrador.'
+                : 'Tu cuenta fue suspendida automáticamente por más de 30 días sin uso.'}
+            </p>
+          </div>
+
+          {isSuspended && suspendedReason && (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/8 px-5 py-4 text-sm text-rose-300 text-left">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-rose-400/60 mb-1">Motivo</p>
+              <p>{suspendedReason}</p>
+            </div>
+          )}
+
+          <div className={`rounded-2xl border px-5 py-4 text-sm ${
+            isSuspended
+              ? 'border-rose-500/30 bg-rose-500/8 text-rose-300'
+              : 'border-amber-500/30 bg-amber-500/8 text-amber-300'
+          }`}>
+            Contactate con RC Repuestos para solicitar la reactivación.
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setError('')}
+            className="text-xs text-zinc-500 hover:text-zinc-300 underline transition-colors"
+          >
+            Volver al login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 relative overflow-hidden font-sans">
