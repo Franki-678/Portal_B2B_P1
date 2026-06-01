@@ -17,6 +17,7 @@ import {
   quoteLineTotal,
   formatVendorOrderLabel,
 } from '@/lib/utils';
+import Image from 'next/image';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
 import { WhatsAppLink } from '@/components/ui/WhatsAppLink';
 import { QUALITY_OPTIONS } from '@/lib/constants';
@@ -628,8 +629,14 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                              )
                            }
                          >
-                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                           <img src={img.url} alt="Referencia" className="w-24 h-20 object-cover shadow-sm" />
+                           <Image
+                             src={img.url}
+                             alt="Referencia"
+                             width={96}
+                             height={80}
+                             className="object-cover shadow-sm"
+                             sizes="96px"
+                           />
                          </button>
                        ))}
                      </div>
