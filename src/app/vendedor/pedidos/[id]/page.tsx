@@ -300,22 +300,20 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setTimeout(() => setPastedItemId(null), 2000);
   };
 
-  const handleOpenEditQuote = async () => {
+  const handleOpenEditQuote = () => {
     if (!order?.quote || isPreparingEdit) return;
-    // Feedback INMEDIATO antes del await — evita el freeze visual de 5-20s
+    // Feedback INMEDIATO — sin await, sin red
     setIsPreparingEdit(true);
-    const sb = getSupabaseClient();
-    // Fetch existing image rows to get storage_paths
-    const { data: imgRows } = await sb
-      .from('quote_item_images')
-      .select('quote_item_id, url, storage_path')
-      .in('quote_item_id', order.quote.items.map(i => i.id));
 
+    // Reusar datos en memoria: fetchAllOrders ya trajo las imágenes con storagePath.
+    // Eliminamos el round-trip a Supabase (~14s Argentina→US) que era la causa
+    // de la latencia. Los datos ya están en order.quote.items[].images.
     const imgsByItem: Record<string, { url: string; storagePath: string | null }[]> = {};
-    for (const row of imgRows ?? []) {
-      const r = row as { quote_item_id: string; url: string; storage_path: string | null };
-      if (!imgsByItem[r.quote_item_id]) imgsByItem[r.quote_item_id] = [];
-      imgsByItem[r.quote_item_id].push({ url: r.url, storagePath: r.storage_path });
+    for (const qi of order.quote.items) {
+      const imgs = (qi.images ?? [])
+        .filter(img => img.url && !img.url.startsWith('data:'))
+        .map(img => ({ url: img.url, storagePath: img.storagePath ?? null }));
+      if (imgs.length > 0) imgsByItem[qi.id] = imgs;
     }
 
     setQuoteNotes(order.quote.notes ?? '');
@@ -765,9 +763,9 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         {/* ── SLIDE-OVER DRAWER: COTIZACIÓN ── */}
         {showQuoteForm && (
           <>
-            {/* Backdrop */}
+            {/* Backdrop — min-h-[100dvh] cubre viewport dinámico (address bar mobile) */}
             <div
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              className="fixed top-0 left-0 right-0 bottom-0 z-40 bg-black/60 backdrop-blur-sm min-h-[100dvh]"
               onClick={() => !loading && resetQuoteFormState()}
             />
 
