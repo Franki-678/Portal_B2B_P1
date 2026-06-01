@@ -67,6 +67,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [removedStoragePaths, setRemovedStoragePaths] = useState<string[]>([]);
+  const [isPreparingEdit, setIsPreparingEdit] = useState(false);
   const [quoteEditMotivo, setQuoteEditMotivo] = useState('');
   const lightbox = useImageLightbox();
 
@@ -299,20 +300,20 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setTimeout(() => setPastedItemId(null), 2000);
   };
 
-  const handleOpenEditQuote = async () => {
-    if (!order?.quote) return;
-    const sb = getSupabaseClient();
-    // Fetch existing image rows to get storage_paths
-    const { data: imgRows } = await sb
-      .from('quote_item_images')
-      .select('quote_item_id, url, storage_path')
-      .in('quote_item_id', order.quote.items.map(i => i.id));
+  const handleOpenEditQuote = () => {
+    if (!order?.quote || isPreparingEdit) return;
+    // Feedback INMEDIATO — sin await, sin red
+    setIsPreparingEdit(true);
 
+    // Reusar datos en memoria: fetchAllOrders ya trajo las imágenes con storagePath.
+    // Eliminamos el round-trip a Supabase (~14s Argentina→US) que era la causa
+    // de la latencia. Los datos ya están en order.quote.items[].images.
     const imgsByItem: Record<string, { url: string; storagePath: string | null }[]> = {};
-    for (const row of imgRows ?? []) {
-      const r = row as { quote_item_id: string; url: string; storage_path: string | null };
-      if (!imgsByItem[r.quote_item_id]) imgsByItem[r.quote_item_id] = [];
-      imgsByItem[r.quote_item_id].push({ url: r.url, storagePath: r.storage_path });
+    for (const qi of order.quote.items) {
+      const imgs = (qi.images ?? [])
+        .filter(img => img.url && !img.url.startsWith('data:'))
+        .map(img => ({ url: img.url, storagePath: img.storagePath ?? null }));
+      if (imgs.length > 0) imgsByItem[qi.id] = imgs;
     }
 
     setQuoteNotes(order.quote.notes ?? '');
@@ -342,6 +343,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setEditingQuoteId(order.quote.id);
     setRemovedStoragePaths([]);
     setIsEditMode(true);
+    setIsPreparingEdit(false);
     setShowQuoteForm(true);
   };
 
@@ -350,6 +352,7 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
     setEditingQuoteId(null);
     setRemovedStoragePaths([]);
     setQuoteEditMotivo('');
+    setIsPreparingEdit(false);
     setShowQuoteForm(false);
   };
 
@@ -760,14 +763,14 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
         {/* ── SLIDE-OVER DRAWER: COTIZACIÓN ── */}
         {showQuoteForm && (
           <>
-            {/* Backdrop */}
+            {/* Backdrop — min-h-[100dvh] cubre viewport dinámico (address bar mobile) */}
             <div
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              className="fixed top-0 left-0 right-0 bottom-0 z-40 bg-black/60 backdrop-blur-sm min-h-[100dvh]"
               onClick={() => !loading && resetQuoteFormState()}
             />
 
-            {/* Drawer panel */}
-            <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-zinc-900 border-l border-zinc-800 shadow-2xl shadow-black/60">
+            {/* Drawer panel — h-[100dvh] evita el gap en mobile con address bar */}
+            <div className="fixed top-0 bottom-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-zinc-900 border-l border-zinc-800 shadow-2xl shadow-black/60 h-[100dvh] overflow-hidden">
 
               {/* Drawer header */}
               <div className="relative flex items-center justify-between border-b border-zinc-800/80 bg-orange-500/5 px-6 py-5 shrink-0">
@@ -1052,10 +1055,12 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                   <Button
                     size="sm"
                     variant="ghost"
+                    loading={isPreparingEdit}
+                    disabled={isPreparingEdit}
                     onClick={handleOpenEditQuote}
                     className="shrink-0 border border-zinc-700 text-zinc-300 hover:border-orange-500/50 hover:text-orange-300"
                   >
-                    ✏️ Editar
+                    {isPreparingEdit ? 'Cargando...' : '✏️ Editar'}
                   </Button>
                 )}
               </div>
@@ -1071,9 +1076,15 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
             
             <div className="divide-y divide-zinc-800/80">
               {order.quote.items.map(item => {
-                const fromRows = item.images?.map(i => i.url).filter(Boolean) ?? [];
-                const photoUrls =
-                  fromRows.length > 0 ? fromRows : item.imageUrl ? [item.imageUrl] : [];
+                // Bug 1 fix: filtrar data URIs base64 — solo URLs reales de Storage/HTTPS
+                const isRealUrl = (u: string | null | undefined) =>
+                  !!u && !u.startsWith('data:') && u.startsWith('http');
+                const fromRows = (item.images?.map(i => i.url) ?? []).filter(isRealUrl) as string[];
+                // Fallback a imageUrl solo si es URL real (post-migración ya no debería ser base64)
+                const imageUrlFallback = isRealUrl(item.imageUrl) ? item.imageUrl! : null;
+                const photoUrls = fromRows.length > 0
+                  ? fromRows
+                  : imageUrlFallback ? [imageUrlFallback] : [];
                 return (
                   <div
                     key={item.id}
@@ -1088,11 +1099,14 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                             className="overflow-hidden rounded-xl border border-zinc-700/50 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
                             onClick={() => lightbox.open(photoUrls, ui)}
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
+                            <Image
                               src={u}
                               alt=""
-                              className="h-20 w-24 object-cover md:h-20 md:w-24"
+                              width={96}
+                              height={80}
+                              className="object-cover"
+                              sizes="96px"
+                              unoptimized={false}
                             />
                           </button>
                         ))}

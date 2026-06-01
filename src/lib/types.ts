@@ -133,6 +133,8 @@ export interface QuoteItemImage {
   quoteItemId: string;
   url: string;
   createdAt: string;
+  /** Ruta en Supabase Storage (null para entradas legacy sin storage). */
+  storagePath?: string | null;
 }
 
 export interface QuoteItem {

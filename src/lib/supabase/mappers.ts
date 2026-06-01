@@ -34,14 +34,19 @@ export function mapQuoteItem(row: DbQuoteItem, extraImages: DbQuoteItemImage[] =
     quoteItemId: img.quote_item_id,
     url: img.url,
     createdAt: img.created_at,
+    storagePath: (img as any).storage_path ?? null,
   }));
   let images = [...fromTable];
-  if (row.image_url && !images.some(i => i.url === row.image_url)) {
+  // Añadir imagen legacy solo si no es base64 y no está ya en fromTable
+  if (row.image_url
+      && !row.image_url.startsWith('data:')
+      && !images.some(i => i.url === row.image_url)) {
     images.push({
-      id: `legacy-${row.id}`,
+      id:          `legacy-${row.id}`,
       quoteItemId: row.id,
-      url: row.image_url,
-      createdAt: row.created_at,
+      url:         row.image_url,
+      createdAt:   row.created_at,
+      storagePath: null,
     });
   }
 
