@@ -93,16 +93,6 @@ async function resolveVisibleWorkshopIds(
   };
 }
 
-// Helper to convert File to Base64
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
-  });
-}
-
 // ============================================================
 // LECTURA DE DATOS
 // ============================================================
@@ -386,19 +376,19 @@ export async function createOrderInDB(
 
         const { error: uploadError } = await sb.storage.from('order-images').upload(fileName, file);
 
-        let finalUrl = '';
         if (uploadError) {
-          console.warn('[Supabase] Error uploading to storage, using base64 fallback:', uploadError.message);
-          finalUrl = await fileToBase64(file);
-        } else {
-          const { data: urlData } = sb.storage.from('order-images').getPublicUrl(fileName);
-          finalUrl = urlData.publicUrl;
+          // T103: no guardamos base64 en BD — omitir esta imagen y loguear
+          console.error('[Supabase] Error uploading order image, skipping (no base64 fallback):', uploadError.message);
+          return; // dentro de map() callback — omite esta imagen
         }
+
+        const { data: urlData } = sb.storage.from('order-images').getPublicUrl(fileName);
+        const finalUrl = urlData.publicUrl;
 
         const { error: imgErr } = await (sb as any).from('order_images').insert({
           order_item_id: orderItemId,
           url: finalUrl,
-          storage_path: uploadError ? null : fileName,
+          storage_path: fileName,
         });
         if (imgErr) {
           console.error('[Supabase] Error inserting order_images:', imgErr.message);
@@ -585,26 +575,26 @@ export async function createQuoteInDB(
           const fileName = `${quoteId}-${quoteItemId}-${generateId()}.${fileExt}`;
           const { error: uploadError } = await sb.storage.from('quote-images').upload(fileName, file);
 
-          let finalUrl: string;
-          if (!uploadError) {
-            const { data: urlData } = sb.storage.from('quote-images').getPublicUrl(fileName);
-            finalUrl = urlData.publicUrl;
-          } else {
-            console.warn('[Supabase] quote image upload fallback:', uploadError.message);
-            finalUrl = await fileToBase64(file);
+          if (uploadError) {
+            // T103: no guardamos base64 en BD — omitir esta imagen
+            console.error('[Supabase] quote image upload failed, skipping (no base64 fallback):', uploadError.message);
+            return { finalUrl: null, uploadError, fileName };
           }
-          return { finalUrl, uploadError, fileName };
+          const { data: urlData } = sb.storage.from('quote-images').getPublicUrl(fileName);
+          return { finalUrl: urlData.publicUrl, uploadError: null, fileName };
         })
       );
 
-      firstUrl = uploadResults[0]?.finalUrl ?? null;
+      // Filtrar resultados sin URL (uploads fallidos — T103: no base64)
+      const successfulUploads = uploadResults.filter(r => r.finalUrl !== null);
+      firstUrl = successfulUploads[0]?.finalUrl ?? null;
 
       await Promise.all(
-        uploadResults.map(async r => {
+        successfulUploads.map(async r => {
           const { error: imgInsErr } = await (sb as any).from('quote_item_images').insert({
             quote_item_id: quoteItemId,
             url: r.finalUrl,
-            storage_path: r.uploadError ? null : r.fileName,
+            storage_path: r.fileName,
           });
           if (imgInsErr) {
             console.warn('[Supabase] quote_item_images insert:', imgInsErr.message);
@@ -732,18 +722,18 @@ export async function updateQuoteInDB(
           const ext      = file.name.split('.').pop();
           const fileName = `${quoteId}-${dbId}-${generateId()}.${ext}`;
           const { error: upErr } = await sb.storage.from('quote-images').upload(fileName, file);
-          let url: string;
-          if (!upErr) {
-            url = sb.storage.from('quote-images').getPublicUrl(fileName).data.publicUrl;
-          } else {
-            console.warn('[Supabase] quote edit image upload fallback:', upErr.message);
-            url = await fileToBase64(file);
+          if (upErr) {
+            // T103: no guardamos base64 — omitir imagen fallida
+            console.error('[Supabase] quote edit image upload failed, skipping:', upErr.message);
+            return { url: null, storagePath: null };
           }
-          return { url, storagePath: upErr ? null : fileName };
+          const url = sb.storage.from('quote-images').getPublicUrl(fileName).data.publicUrl;
+          return { url, storagePath: fileName };
         })
       );
 
-      for (const r of uploadResults) {
+      // T103: ignorar uploads fallidos (url === null)
+      for (const r of uploadResults.filter(r => r.url !== null)) {
         await (sb as any).from('quote_item_images').insert({
           quote_item_id: dbId,
           url:          r.url,
@@ -1569,21 +1559,21 @@ export async function initiateClaimInDB(
           .from('claim_evidence')
           .upload(storagePath, file);
 
-        if (!uploadErr) {
-          const { data: urlData } = sb.storage
-            .from('claim_evidence')
-            .getPublicUrl(storagePath);
-          finalUrl = urlData.publicUrl;
-        } else {
-          console.warn('[Supabase] claim_evidence upload fallback:', uploadErr.message);
-          finalUrl = await fileToBase64(file);
+        if (uploadErr) {
+          // T103: no guardamos base64 — omitir imagen de evidencia fallida
+          console.error('[Supabase] claim_evidence upload failed, skipping:', uploadErr.message);
+          return; // dentro de map() callback — omite este archivo
         }
+
+        const { data: urlData } = sb.storage
+          .from('claim_evidence')
+          .getPublicUrl(storagePath);
 
         await (sb as any).from('claim_images').insert({
           order_id: orderId,
           user_id: userId,
-          url: finalUrl,
-          storage_path: uploadErr ? null : storagePath,
+          url: urlData.publicUrl,
+          storage_path: storagePath,
         });
       })
     );

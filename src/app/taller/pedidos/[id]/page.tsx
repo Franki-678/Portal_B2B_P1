@@ -933,6 +933,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
             <div className="flex flex-wrap gap-2">
               {claimPreviews.map((preview, pi) => (
                 <div key={pi} className="relative group/img">
+                  {/* blob: URL local — next/image no soporta blob URLs, no genera egress */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={preview} alt="" className="h-16 w-16 rounded-xl object-cover border border-zinc-700/50" />
                   <button
