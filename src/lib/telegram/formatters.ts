@@ -575,3 +575,128 @@ export function formatSlashAlertas(data: AlertasSnapshot): string {
 
   return lines.join('\n');
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// NUEVOS COMANDOS ERP PLUS
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── /deuda ────────────────────────────────────────────────────────────────
+
+export interface DeudaSnapshot {
+  totalDeuda:      number;
+  pedidosUnpaid:   number;
+  pedidosPartial:  number;
+  fechaConsulta:   string;
+}
+
+export function formatSlashDeuda(d: DeudaSnapshot): string {
+  const lines = [
+    `💸 <b>Cuentas Corrientes — Resumen</b>`,
+    ``,
+    `📊 <b>Deuda total:</b> ${formatCurrency(d.totalDeuda)}`,
+    ``,
+    `  · Pedidos sin pagar: <b>${d.pedidosUnpaid}</b>`,
+    `  · Pedidos pagados parcialmente: <b>${d.pedidosPartial}</b>`,
+    ``,
+    `<i>Consultado: ${esc(d.fechaConsulta)}</i>`,
+  ];
+  return lines.join('\n');
+}
+
+// ── /mostrador ────────────────────────────────────────────────────────────
+
+export interface MostradorSnapshot {
+  fecha:         string;
+  ventasHoy:     number;
+  facturadoHoy:  number;
+  ticketPromedio: number;
+  topVendedor:   string | null;
+}
+
+export function formatSlashMostrador(d: MostradorSnapshot): string {
+  const lines = [
+    `🛒 <b>Mostrador — ${esc(d.fecha)}</b>`,
+    ``,
+    `  · Ventas cerradas: <b>${d.ventasHoy}</b>`,
+    `  · Facturado: <b>${formatCurrency(d.facturadoHoy)}</b>`,
+  ];
+  if (d.ventasHoy > 0) {
+    lines.push(`  · Ticket promedio: ${formatCurrency(d.ticketPromedio)}`);
+  }
+  if (d.topVendedor) {
+    lines.push(`  · Mejor vendedor: <b>${esc(d.topVendedor)}</b>`);
+  }
+  if (d.ventasHoy === 0) {
+    lines.push(``, `<i>Sin ventas en mostrador hoy.</i>`);
+  }
+  return lines.join('\n');
+}
+
+// ── /buscar ───────────────────────────────────────────────────────────────
+
+export interface BuscarSnapshot {
+  encontrado:    boolean;
+  label:         string;
+  workshopName:  string;
+  vehiculo:      string;
+  status:        string;
+  vendedorName:  string | null;
+  link:          string;
+  actualizado:   string;
+}
+
+export function formatSlashBuscar(d: BuscarSnapshot, query: string): string {
+  if (!d.encontrado) {
+    return `🔍 No se encontró pedido para "<b>${esc(query)}</b>".\n\nUsá el número corto: <code>10-PED-0002</code> o <code>PED-0005</code>`;
+  }
+  const lines = [
+    `🔍 <b>Pedido #${esc(d.label)}</b>`,
+    ``,
+    `🏢 ${esc(d.workshopName)}`,
+    `🚗 ${esc(d.vehiculo)}`,
+    `📌 Estado: <b>${esc(d.status)}</b>`,
+  ];
+  if (d.vendedorName) lines.push(`👤 Vendedor: ${esc(d.vendedorName)}`);
+  lines.push(`🕐 Actualizado: ${esc(d.actualizado)}`);
+  lines.push(``, `🔗 <a href="${d.link}">Ver en el portal →</a>`);
+  return lines.join('\n');
+}
+
+// ── /talleres_deudores ────────────────────────────────────────────────────
+
+export interface TallerDeudor {
+  workshopName: string;
+  deuda:        number;
+  pedidos:      number;
+}
+
+export function formatSlashTalleresDeudores(deudores: TallerDeudor[]): string {
+  if (deudores.length === 0) {
+    return `🏆 <b>Talleres deudores</b>\n\n✅ No hay deudas activas. ¡Todo al día!`;
+  }
+  const lines = [`💰 <b>Top talleres con deuda activa</b>`, ``];
+  const medals = ['🔴', '🟠', '🟡', '🟢', '🔵'];
+  deudores.slice(0, 5).forEach((t, i) => {
+    lines.push(
+      `${medals[i] ?? '·'} <b>${esc(t.workshopName)}</b> — ${formatCurrency(t.deuda)} (${t.pedidos} ped.)`
+    );
+  });
+  const total = deudores.reduce((s, t) => s + t.deuda, 0);
+  lines.push(``, `<b>Total en calle: ${formatCurrency(total)}</b>`);
+  return lines.join('\n');
+}
+
+// ── /estado_servidor ─────────────────────────────────────────────────────
+
+export function formatSlashEstadoServidor(uptimeMs: number): string {
+  const now     = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+  const minutes = Math.floor(uptimeMs / 60000);
+  return [
+    `✅ <b>Estado del servidor</b>`,
+    ``,
+    `🟢 Portal: <b>OK</b>`,
+    `🟢 Telegram Bot: <b>OK</b>`,
+    `🕐 Hora AR: <b>${now}</b>`,
+    `⏱ Uptime función: ${minutes}m`,
+  ].join('\n');
+}

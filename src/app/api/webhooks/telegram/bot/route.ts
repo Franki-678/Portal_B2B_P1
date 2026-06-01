@@ -24,6 +24,11 @@ import {
   formatSlashMes,
   formatSlashVendedores,
   formatSlashAlertas,
+  formatSlashDeuda,
+  formatSlashMostrador,
+  formatSlashBuscar,
+  formatSlashTalleresDeudores,
+  formatSlashEstadoServidor,
   type HoySnapshot,
   type SemanaSnapshot,
   type MesSnapshot,
@@ -32,7 +37,13 @@ import {
   type VendorStat,
   type BottleneckOrder,
   type ConflictOrder,
+  type DeudaSnapshot,
+  type MostradorSnapshot,
+  type BuscarSnapshot,
+  type TallerDeudor,
 } from '@/lib/telegram/formatters';
+
+const SERVER_START = Date.now();
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -451,6 +462,137 @@ async function buildAlertasSnapshot(): Promise<AlertasSnapshot> {
   };
 }
 
+// ─── Nuevos comandos ERP Plus ─────────────────────────────────────────────
+
+async function buildDeudaSnapshot(): Promise<DeudaSnapshot> {
+  const sb = getServiceClient();
+  const [unpaidR, partialR] = await Promise.all([
+    sb.from('orders').select('total_amount, paid_amount').eq('financial_status', 'unpaid'),
+    sb.from('orders').select('total_amount, paid_amount').eq('financial_status', 'partial'),
+  ]);
+  const sumDebt = (rows: any[]) =>
+    rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0), 0);
+
+  const unpaid  = unpaidR.data  ?? [];
+  const partial = partialR.data ?? [];
+
+  return {
+    totalDeuda:     sumDebt(unpaid) + sumDebt(partial),
+    pedidosUnpaid:  unpaid.length,
+    pedidosPartial: partial.length,
+    fechaConsulta:  new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }),
+  };
+}
+
+async function buildMostradorSnapshot(): Promise<MostradorSnapshot> {
+  const sb     = getServiceClient();
+  const today  = dayRange(0);
+  const fecha  = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const { data: sales } = await sb
+    .from('pos_sales')
+    .select('id, total_amount, vendor_id')
+    .eq('status', 'closed')
+    .gte('closed_at', today.start)
+    .lt('closed_at', today.end);
+
+  const rows = (sales ?? []) as any[];
+  const facturadoHoy = rows.reduce((s, r) => s + (Number(r.total_amount) || 0), 0);
+  const ticketPromedio = rows.length > 0 ? facturadoHoy / rows.length : 0;
+
+  // Top vendedor del día
+  const vendorCount: Record<string, number> = {};
+  rows.forEach(r => { vendorCount[r.vendor_id] = (vendorCount[r.vendor_id] ?? 0) + 1; });
+  const topVendorId = Object.entries(vendorCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+  let topVendedor: string | null = null;
+  if (topVendorId) {
+    const { data: profile } = await sb.from('profiles').select('name').eq('id', topVendorId).maybeSingle();
+    topVendedor = (profile as any)?.name ?? null;
+  }
+
+  return { fecha, ventasHoy: rows.length, facturadoHoy, ticketPromedio, topVendedor };
+}
+
+async function buildBuscarSnapshot(query: string): Promise<BuscarSnapshot> {
+  const sb  = getServiceClient();
+  const q   = query.trim().toUpperCase();
+  const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://rcrepuestos.vercel.app').replace(/\/$/, '');
+
+  // Intentar parsear "NN-PED-XXXX" o "PED-XXXX"
+  const fullMatch    = q.match(/^(\d+)-PED-(\d+)$/);
+  const shortMatch   = q.match(/^PED-(\d+)$/);
+
+  let order: any = null;
+  if (fullMatch) {
+    const tallerNum = parseInt(fullMatch[1], 10);
+    const orderNum  = parseInt(fullMatch[2], 10);
+    const { data } = await sb
+      .from('orders')
+      .select('id, status, vehicle_brand, vehicle_model, vehicle_year, updated_at, assigned_vendor_id, workshop_order_number, workshop:workshops(name, taller_number)')
+      .eq('workshop_order_number', orderNum)
+      .eq('workshops.taller_number', tallerNum)
+      .maybeSingle();
+    order = data;
+  } else if (shortMatch) {
+    const orderNum = parseInt(shortMatch[1], 10);
+    const { data } = await sb
+      .from('orders')
+      .select('id, status, vehicle_brand, vehicle_model, vehicle_year, updated_at, assigned_vendor_id, workshop_order_number, workshop:workshops(name, taller_number)')
+      .eq('workshop_order_number', orderNum)
+      .limit(1);
+    order = (data as any)?.[0] ?? null;
+  }
+
+  if (!order) return { encontrado: false, label: q, workshopName: '', vehiculo: '', status: '', vendedorName: null, link: '', actualizado: '' };
+
+  const tNum     = (order.workshop as any)?.taller_number;
+  const orderN   = order.workshop_order_number;
+  const label    = tNum != null && orderN != null
+    ? `${String(tNum).padStart(2, '0')}-PED-${String(orderN).padStart(4, '0')}`
+    : orderN != null ? `PED-${String(orderN).padStart(4, '0')}` : order.id.slice(0, 8);
+
+  let vendedorName: string | null = null;
+  if (order.assigned_vendor_id) {
+    const { data: vp } = await sb.from('profiles').select('name').eq('id', order.assigned_vendor_id).maybeSingle();
+    vendedorName = (vp as any)?.name ?? null;
+  }
+
+  return {
+    encontrado:   true,
+    label,
+    workshopName: (order.workshop as any)?.name ?? '?',
+    vehiculo:     `${order.vehicle_brand} ${order.vehicle_model} ${order.vehicle_year}`,
+    status:       order.status,
+    vendedorName,
+    link:         `${APP_URL}/vendedor/pedidos/${label}`,
+    actualizado:  new Date(order.updated_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }),
+  };
+}
+
+async function buildTalleresDeudores(): Promise<TallerDeudor[]> {
+  const sb = getServiceClient();
+  const { data } = await sb
+    .from('orders')
+    .select('workshop_id, total_amount, paid_amount, workshops(name)')
+    .in('financial_status', ['unpaid', 'partial']);
+
+  const rows = (data ?? []) as any[];
+  const map: Record<string, { name: string; deuda: number; pedidos: number }> = {};
+  rows.forEach(r => {
+    const wid  = r.workshop_id;
+    const name = (r.workshops as any)?.name ?? wid;
+    const debt = (Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0);
+    if (!map[wid]) map[wid] = { name, deuda: 0, pedidos: 0 };
+    map[wid].deuda   += debt;
+    map[wid].pedidos += 1;
+  });
+
+  return Object.values(map)
+    .sort((a, b) => b.deuda - a.deuda)
+    .slice(0, 5)
+    .map(({ name, deuda, pedidos }) => ({ workshopName: name, deuda, pedidos }));
+}
+
 // ─── Handler principal ────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -516,15 +658,54 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         await sendReply(chatId, formatSlashAlertas(data));
         break;
       }
+      // ── Nuevos comandos ERP Plus ─────────────────────────────────────────
+      case '/deuda': {
+        const snap = await buildDeudaSnapshot();
+        await sendReply(chatId, formatSlashDeuda(snap));
+        break;
+      }
+      case '/mostrador': {
+        const snap = await buildMostradorSnapshot();
+        await sendReply(chatId, formatSlashMostrador(snap));
+        break;
+      }
+      case '/buscar': {
+        // /buscar 10-PED-0002   ó   /buscar PED-0005
+        const args = text.split(/\s+/).slice(1).join(' ').trim();
+        if (!args) {
+          await sendReply(chatId, `🔍 Uso: <code>/buscar 10-PED-0002</code>`);
+        } else {
+          const snap = await buildBuscarSnapshot(args);
+          await sendReply(chatId, formatSlashBuscar(snap, args));
+        }
+        break;
+      }
+      case '/talleres_deudores': {
+        const deudores = await buildTalleresDeudores();
+        await sendReply(chatId, formatSlashTalleresDeudores(deudores));
+        break;
+      }
+      case '/estado_servidor': {
+        await sendReply(chatId, formatSlashEstadoServidor(Date.now() - SERVER_START));
+        break;
+      }
       default: {
         await sendReply(chatId, [
-          `ℹ️ <b>Comandos disponibles:</b>`,
+          `ℹ️ <b>Comandos disponibles (${10} total):</b>`,
           ``,
-          `/hoy       — resumen del día vs. ayer`,
-          `/semana    — facturación de la semana (WoW ▲▼)`,
-          `/mes       — facturación del mes (MoM ▲▼)`,
-          `/vendedores — ranking del mes en curso`,
-          `/alertas   — cuellos de botella y conflictos activos`,
+          `📊 <b>Análisis</b>`,
+          `/hoy              — resumen del día vs. ayer`,
+          `/semana           — facturación WoW ▲▼`,
+          `/mes              — facturación MoM ▲▼`,
+          `/vendedores       — ranking del mes`,
+          `/alertas          — cuellos de botella y conflictos`,
+          ``,
+          `💸 <b>ERP Plus</b>`,
+          `/deuda            — total deuda cuentas corrientes`,
+          `/talleres_deudores — top 5 talleres que más deben`,
+          `/mostrador        — ventas de mostrador del día`,
+          `/buscar &lt;nro&gt;  — ej: /buscar 10-PED-0002`,
+          `/estado_servidor  — health check`,
         ].join('\n'));
       }
     }
