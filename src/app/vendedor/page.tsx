@@ -7,12 +7,43 @@ import { TopBar } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
 import { Button } from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
-import { formatOrderSlug } from '@/lib/utils';
+import { formatOrderSlug, formatCurrency } from '@/lib/utils';
+import { useState, useEffect } from 'react';
+import { getSupabaseClient } from '@/lib/supabase/client';
+
+interface PosMiniStats { ventasMes: number; facturadoMes: number; vendedores: { name: string; total: number }[] }
 
 export default function VendedorDashboard() {
   const { user } = useAuth();
   const { getAllOrders, isLoadingOrders, loadError, refreshOrders } = useDataStore();
   const router = useRouter();
+  const [posOpen, setPosOpen] = useState(false);
+  const [posStats, setPosStats] = useState<PosMiniStats | null>(null);
+
+  useEffect(() => {
+    if (!posOpen || posStats) return;
+    (async () => {
+      const sb = getSupabaseClient();
+      const now   = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { data: sales } = await sb
+        .from('pos_sales')
+        .select('total_amount, vendor_id, profiles(name)')
+        .eq('status', 'closed')
+        .gte('created_at', start);
+      const rows = (sales ?? []) as any[];
+      const facturadoMes = rows.reduce((s: number, r: any) => s + (Number(r.total_amount) || 0), 0);
+      const vendedorMap: Record<string, { name: string; total: number }> = {};
+      rows.forEach((r: any) => {
+        const vid  = r.vendor_id;
+        const name = r.profiles?.name ?? 'Vendedor';
+        if (!vendedorMap[vid]) vendedorMap[vid] = { name, total: 0 };
+        vendedorMap[vid].total += Number(r.total_amount) || 0;
+      });
+      const vendedores = Object.values(vendedorMap).sort((a, b) => b.total - a.total).slice(0, 5);
+      setPosStats({ ventasMes: rows.length, facturadoMes, vendedores });
+    })();
+  }, [posOpen, posStats]);
 
   const orders = getAllOrders();
 
@@ -161,6 +192,60 @@ export default function VendedorDashboard() {
             </table>
           </div>
         </div>
+          {/* ── Mini-Dashboard Mostrador ── */}
+          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setPosOpen(p => !p)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-zinc-800/40 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🛒</span>
+                <span className="font-bold text-zinc-300 text-sm">Mostrador — Métricas del mes</span>
+              </div>
+              <span className="text-zinc-500 text-sm">{posOpen ? '▲' : '▼'}</span>
+            </button>
+            {posOpen && (
+              <div className="border-t border-zinc-800/60 px-5 py-4 space-y-4">
+                {!posStats ? (
+                  <div className="h-16 animate-pulse rounded-xl bg-zinc-800/60" />
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-xl border border-orange-500/20 bg-orange-500/8 px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-orange-400/70 mb-1">Ventas del mes</p>
+                        <p className="text-xl font-black text-orange-300">{posStats.ventasMes}</p>
+                      </div>
+                      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70 mb-1">Facturado</p>
+                        <p className="text-xl font-black text-emerald-300">{formatCurrency(posStats.facturadoMes)}</p>
+                      </div>
+                    </div>
+                    {posStats.vendedores.length > 0 && (
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">Ranking vendedores</p>
+                        <div className="space-y-1.5">
+                          {posStats.vendedores.map((v, i) => (
+                            <div key={i} className="flex items-center justify-between">
+                              <span className="text-sm text-zinc-300">{['🥇','🥈','🥉'][i] ?? '·'} {v.name}</span>
+                              <span className="text-sm font-bold text-zinc-200">{formatCurrency(v.total)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => router.push('/vendedor/mostrador')}
+                      className="text-xs text-orange-400/70 hover:text-orange-300 transition-colors"
+                    >
+                      Ver mostrador completo →
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           </>
         )}
       </div>
