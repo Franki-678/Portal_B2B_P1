@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDataStore } from '@/contexts/DataStoreContext';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
-import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal, formatVendorOrderLabel } from '@/lib/utils';
+import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal, formatVendorOrderLabel, formatOrderSlug } from '@/lib/utils';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
 
 interface PageProps {
@@ -39,6 +39,18 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
 
   // Soporta tanto UUID (legacy) como slug "PED-XXXX"
   const order = getOrderBySlug(id, user?.workshopId);
+
+  // Redirigir UUID → slug amigable (si el pedido ya cargó y el id es un UUID)
+  useEffect(() => {
+    if (!order) return;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUUID) return;
+    const slug = formatOrderSlug(order, 'taller');
+    if (slug !== order.id) {
+      router.replace(`/taller/pedidos/${slug}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id]);
 
   if (!order) {
     return (

@@ -16,6 +16,7 @@ import {
   canVendorQuote,
   quoteLineTotal,
   formatVendorOrderLabel,
+  formatOrderSlug,
 } from '@/lib/utils';
 import Image from 'next/image';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
@@ -91,6 +92,18 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
 
   // Soporta UUID (legacy) y slug "NN-PED-XXXX" / "PED-XXXX"
   const order = getOrderBySlug(id);
+
+  // Redirigir UUID → slug amigable (si el pedido ya cargó y el id es un UUID)
+  useEffect(() => {
+    if (!order) return;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (!isUUID) return;
+    const slug = formatOrderSlug(order, 'vendedor');
+    if (slug !== order.id) { // slug !== UUID → hay un slug válido
+      router.replace(`/vendedor/pedidos/${slug}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id]);
 
   // Inicializar los ítems cuando se abre o detecta el pedido
   useEffect(() => {
@@ -578,21 +591,23 @@ export default function VendedorPedidoDetallePage({ params }: PageProps) {
                 )}
               </div>
             </div>
+            {/* min-w-0 en cada celda permite truncate sin desbordamiento */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-              <div className="text-[11px] font-medium text-zinc-400">&#x1F464; {order.workshop?.contactName || 'Sin contacto'}</div>
-              <div className="text-[11px] font-medium text-zinc-400">&#x2709;&#xFE0F; {order.workshop?.email || 'Sin email'}</div>
-              <div className="text-[11px] font-medium text-zinc-400">&#x1F4DE; {order.workshop?.phone || 'Sin teléfono'}</div>
-              <div className="text-[11px] font-medium text-zinc-400">&#x1F4CD; {order.workshop?.address || 'Sin dirección'}</div>
+              <div className="min-w-0 text-[11px] font-medium text-zinc-400 truncate">&#x1F464; {order.workshop?.contactName || 'Sin contacto'}</div>
+              <div className="min-w-0 text-[11px] font-medium text-zinc-400 truncate">&#x2709;&#xFE0F; {order.workshop?.email || 'Sin email'}</div>
+              <div className="min-w-0 text-[11px] font-medium text-zinc-400 truncate">&#x1F4DE; {order.workshop?.phone || 'Sin teléfono'}</div>
+              <div className="min-w-0 text-[11px] font-medium text-zinc-400 truncate">&#x1F4CD; {order.workshop?.address || 'Sin dirección'}</div>
             </div>
             {order.cedulaUrl && (
-              <div className="mt-4 flex items-center gap-3 rounded-xl border border-zinc-800/60 bg-zinc-950/40 px-4 py-3">
-                <span className="text-lg">📄</span>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex-1">Cédula del Vehículo</p>
+              /* flex-wrap para que el botón no tape el texto en mobile */
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800/60 bg-zinc-950/40 px-4 py-3">
+                <span className="text-lg shrink-0">📄</span>
+                <p className="min-w-0 flex-1 text-xs font-semibold text-zinc-400 uppercase tracking-widest truncate">Cédula del Vehículo</p>
                 <a
                   href={order.cedulaUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 text-xs font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-3 py-1.5 rounded-lg hover:bg-sky-500/20 transition-colors"
+                  className="shrink-0 text-xs font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-3 py-1.5 rounded-lg hover:bg-sky-500/20 transition-colors whitespace-nowrap"
                 >
                   Ver / Descargar →
                 </a>
