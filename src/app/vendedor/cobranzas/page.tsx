@@ -13,6 +13,7 @@ import {
   getUnpaidOrders,
   createReceipt,
   getOrCreateAccount,
+  registerOrderAsCC,
   PAYMENT_TERMS_LABELS,
   PAYMENT_METHOD_LABELS,
   type CurrentAccount,
@@ -24,6 +25,20 @@ import {
 // ─── Tipos de UI ──────────────────────────────────────────────────────────────
 
 type View = 'list' | 'detail' | 'receipt';
+
+interface CcRequest {
+  id:               string;
+  workshop_id:      string;
+  order_id:         string;
+  requested_by:     string;
+  requested_amount: number;
+  status:           string;
+  notes:            string | null;
+  created_at:       string;
+  reviewer_notes:   string | null;
+  workshop:         { name: string; phone: string | null } | null;
+  order:            { workshop_order_number: number | null; workshops: { taller_number: number | null } | null } | null;
+}
 
 interface PaymentMethodRow {
   id:             string;
@@ -65,6 +80,32 @@ export default function CobranzasPage() {
     return { id: Math.random().toString(36).slice(2), method: 'cash', amount: '', reference_code: '', bank_name: '', due_date: '', notes: '' };
   }
 
+  // ── Estado solicitudes CC ────────────────────────────────────────────────
+  const [ccRequests,       setCcRequests]       = useState<CcRequest[]>([]);
+  const [loadingRequests,  setLoadingRequests]  = useState(true);
+  const [reviewTarget,     setReviewTarget]     = useState<CcRequest | null>(null);
+  const [reviewAction,     setReviewAction]     = useState<'approve' | 'reject' | null>(null);
+  const [reviewNotes,      setReviewNotes]      = useState('');
+  const [reviewLoading,    setReviewLoading]    = useState(false);
+  const [creditLimit,      setCreditLimit]      = useState('');
+  const [paymentTerms,     setPaymentTerms]     = useState('a_30_dias');
+
+  const loadCcRequests = useCallback(async () => {
+    setLoadingRequests(true);
+    const sb = getSupabaseClient() as any;
+    const { data } = await sb
+      .from('credit_account_requests')
+      .select(`
+        *,
+        workshop:workshops(name, phone),
+        order:orders(workshop_order_number, workshops(taller_number))
+      `)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    setCcRequests((data ?? []) as CcRequest[]);
+    setLoadingRequests(false);
+  }, []);
+
   const loadAccounts = useCallback(async () => {
     setLoading(true);
     const sb = getSupabaseClient();
@@ -73,7 +114,88 @@ export default function CobranzasPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { void loadAccounts(); }, [loadAccounts]);
+  useEffect(() => {
+    void loadAccounts();
+    void loadCcRequests();
+  }, [loadAccounts, loadCcRequests]);
+
+  const handleReviewRequest = async () => {
+    if (!reviewTarget || !user || !reviewAction) return;
+    setReviewLoading(true);
+    const sb = getSupabaseClient() as any;
+
+    try {
+      if (reviewAction === 'approve') {
+        // 1. Obtener o crear cuenta corriente del taller
+        const acc = await getOrCreateAccount(getSupabaseClient(), reviewTarget.workshop_id, user.id);
+        if (!acc) throw new Error('No se pudo crear la cuenta corriente');
+
+        // 2. Actualizar límite y condiciones si se especificaron
+        if (creditLimit || paymentTerms !== 'a_30_dias') {
+          await sb.from('current_accounts').update({
+            credit_limit:  parseFloat(creditLimit) || acc.credit_limit,
+            payment_terms: paymentTerms,
+            active:        true,
+          }).eq('id', acc.id);
+        }
+
+        // 3. Registrar el cargo en CC (activa la deuda)
+        await registerOrderAsCC(getSupabaseClient(), {
+          accountId:   acc.id,
+          orderId:     reviewTarget.order_id,
+          amount:      reviewTarget.requested_amount,
+          userId:      user.id,
+          description: `Cargo CC por pedido aprobado`,
+        });
+
+        // 4. Aprobar la cotización del pedido (actúa en nombre del taller)
+        // Nota: usamos la API de Supabase directamente para cambiar el status
+        await sb.from('orders').update({
+          status:          'aprobado',
+          payment_method:  'cuenta_corriente',
+          updated_at:      new Date().toISOString(),
+        }).eq('id', reviewTarget.order_id);
+
+        // Insertar evento
+        await sb.from('order_events').insert({
+          order_id:   reviewTarget.order_id,
+          user_id:    user.id,
+          action:     'cotizacion_aprobada',
+          comment:    `Aprobado con pago en cuenta corriente por ${user.name}`,
+        });
+
+        // 5. Marcar solicitud como aprobada
+        await sb.from('credit_account_requests').update({
+          status:        'approved',
+          reviewed_by:   user.id,
+          reviewed_at:   new Date().toISOString(),
+          reviewer_notes: reviewNotes.trim() || null,
+          approved_cc_id: acc.id,
+        }).eq('id', reviewTarget.id);
+
+      } else {
+        // Rechazar
+        await sb.from('credit_account_requests').update({
+          status:         'rejected',
+          reviewed_by:    user.id,
+          reviewed_at:    new Date().toISOString(),
+          reviewer_notes: reviewNotes.trim() || null,
+        }).eq('id', reviewTarget.id);
+      }
+
+      setReviewTarget(null);
+      setReviewAction(null);
+      setReviewNotes('');
+      setCreditLimit('');
+      setPaymentTerms('a_30_dias');
+      await Promise.all([loadCcRequests(), loadAccounts()]);
+    } catch (e) {
+      console.error('[CC Review] Error:', e);
+      alert(e instanceof Error ? e.message : 'Error al procesar la solicitud');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   const openDetail = async (account: CurrentAccount & { workshop: any }) => {
     setSelected(account);
@@ -174,7 +296,76 @@ export default function CobranzasPage() {
           subtitle={`${accounts.length} talleres con saldo deudor · Total: ${formatCurrency(totalDeudaGlobal)}`}
         />
         <div className="p-6 space-y-6">
-          {/* KPIs */}
+
+          {/* ── SOLICITUDES PENDIENTES DE CC ── */}
+          {(loadingRequests || ccRequests.length > 0) && (
+            <div className="rounded-2xl border border-sky-500/30 bg-sky-500/8 overflow-hidden">
+              <div className="px-5 py-3 border-b border-sky-500/20 flex items-center justify-between">
+                <h3 className="text-sm font-bold text-sky-300 flex items-center gap-2">
+                  🏦 Solicitudes de Cuenta Corriente
+                  {ccRequests.length > 0 && (
+                    <span className="rounded-full bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[10px] font-black text-sky-300">
+                      {ccRequests.length}
+                    </span>
+                  )}
+                </h3>
+                <button type="button" onClick={loadCcRequests} className="text-[10px] text-sky-500/70 hover:text-sky-300">🔄</button>
+              </div>
+
+              {loadingRequests ? (
+                <div className="px-5 py-4"><div className="h-10 animate-pulse rounded-xl bg-sky-500/10" /></div>
+              ) : ccRequests.length === 0 ? (
+                <div className="px-5 py-4 text-xs text-sky-400/50 text-center">Sin solicitudes pendientes</div>
+              ) : (
+                <div className="divide-y divide-sky-500/10">
+                  {ccRequests.map(req => {
+                    const ws    = req.workshop;
+                    const ord   = req.order;
+                    const tNum  = (ord?.workshops as any)?.taller_number;
+                    const oNum  = ord?.workshop_order_number;
+                    const label = tNum != null && oNum != null
+                      ? `${String(tNum).padStart(2,'0')}-PED-${String(oNum).padStart(4,'0')}`
+                      : oNum != null ? `PED-${String(oNum).padStart(4,'0')}` : req.order_id.slice(0,8).toUpperCase();
+
+                    return (
+                      <div key={req.id} className="flex items-center justify-between gap-4 px-5 py-3.5 flex-wrap">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-bold text-sm text-zinc-200">{ws?.name ?? 'Taller'}</p>
+                            {ws?.phone && <p className="text-xs text-zinc-500">{ws.phone}</p>}
+                          </div>
+                          <p className="text-xs text-zinc-400 mt-0.5">
+                            <span className="font-mono text-orange-400/80">#{label}</span>
+                            {' · '}<span className="font-semibold text-sky-300">{formatCurrency(req.requested_amount)}</span>
+                            {' · '}{formatDate(req.created_at)}
+                          </p>
+                          {req.notes && <p className="text-[11px] text-zinc-500 italic mt-0.5">"{req.notes}"</p>}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => { setReviewTarget(req); setReviewAction('approve'); setReviewNotes(''); setCreditLimit(String(req.requested_amount)); }}
+                            className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 transition-all"
+                          >
+                            ✅ Aprobar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setReviewTarget(req); setReviewAction('reject'); setReviewNotes(''); }}
+                            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all"
+                          >
+                            ✕ Rechazar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-2xl border border-rose-500/20 bg-rose-500/8 px-5 py-4">
               <p className="text-[10px] font-bold uppercase tracking-widest text-rose-400/70 mb-1">Total en calle</p>
@@ -192,6 +383,7 @@ export default function CobranzasPage() {
             </div>
           </div>
 
+          {/* ── KPIs */}
           {/* Tabla */}
           {loading ? (
             <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl bg-zinc-900/60 animate-pulse border border-zinc-800" />)}</div>
@@ -456,6 +648,89 @@ export default function CobranzasPage() {
           </Button>
         </div>
       </>
+    );
+  }
+
+  // ── Modal de revisión de solicitud CC ─────────────────────────────────────
+  if (reviewTarget && reviewAction) {
+    const isApprove = reviewAction === 'approve';
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-7 max-w-md w-full shadow-2xl">
+          <h3 className={`text-lg font-extrabold mb-1 tracking-tight ${isApprove ? 'text-emerald-300' : 'text-rose-300'}`}>
+            {isApprove ? '✅ Aprobar solicitud CC' : '✕ Rechazar solicitud CC'}
+          </h3>
+          <p className="text-sm text-zinc-400 mb-5">
+            Taller: <span className="font-bold text-zinc-200">{reviewTarget.workshop?.name}</span>
+            {' · '}Monto: <span className="font-bold text-sky-300">{formatCurrency(reviewTarget.requested_amount)}</span>
+          </p>
+          {reviewTarget.notes && (
+            <div className="mb-4 rounded-xl border border-zinc-700/60 bg-zinc-800/40 px-4 py-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Nota del taller</p>
+              <p className="text-xs text-zinc-300 italic">"{reviewTarget.notes}"</p>
+            </div>
+          )}
+
+          {isApprove && (
+            <div className="space-y-4 mb-5">
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Límite de crédito ($)"
+                  type="number"
+                  min="0"
+                  value={creditLimit}
+                  onChange={e => setCreditLimit(e.target.value)}
+                  placeholder={String(reviewTarget.requested_amount)}
+                />
+                <Select
+                  label="Condición de pago"
+                  value={paymentTerms}
+                  onChange={e => setPaymentTerms(e.target.value)}
+                  options={Object.entries(PAYMENT_TERMS_LABELS).map(([v, l]) => ({ value: v, label: l }))}
+                />
+              </div>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3 text-xs text-emerald-300/80">
+                <p className="font-semibold text-emerald-300 mb-1">¿Qué pasa al aprobar?</p>
+                <p>• Se crea/activa la cuenta corriente del taller</p>
+                <p>• El pedido queda como "Aprobado" con pago en CC</p>
+                <p>• Se genera un cargo de {formatCurrency(reviewTarget.requested_amount)} en su cuenta</p>
+              </div>
+            </div>
+          )}
+
+          <div className="mb-5">
+            <label className="block text-xs font-semibold text-zinc-300 mb-2">
+              Nota para el taller {!isApprove && <span className="text-rose-400">*</span>}
+            </label>
+            <textarea
+              value={reviewNotes}
+              onChange={e => setReviewNotes(e.target.value)}
+              placeholder={isApprove ? 'Ej: CC aprobada a 30 días...' : 'Motivo del rechazo...'}
+              rows={2}
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-zinc-500 focus:outline-none resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => { setReviewTarget(null); setReviewAction(null); }}
+              disabled={reviewLoading}
+              className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-700 transition-all disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <Button
+              loading={reviewLoading}
+              disabled={!isApprove && !reviewNotes.trim()}
+              onClick={handleReviewRequest}
+              className={`flex-1 font-bold ${isApprove ? 'bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30' : 'bg-rose-600/20 border border-rose-500/40 text-rose-300 hover:bg-rose-600/30'}`}
+            >
+              {isApprove ? '✅ Confirmar aprobación' : '✕ Confirmar rechazo'}
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
