@@ -7,11 +7,22 @@ import { useDataStore } from '@/contexts/DataStoreContext';
 import { Sidebar, LoadingSpinner } from '@/components/ui/Layout';
 
 const vendedorNav = [
-  { href: '/vendedor', label: 'Dashboard', icon: '📊' },
-  { href: '/vendedor/cola', label: 'Cola general', icon: '🔔' },
-  { href: '/vendedor/pedidos', label: 'Mis pedidos', icon: '📋' },
-  { href: '/vendedor/clientes', label: 'Clientes', icon: '🏭' },
-  { href: '/vendedor/configuracion', label: 'Configuración', icon: '⚙️' },
+  { href: '/vendedor',                  label: 'Dashboard',          icon: '📊' },
+  { href: '/vendedor/cola',             label: 'Cola general',       icon: '🔔' },
+  { href: '/vendedor/pedidos',          label: 'Mis pedidos',        icon: '📋' },
+  { href: '/vendedor/clientes',         label: 'Clientes',           icon: '🏭' },
+  { href: '/vendedor/cobranzas',        label: 'Cuentas Corrientes', icon: '💸' },
+  {
+    href:  '/vendedor/mostrador',
+    label: 'Mostrador POS',
+    icon:  '🛒',
+    children: [
+      { href: '/vendedor/mostrador/nuevo',    label: 'Nueva Venta',     icon: '➕' },
+      { href: '/vendedor/mostrador/pedidos',  label: 'Ventas',          icon: '🧾' },
+      { href: '/vendedor/mostrador/clientes', label: 'Clientes',        icon: '👤' },
+    ],
+  },
+  { href: '/vendedor/configuracion',    label: 'Configuración',      icon: '⚙️' },
 ];
 
 const adminExtraNav = [{ href: '/admin', label: 'Panel Admin', icon: '🛠️' }];

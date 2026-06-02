@@ -8,9 +8,11 @@ import { cn, getTallerDisplayName, PED_SLUG_REGEX } from '@/lib/utils';
 import { Button } from './Button';
 
 interface NavItem {
-  href: string;
-  label: string;
-  icon: string;
+  href:      string;
+  label:     string;
+  icon:      string;
+  /** Sub-ítems para sección colapsable */
+  children?: { href: string; label: string; icon?: string }[];
 }
 
 interface SidebarProps {
@@ -48,6 +50,60 @@ function buildBreadcrumbs(pathname: string, orderLabel?: string) {
       label,
     };
   });
+}
+
+/** Grupo de navegación colapsable */
+function NavGroup({
+  item,
+  pathname,
+  defaultOpen,
+}: {
+  item:        NavItem;
+  pathname:    string;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all duration-150',
+          defaultOpen
+            ? 'border-orange-500/20 bg-orange-500/5 text-orange-400/80'
+            : 'border-transparent text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-100'
+        )}
+      >
+        <span className="text-base leading-none">{item.icon}</span>
+        <span className="flex-1 text-left">{item.label}</span>
+        <span className="text-xs text-zinc-600">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="mt-0.5 ml-3 space-y-0.5 border-l border-zinc-800 pl-3">
+          {item.children!.map(child => {
+            const childActive = pathname === child.href || pathname.startsWith(child.href + '/');
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-all',
+                  childActive
+                    ? 'border-orange-500/30 bg-orange-500/10 text-orange-400'
+                    : 'border-transparent text-zinc-500 hover:border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200'
+                )}
+              >
+                {child.icon && <span className="text-sm leading-none">{child.icon}</span>}
+                <span>{child.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Sidebar interior reutilizable */
@@ -104,6 +160,19 @@ function SidebarContent({
       {/* ── Nav ── */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
         {navItems.map(item => {
+          // Item con hijos → sección colapsable
+          if (item.children && item.children.length > 0) {
+            const groupActive = pathname.startsWith(item.href);
+            return (
+              <NavGroup
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                defaultOpen={groupActive}
+              />
+            );
+          }
+
           const isActive =
             pathname === item.href ||
             (item.href !== '/taller' &&
