@@ -28,14 +28,31 @@ export default function MostradorPedidosPage() {
   const [saving,   setSaving]   = useState(false);
   const [editNotes, setEditNotes] = useState('');
 
-  // Filtros
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterVendor, setFilterVendor] = useState('');
-  const [filterFrom,   setFilterFrom]   = useState('');
-  const [filterTo,     setFilterTo]     = useState('');
-  const [searchText,   setSearchText]   = useState('');
-  const [page,         setPage]         = useState(0);
+  // Filtros — default: hoy
+  const today = () => new Date().toISOString().slice(0, 10);
+  const [filterStatus,  setFilterStatus]  = useState('');
+  const [filterVendor,  setFilterVendor]  = useState('');
+  const [filterFrom,    setFilterFrom]    = useState(today);
+  const [filterTo,      setFilterTo]      = useState(today);
+  const [searchText,    setSearchText]    = useState('');
+  const [noDateFilter,  setNoDateFilter]  = useState(false);  // historial completo
+  const [page,          setPage]          = useState(0);
   const PER_PAGE = 25;
+
+  // Cuando el usuario busca por texto → auto-deshabilitar fechas
+  const handleSearchText = (val: string) => {
+    setSearchText(val);
+    if (val.trim().length > 0 && !noDateFilter) setNoDateFilter(true);
+    if (val.trim().length === 0 && noDateFilter) {
+      setNoDateFilter(false);
+      setFilterFrom(today());
+      setFilterTo(today());
+    }
+    setPage(0);
+  };
+
+  const effectiveDateFrom = noDateFilter ? undefined : (filterFrom || undefined);
+  const effectiveDateTo   = noDateFilter ? undefined : (filterTo ? filterTo + 'T23:59:59Z' : undefined);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,15 +60,16 @@ export default function MostradorPedidosPage() {
     const { data, count: c } = await listOrders(sb, {
       status:   filterStatus || undefined,
       vendorId: (filterVendor && user?.role !== 'admin') ? user?.id : (filterVendor || undefined),
-      dateFrom: filterFrom || undefined,
-      dateTo:   filterTo ? filterTo + 'T23:59:59Z' : undefined,
+      dateFrom: effectiveDateFrom,
+      dateTo:   effectiveDateTo,
       page,
       perPage:  PER_PAGE,
     });
     setOrders(data);
     setCount(c);
     setLoading(false);
-  }, [filterStatus, filterVendor, filterFrom, filterTo, page, user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterStatus, filterVendor, filterFrom, filterTo, noDateFilter, page, user]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -98,14 +116,15 @@ export default function MostradorPedidosPage() {
         {/* Lista con filtros */}
         <div className="flex flex-col w-[55%] border-r border-zinc-800/80">
           {/* Filtros */}
-          <div className="p-4 border-b border-zinc-800/60 space-y-3">
+          <div className="p-4 border-b border-zinc-800/60 space-y-2">
+            {/* Búsqueda libre */}
+            <input
+              value={searchText}
+              onChange={e => handleSearchText(e.target.value)}
+              placeholder="🔍 Buscar por cliente, vehículo..."
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-orange-500/50 focus:outline-none"
+            />
             <div className="grid grid-cols-3 gap-2">
-              <input
-                value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-                placeholder="Buscar cliente / vehículo..."
-                className="col-span-3 rounded-xl border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:border-orange-500/50 focus:outline-none"
-              />
               <select
                 value={filterStatus}
                 onChange={e => { setFilterStatus(e.target.value); setPage(0); }}
@@ -116,11 +135,37 @@ export default function MostradorPedidosPage() {
                 <option value="closed">Cerrada</option>
                 <option value="cancelled">Cancelada</option>
               </select>
-              <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); setPage(0); }}
-                className="rounded-xl border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-300 focus:outline-none" />
-              <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); setPage(0); }}
-                className="rounded-xl border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-300 focus:outline-none" />
+              <input
+                type="date"
+                value={noDateFilter ? '' : filterFrom}
+                disabled={noDateFilter}
+                onChange={e => { setFilterFrom(e.target.value); setPage(0); }}
+                className={`rounded-xl border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-300 focus:outline-none ${noDateFilter ? 'opacity-40 cursor-not-allowed' : ''}`}
+              />
+              <input
+                type="date"
+                value={noDateFilter ? '' : filterTo}
+                disabled={noDateFilter}
+                onChange={e => { setFilterTo(e.target.value); setPage(0); }}
+                className={`rounded-xl border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-300 focus:outline-none ${noDateFilter ? 'opacity-40 cursor-not-allowed' : ''}`}
+              />
             </div>
+            {/* Toggle historial */}
+            <label className="flex items-center gap-2 cursor-pointer group w-fit">
+              <input
+                type="checkbox"
+                checked={noDateFilter}
+                onChange={e => {
+                  setNoDateFilter(e.target.checked);
+                  if (!e.target.checked) { setFilterFrom(today()); setFilterTo(today()); }
+                  setPage(0);
+                }}
+                className="w-3.5 h-3.5 rounded accent-orange-500"
+              />
+              <span className="text-[11px] text-zinc-500 group-hover:text-zinc-300 transition-colors font-medium select-none">
+                Ver historial completo (sin filtro de fechas)
+              </span>
+            </label>
           </div>
 
           {/* Tabla */}

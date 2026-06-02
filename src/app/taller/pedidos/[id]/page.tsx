@@ -37,9 +37,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'efectivo' | 'cuenta_corriente'>('transferencia');
   const [ccNotes,        setCcNotes]        = useState('');
-  const [ccPending,      setCcPending]      = useState(false);   // solicitud enviada, esperando aprobación
-  const [ccLoading,      setCcLoading]      = useState(false);
-  const [ccError,        setCcError]        = useState<string | null>(null);
+  const [ccPending,       setCcPending]       = useState(false);
+  const [ccRequestId,     setCcRequestId]     = useState<string | null>(null);
+  const [ccLoading,       setCcLoading]       = useState(false);
+  const [ccCancelLoading, setCcCancelLoading] = useState(false);
+  const [ccError,         setCcError]         = useState<string | null>(null);
   const lightbox = useImageLightbox();
 
   // Soporta tanto UUID (legacy) como slug "PED-XXXX"
@@ -98,6 +100,7 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
 
         if (!res.ok) throw new Error(json.error ?? 'Error al enviar la solicitud');
 
+        setCcRequestId(json.requestId ?? null);
         setCcPending(true);
         setShowApproveModal(false);
       } catch (e) {
@@ -113,6 +116,37 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     await approveQuote(order.id, user!.id, user!.name, paymentMethod as 'transferencia' | 'efectivo');
     setLoading(false);
     setShowApproveModal(false);
+  };
+
+  const handleCancelCcRequest = async () => {
+    if (!ccRequestId || !user) return;
+    setCcCancelLoading(true);
+    const sb = getSupabaseClient() as any;
+    try {
+      // Eliminar la solicitud de la BD
+      await sb.from('credit_account_requests').delete().eq('id', ccRequestId);
+
+      // Notificar por Telegram vía la API
+      const { data: { session } } = await (getSupabaseClient() as any).auth.getSession();
+      if (session?.access_token) {
+        // Best-effort — no bloqueamos si falla
+        fetch('/api/credit-account-cancel', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body:    JSON.stringify({ requestId: ccRequestId, orderId: order.id }),
+        }).catch(() => {});
+      }
+
+      setCcPending(false);
+      setCcRequestId(null);
+      setCcNotes('');
+      setPaymentMethod('transferencia');
+      setShowApproveModal(true);  // reabrir modal para elegir otro método
+    } catch (e) {
+      alert('Error al cancelar la solicitud. Intentá de nuevo.');
+    } finally {
+      setCcCancelLoading(false);
+    }
   };
 
   const handleReject = async () => {
@@ -235,6 +269,33 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
       />
 
       <div className="p-6 space-y-8 max-w-5xl mx-auto">
+        {/* ── Banner CC al tope — visible apenas entran ── */}
+        {ccPending && (
+          <div className="rounded-2xl border border-sky-500/40 bg-sky-500/10 p-5 shadow-lg shadow-sky-500/10">
+            <div className="flex items-start gap-4">
+              <span className="text-3xl shrink-0">🏦</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sky-200 text-base">Solicitud de Cuenta Corriente enviada</p>
+                <p className="text-sm text-sky-400/80 mt-1 leading-relaxed">
+                  Tu solicitud fue enviada al vendedor. Te avisaremos cuando sea aprobada o rechazada.
+                  Mientras tanto, el pedido sigue activo.
+                </p>
+                <p className="text-sm text-sky-300/70 mt-2 font-medium">
+                  ¿Cambiaste de opinión? Podés cancelar esta solicitud y elegir otro método de pago
+                  antes de que el vendedor la confirme.
+                </p>
+                <button
+                  type="button"
+                  disabled={ccCancelLoading}
+                  onClick={handleCancelCcRequest}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/15 px-4 py-2 text-sm font-bold text-sky-300 hover:bg-sky-500/25 transition-all disabled:opacity-50"
+                >
+                  {ccCancelLoading ? '⏳ Cancelando...' : '↩️ Cambiar método de pago'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header info */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5">
@@ -876,22 +937,6 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
         
       </div>
       {lightbox.node}
-      {/* Banner: solicitud CC enviada y pendiente de aprobación */}
-      {ccPending && (
-        <div className="rounded-2xl border border-sky-500/40 bg-sky-500/10 p-5 shadow-md">
-          <div className="flex items-start gap-4">
-            <span className="text-2xl shrink-0">🏦</span>
-            <div>
-              <p className="font-bold text-sky-300">Solicitud de Cuenta Corriente enviada</p>
-              <p className="text-sm text-sky-400/80 mt-1">
-                Tu solicitud fue enviada al vendedor. Te avisaremos cuando sea aprobada o rechazada.
-                Mientras tanto, el pedido sigue activo.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal: Método de pago al aprobar */}
       {showApproveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
