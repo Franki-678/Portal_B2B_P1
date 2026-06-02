@@ -49,13 +49,14 @@ export interface PosVehicleDetails {
 }
 
 export interface PosOrderItem {
-  id:          string;
+  id:           string;
   pos_order_id: string;
-  part_name:   string;
-  description: string | null;
-  quantity:    number;
-  unit_price:  number;
-  subtotal:    number;
+  sku:          string | null;
+  part_name:    string;
+  description:  string | null;
+  quantity:     number;
+  unit_price:   number;
+  subtotal:     number;
 }
 
 const sb = (client: SupabaseClient) => client as any;
@@ -168,7 +169,7 @@ export async function createOrder(
     clientId:       string | null;
     vendorId:       string;
     vehicleDetails: PosVehicleDetails | null;
-    items:          { part_name: string; description: string; quantity: number; unit_price: number }[];
+    items:          { sku?: string; part_name: string; description: string; quantity: number; unit_price: number }[];
     notes:          string;
   }
 ): Promise<PosOrder | null> {
@@ -194,7 +195,7 @@ export async function createOrder(
 
   if (items.length > 0) {
     await sb(client).from('pos_order_items').insert(
-      items.map(i => ({ pos_order_id: order.id, ...i }))
+      items.map(i => ({ pos_order_id: order.id, ...i, sku: i.sku || null }))
     );
   }
 
