@@ -11,6 +11,7 @@ import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
 import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal, formatVendorOrderLabel, formatOrderSlug } from '@/lib/utils';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -82,14 +83,11 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
       setCcLoading(true);
       setCcError(null);
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const sb = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        // Usar el cliente existente que ya tiene la sesión del usuario
+        const sb = getSupabaseClient();
         const { data: { session } } = await sb.auth.getSession();
         const jwt = session?.access_token;
-        if (!jwt) throw new Error('Sin sesión activa');
+        if (!jwt) throw new Error('Sin sesión activa — intentá recargar la página');
 
         const res = await fetch('/api/credit-account-request', {
           method:  'POST',
