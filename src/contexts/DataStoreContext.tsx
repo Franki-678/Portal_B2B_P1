@@ -401,7 +401,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
             images: i.images,
           })),
         },
-        data.workshopId // Using genuine workshopId as userId for the event instead of the mock fallback
+        user?.id ?? data.workshopId // user.id es el profile/auth ID válido como FK en order_events
       );
 
       if (orderId) {
@@ -420,7 +420,7 @@ export function DataStoreProvider({ children }: { children: ReactNode }) {
       
       throw new Error("No se pudo crear el pedido en la base de datos");
     },
-    [refreshData]
+    [user, refreshData]
   );
 
   const approveQuote = useCallback(
