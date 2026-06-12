@@ -575,3 +575,31 @@ export function formatSlashAlertas(data: AlertasSnapshot): string {
 
   return lines.join('\n');
 }
+
+// ── Solicitud de Cuenta Corriente ─────────────────────────────────────────
+
+export interface CcRequestNotification {
+  workshopName:  string;
+  workshopPhone: string | null;
+  orderLabel:    string;
+  orderLink:     string;
+  amount:        number;
+  notes:         string | null;
+  requestId:     string;
+  approveUrl:    string;
+}
+
+export function formatCcRequest(d: CcRequestNotification): string {
+  return [
+    `🏦 <b>[SOLICITUD CUENTA CORRIENTE]</b>`,
+    ``,
+    `🏭 <b>Taller:</b> ${esc(d.workshopName)}`,
+    d.workshopPhone ? `📞 ${esc(d.workshopPhone)}` : '',
+    `📦 <b>Pedido:</b> <a href="${d.orderLink}">#${esc(d.orderLabel)}</a>`,
+    `💰 <b>Monto solicitado:</b> ${formatCurrency(d.amount)}`,
+    d.notes ? `📝 <i>${esc(d.notes)}</i>` : '',
+    ``,
+    `⚡ Aprobá o rechazá desde el panel:`,
+    `<a href="${d.approveUrl}">→ Panel de Cobranzas</a>`,
+  ].filter(l => l !== '').join('\n');
+}

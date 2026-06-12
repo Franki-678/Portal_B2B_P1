@@ -11,6 +11,7 @@ import { StatusBadge, QualityBadge } from '@/components/ui/Badge';
 import { OrderStatusTracker } from '@/components/orders/OrderStatusTracker';
 import { formatDate, formatCurrency, canWorkshopRespond, quoteLineTotal, formatVendorOrderLabel, formatOrderSlug } from '@/lib/utils';
 import { useImageLightbox } from '@/components/ui/ImageLightbox';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -34,7 +35,13 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const [claimImages, setClaimImages] = useState<File[]>([]);
   const [claimPreviews, setClaimPreviews] = useState<string[]>([]);
   const [showApproveModal, setShowApproveModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'efectivo'>('transferencia');
+  const [paymentMethod, setPaymentMethod] = useState<'transferencia' | 'efectivo' | 'cuenta_corriente'>('transferencia');
+  const [ccNotes,        setCcNotes]        = useState('');
+  const [ccPending,       setCcPending]       = useState(false);
+  const [ccRequestId,     setCcRequestId]     = useState<string | null>(null);
+  const [ccLoading,       setCcLoading]       = useState(false);
+  const [ccCancelLoading, setCcCancelLoading] = useState(false);
+  const [ccError,         setCcError]         = useState<string | null>(null);
   const lightbox = useImageLightbox();
 
   // Soporta tanto UUID (legacy) como slug "PED-XXXX"
@@ -49,6 +56,28 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
     if (slug !== order.id) {
       router.replace(`/taller/pedidos/${slug}`);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id]);
+
+  // Hidratar estado de solicitud CC pendiente (si el taller recarga la página
+  // mientras espera revisión del vendedor).
+  useEffect(() => {
+    if (!order) return;
+    let cancelled = false;
+    (async () => {
+      const sb = getSupabaseClient() as any;
+      const { data } = await sb
+        .from('credit_account_requests')
+        .select('id')
+        .eq('order_id', order.id)
+        .eq('status', 'pending')
+        .maybeSingle();
+      if (!cancelled && data) {
+        setCcPending(true);
+        setCcRequestId(data.id);
+      }
+    })();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.id]);
 
@@ -73,10 +102,73 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
   const hasInvalidQuoteItems = Boolean(quote?.items.some(i => (i.price ?? 0) <= 0));
 
   const handleApproveConfirm = async () => {
+    // ── Solicitud de Cuenta Corriente: intercepción ──────────────────────────
+    if (paymentMethod === 'cuenta_corriente') {
+      setCcLoading(true);
+      setCcError(null);
+      try {
+        // Usar el cliente existente que ya tiene la sesión del usuario
+        const sb = getSupabaseClient();
+        const { data: { session } } = await sb.auth.getSession();
+        const jwt = session?.access_token;
+        if (!jwt) throw new Error('Sin sesión activa — intentá recargar la página');
+
+        const res = await fetch('/api/credit-account-request', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwt}` },
+          body:    JSON.stringify({ orderId: order.id, notes: ccNotes.trim() || undefined }),
+        });
+        const json = await res.json();
+
+        if (!res.ok) throw new Error(json.error ?? 'Error al enviar la solicitud');
+
+        setCcRequestId(json.requestId ?? null);
+        setCcPending(true);
+        setShowApproveModal(false);
+      } catch (e) {
+        setCcError(e instanceof Error ? e.message : 'Error desconocido');
+      } finally {
+        setCcLoading(false);
+      }
+      return;
+    }
+
+    // ── Aprobación normal (transferencia / efectivo) ──────────────────────────
     setLoading(true);
-    await approveQuote(order.id, user!.id, user!.name, paymentMethod);
+    await approveQuote(order.id, user!.id, user!.name, paymentMethod as 'transferencia' | 'efectivo');
     setLoading(false);
     setShowApproveModal(false);
+  };
+
+  const handleCancelCcRequest = async () => {
+    if (!ccRequestId || !user) return;
+    setCcCancelLoading(true);
+    const sb = getSupabaseClient() as any;
+    try {
+      // Eliminar la solicitud de la BD
+      await sb.from('credit_account_requests').delete().eq('id', ccRequestId);
+
+      // Notificar por Telegram vía la API
+      const { data: { session } } = await (getSupabaseClient() as any).auth.getSession();
+      if (session?.access_token) {
+        // Best-effort — no bloqueamos si falla
+        fetch('/api/credit-account-cancel', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body:    JSON.stringify({ requestId: ccRequestId, orderId: order.id }),
+        }).catch(() => {});
+      }
+
+      setCcPending(false);
+      setCcRequestId(null);
+      setCcNotes('');
+      setPaymentMethod('transferencia');
+      setShowApproveModal(true);  // reabrir modal para elegir otro método
+    } catch (e) {
+      alert('Error al cancelar la solicitud. Intentá de nuevo.');
+    } finally {
+      setCcCancelLoading(false);
+    }
   };
 
   const handleReject = async () => {
@@ -199,6 +291,33 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
       />
 
       <div className="p-6 space-y-8 max-w-5xl mx-auto">
+        {/* ── Banner CC al tope — visible apenas entran ── */}
+        {ccPending && (
+          <div className="rounded-2xl border border-sky-500/40 bg-sky-500/10 p-5 shadow-lg shadow-sky-500/10">
+            <div className="flex items-start gap-4">
+              <span className="text-3xl shrink-0">🏦</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-sky-200 text-base">Solicitud de Cuenta Corriente enviada</p>
+                <p className="text-sm text-sky-400/80 mt-1 leading-relaxed">
+                  Tu solicitud fue enviada al vendedor. Te avisaremos cuando sea aprobada o rechazada.
+                  Mientras tanto, el pedido sigue activo.
+                </p>
+                <p className="text-sm text-sky-300/70 mt-2 font-medium">
+                  ¿Cambiaste de opinión? Podés cancelar esta solicitud y elegir otro método de pago
+                  antes de que el vendedor la confirme.
+                </p>
+                <button
+                  type="button"
+                  disabled={ccCancelLoading}
+                  onClick={handleCancelCcRequest}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/15 px-4 py-2 text-sm font-bold text-sky-300 hover:bg-sky-500/25 transition-all disabled:opacity-50"
+                >
+                  {ccCancelLoading ? '⏳ Cancelando...' : '↩️ Cambiar método de pago'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header info */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-3xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5">
@@ -845,29 +964,59 @@ export default function TallerPedidoDetallePage({ params }: PageProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-7 max-w-md w-full shadow-2xl">
             <h3 className="text-xl font-extrabold text-zinc-100 mb-1 tracking-tight">¿Cómo vas a pagar este pedido?</h3>
-            <p className="text-sm text-zinc-400 mb-6">Seleccioná el método de pago para informarle al vendedor.</p>
-            <div className="flex gap-3 mb-7">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('transferencia')}
-                className={`flex-1 rounded-2xl border py-4 px-4 text-sm font-bold transition-all ${paymentMethod === 'transferencia' ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-lg shadow-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'}`}
-              >
-                🏦 Transferencia
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('efectivo')}
-                className={`flex-1 rounded-2xl border py-4 px-4 text-sm font-bold transition-all ${paymentMethod === 'efectivo' ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-lg shadow-emerald-500/10' : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'}`}
-              >
-                💵 Efectivo
-              </button>
+            <p className="text-sm text-zinc-400 mb-5">Seleccioná el método de pago para informarle al vendedor.</p>
+
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              {[
+                { value: 'transferencia', icon: '🏦', label: 'Transferencia' },
+                { value: 'efectivo',      icon: '💵', label: 'Efectivo' },
+                { value: 'cuenta_corriente', icon: '📒', label: 'Cuenta Corriente' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPaymentMethod(opt.value as typeof paymentMethod)}
+                  className={`rounded-2xl border py-4 px-3 text-xs font-bold text-center transition-all ${
+                    paymentMethod === opt.value
+                      ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-lg shadow-emerald-500/10'
+                      : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600'
+                  }`}
+                >
+                  <div className="text-xl mb-1">{opt.icon}</div>
+                  {opt.label}
+                </button>
+              ))}
             </div>
+
+            {/* Info contextual para Cuenta Corriente */}
+            {paymentMethod === 'cuenta_corriente' && (
+              <div className="mb-5 space-y-3">
+                <div className="rounded-xl border border-sky-500/25 bg-sky-500/8 px-4 py-3 text-xs text-sky-300">
+                  <p className="font-semibold mb-1">📒 ¿Qué es Cuenta Corriente?</p>
+                  <p className="text-sky-400/80">Permite pagar el pedido en cuotas o a plazo. Tu solicitud será revisada por el vendedor antes de aprobarse.</p>
+                </div>
+                <textarea
+                  value={ccNotes}
+                  onChange={e => setCcNotes(e.target.value)}
+                  placeholder="Mensaje para el vendedor (opcional)... Ej: Pago los días 10 de cada mes."
+                  rows={2}
+                  className="w-full rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:border-sky-500/50 focus:outline-none resize-none"
+                />
+                {ccError && <p className="text-xs text-rose-400">{ccError}</p>}
+              </div>
+            )}
+
             <div className="flex gap-3">
-              <Button variant="ghost" onClick={() => setShowApproveModal(false)} className="flex-1">
+              <Button variant="ghost" onClick={() => { setShowApproveModal(false); setCcError(null); }} className="flex-1">
                 Cancelar
               </Button>
-              <Button variant="success" onClick={handleApproveConfirm} loading={loading} className="flex-1">
-                ✅ Confirmar aprobación
+              <Button
+                variant={paymentMethod === 'cuenta_corriente' ? undefined : 'success'}
+                onClick={handleApproveConfirm}
+                loading={paymentMethod === 'cuenta_corriente' ? ccLoading : loading}
+                className={`flex-1 ${paymentMethod === 'cuenta_corriente' ? 'bg-sky-600/20 border border-sky-500/40 text-sky-300 hover:bg-sky-600/30' : ''}`}
+              >
+                {paymentMethod === 'cuenta_corriente' ? '📩 Enviar solicitud' : '✅ Confirmar aprobación'}
               </Button>
             </div>
           </div>
