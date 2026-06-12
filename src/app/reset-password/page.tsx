@@ -2,27 +2,83 @@
 
 /**
  * /reset-password — Supabase redirige aquí tras el link de recuperación de contraseña.
- * La URL llega con #access_token=... y type=recovery en el hash.
- * Supabase JS detecta automáticamente el evento PASSWORD_RECOVERY via onAuthStateChange.
+ * El link llega con #access_token=...&refresh_token=...&type=recovery en el hash
+ * (flujo implícito) o con ?code=... (flujo PKCE), según la config del proyecto.
+ * El cliente tiene detectSessionInUrl: false (para no romper la persistencia de
+ * sesión en otras páginas), así que acá creamos la sesión a mano antes de permitir
+ * updateUser — si no, Supabase responde "Auth session missing!".
  */
 
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/FormFields';
 import Link from 'next/link';
+
+type LinkStatus = 'checking' | 'ready' | 'invalid';
 
 function ResetPasswordForm() {
   const { updatePassword } = useAuth();
   const router = useRouter();
 
+  const [linkStatus, setLinkStatus] = useState<LinkStatus>('checking');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const [showPass, setShowPass] = useState(false);
+
+  // Crea la sesión de recuperación a partir del link (hash o ?code=) antes de
+  // mostrar el formulario. Sin esto, updateUser falla con "Auth session missing!".
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = getSupabaseClient();
+
+    async function resolveRecoverySession() {
+      const hash = window.location.hash.startsWith('#')
+        ? window.location.hash.slice(1)
+        : window.location.hash;
+      const hashParams = new URLSearchParams(hash);
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        const { error: setErr } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (cancelled) return;
+        if (!setErr) {
+          window.history.replaceState(null, '', window.location.pathname);
+          setLinkStatus('ready');
+          return;
+        }
+      }
+
+      const code = new URLSearchParams(window.location.search).get('code');
+      if (code) {
+        const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+        if (cancelled) return;
+        if (!exErr) {
+          window.history.replaceState(null, '', window.location.pathname);
+          setLinkStatus('ready');
+          return;
+        }
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+      setLinkStatus(session ? 'ready' : 'invalid');
+    }
+
+    void resolveRecoverySession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +125,24 @@ function ResetPasswordForm() {
         <div className="bg-zinc-900/60 backdrop-blur-2xl border border-zinc-800/60 rounded-3xl p-7 shadow-2xl shadow-black/40 relative">
           <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-orange-500/40 to-transparent rounded-t-3xl" />
 
-          {done ? (
+          {linkStatus === 'checking' ? (
+            <div className="text-center space-y-4 py-4">
+              <div className="text-5xl mb-2">⏳</div>
+              <h2 className="text-lg font-bold text-zinc-100">Verificando enlace…</h2>
+              <p className="text-sm text-zinc-400">Un momento, por favor.</p>
+            </div>
+          ) : linkStatus === 'invalid' ? (
+            <div className="text-center space-y-4">
+              <div className="text-5xl mb-2">⚠️</div>
+              <h2 className="text-lg font-bold text-zinc-100">Enlace inválido o vencido</h2>
+              <p className="text-sm text-zinc-400">
+                Este enlace de recuperación ya no es válido. Solicitá uno nuevo desde el login.
+              </p>
+              <Link href="/login">
+                <Button fullWidth size="lg">Volver al login</Button>
+              </Link>
+            </div>
+          ) : done ? (
             <div className="text-center space-y-4">
               <div className="text-5xl mb-2">✅</div>
               <h2 className="text-lg font-bold text-zinc-100">¡Contraseña actualizada!</h2>
