@@ -1,7 +1,6 @@
 'use client';
 
 import { useDataStore } from '@/contexts/DataStoreContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { TopBar, EmptyState } from '@/components/ui/Layout';
 import { OrderTableRow } from '@/components/orders/OrderCard';
 import { useSearchParams } from 'next/navigation';
@@ -29,7 +28,6 @@ const STATUS_FILTERS: { value: 'todos' | OrderStatus; label: string }[] = [
 
 function PedidosContent() {
   const { getAllOrders } = useDataStore();
-  const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialStatus = (searchParams.get('status') as OrderStatus | null) || 'todos';
@@ -43,7 +41,9 @@ function PedidosContent() {
       prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
     );
 
-  const all = getAllOrders().filter(o => o.assignedVendorId === user?.id || (user?.role === 'admin'));
+  // Sistema colaborativo: el vendedor ve todos los pedidos (igual que el admin),
+  // no solo los suyos asignados (fetchAllOrders ya no filtra por vendor).
+  const all = getAllOrders();
 
   const sorted = useMemo(() => {
     let rows = filter === 'todos' ? all : all.filter(o => o.status === filter);
